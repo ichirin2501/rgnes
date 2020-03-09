@@ -11,36 +11,19 @@ const (
 	CharacterROMUnit = 0x2000
 )
 
-type iNESHeader struct {
-	prgSize int
-	chrSize int
-	// TODO: flag
-}
+type iNESHeader [NESHeaderSize]byte
 
-func (h *iNESHeader) ProgramSize() int {
-	return h.prgSize * ProgramROMUnit
+func (h iNESHeader) ProgramSize() int {
+	return int(h[4]) * ProgramROMUnit
 }
-func (h *iNESHeader) CharacterSize() int {
-	return h.chrSize * CharacterROMUnit
-}
-
-type ProgramROM []byte
-type CharacterROM []byte
-
-func (r *ProgramROM) Read(address uint16) byte {
-	// TODO
-	return 0
-}
-
-func (c *CharacterROM) Read(address uint16) byte {
-	// TODO
-	return 0
+func (h iNESHeader) CharacterSize() int {
+	return int(h[5]) * CharacterROMUnit
 }
 
 type Cassette struct {
-	Header       *iNESHeader
-	ProgramROM   ProgramROM
-	CharacterROM CharacterROM
+	Header       iNESHeader
+	ProgramROM   []byte
+	CharacterROM []byte
 }
 
 func NewCassette(path string) (*Cassette, error) {
@@ -50,14 +33,13 @@ func NewCassette(path string) (*Cassette, error) {
 	}
 	defer f.Close()
 
-	buf := make([]byte, NESHeaderSize)
-	if _, err := f.ReadAt(buf, 0); err != nil {
+	var header iNESHeader
+	hn, err := f.ReadAt(header[:], 0)
+	if err != nil {
 		return nil, err
 	}
-
-	header := &iNESHeader{
-		prgSize: int(buf[4]),
-		chrSize: int(buf[5]),
+	if hn != NESHeaderSize {
+		return nil, errors.New("fail read header")
 	}
 
 	// read prg-rom
