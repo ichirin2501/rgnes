@@ -6,18 +6,18 @@ import (
 )
 
 const (
-	NESHeaderSize    = 0x0010
-	ProgramROMUnit   = 0x4000
-	CharacterROMUnit = 0x2000
+	nesHeaderSize    = 0x0010
+	programROMUnit   = 0x4000
+	characterROMUnit = 0x2000
 )
 
-type iNESHeader [NESHeaderSize]byte
+type iNESHeader [nesHeaderSize]byte
 
 func (h iNESHeader) ProgramSize() int {
-	return int(h[4]) * ProgramROMUnit
+	return int(h[4]) * programROMUnit
 }
 func (h iNESHeader) CharacterSize() int {
-	return int(h[5]) * CharacterROMUnit
+	return int(h[5]) * characterROMUnit
 }
 
 type Cassette struct {
@@ -38,13 +38,13 @@ func NewCassette(path string) (*Cassette, error) {
 	if err != nil {
 		return nil, err
 	}
-	if hn != NESHeaderSize {
+	if hn != nesHeaderSize {
 		return nil, errors.New("fail read header")
 	}
 
 	// read prg-rom
 	prgRom := make([]byte, header.ProgramSize())
-	n, err := f.ReadAt(prgRom, NESHeaderSize)
+	n, err := f.ReadAt(prgRom, nesHeaderSize)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func NewCassette(path string) (*Cassette, error) {
 
 	// read chr-rom
 	chrRom := make([]byte, header.CharacterSize())
-	m, err := f.ReadAt(chrRom, NESHeaderSize+int64(header.ProgramSize()))
+	m, err := f.ReadAt(chrRom, nesHeaderSize+int64(header.ProgramSize()))
 	if err != nil {
 		return nil, err
 	}
