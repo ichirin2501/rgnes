@@ -11,6 +11,17 @@ type CPU struct {
 	noCopy noCopy
 }
 
+const (
+	carryFlagMask byte = (1 << iota)
+	zeroFlagMask
+	interruptDisableFlagMask
+	decimalFlagMask
+	breakFlagMask
+	_
+	overflowFlagMask
+	negativeFlagMask
+)
+
 func NewCPU() *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
