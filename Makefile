@@ -9,6 +9,7 @@ build:
 
 test:
 	go test -race -v ./...
+	go vet ./...
 
 clean:
 	go clean
