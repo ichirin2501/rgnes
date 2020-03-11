@@ -22,4 +22,7 @@ func main() {
 	for i := 0; i < 10; i++ {
 		fmt.Printf("%0x\n", c.ProgramROM[i])
 	}
+
+	cpu := nes.NewCPU()
+	fmt.Println(cpu)
 }
