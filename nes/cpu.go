@@ -6,7 +6,7 @@ const (
 	interruptDisableFlagMask
 	decimalFlagMask
 	breakFlagMask
-	_
+	reservedFlagMask
 	overflowFlagMask
 	negativeFlagMask
 )
@@ -31,12 +31,43 @@ func NewCPU(mem Memory) *CPU {
 		Y: 0x00,
 		//		PC: TODO: 0xFFFC
 		S: 0xFD,
-		P: 0x34,
+		P: reservedFlagMask | breakFlagMask | interruptDisableFlagMask,
 
 		memory: mem,
 	}
 }
 
-func (cpu *CPU) SetFlags(f byte) {
-	cpu.P |= f
+func (cpu *CPU) CarryFlag() bool {
+	return (cpu.P & carryFlagMask) == carryFlagMask
+}
+
+func (cpu *CPU) ZeroFlag() bool {
+	return (cpu.P & zeroFlagMask) == zeroFlagMask
+}
+
+func (cpu *CPU) InterruptDisableFlag() bool {
+	return (cpu.P & interruptDisableFlagMask) == interruptDisableFlagMask
+}
+
+func (cpu *CPU) DecimalFlag() bool {
+	return (cpu.P & decimalFlagMask) == decimalFlagMask
+}
+
+func (cpu *CPU) BreakFlag() bool {
+	return (cpu.P & breakFlagMask) == breakFlagMask
+}
+
+func (cpu *CPU) OverflowFlag() bool {
+	return (cpu.P & overflowFlagMask) == overflowFlagMask
+}
+
+func (cpu *CPU) NegativeFlag() bool {
+	return (cpu.P & negativeFlagMask) == negativeFlagMask
+}
+
+func (cpu *CPU) reset() {
+	l := cpu.memory.Read(0xFFFC)
+	h := cpu.memory.Read(0xFFFD)
+	cpu.PC = (uint16(h) << 4) | uint16(l)
+	cpu.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
