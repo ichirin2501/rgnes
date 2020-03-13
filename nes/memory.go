@@ -1,12 +1,12 @@
 package nes
 
-type AddrReader interface {
+type MemoryReader interface {
 	Read(addr uint16) byte
 }
-type AddrWriter interface {
+type MemoryWriter interface {
 	Write(addr uint16, val byte)
 }
 type Memory interface {
-	AddrReader
-	AddrWriter
+	MemoryReader
+	MemoryWriter
 }

@@ -20,7 +20,7 @@ func main() {
 	fmt.Println(c)
 
 	for i := 0; i < 10; i++ {
-		fmt.Printf("%0x\n", c.ProgramROM[i])
+		fmt.Printf("%0x\n", c.ProgramROM.Read(uint16(i)))
 	}
 
 	cpuBus := nes.NewCPUBus()

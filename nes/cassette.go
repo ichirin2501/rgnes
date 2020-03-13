@@ -20,10 +20,16 @@ func (h iNESHeader) CharacterSize() int {
 	return int(h[5]) * characterROMUnit
 }
 
+type rom []byte
+
+func (r rom) Read(offset uint16) byte {
+	return r[offset]
+}
+
 type Cassette struct {
 	Header       iNESHeader
-	ProgramROM   []byte
-	CharacterROM []byte
+	ProgramROM   MemoryReader
+	CharacterROM MemoryReader
 }
 
 func NewCassette(path string) (*Cassette, error) {
@@ -64,7 +70,7 @@ func NewCassette(path string) (*Cassette, error) {
 
 	return &Cassette{
 		Header:       header,
-		ProgramROM:   prgRom,
-		CharacterROM: chrRom,
+		ProgramROM:   rom(prgRom),
+		CharacterROM: rom(chrRom),
 	}, nil
 }
