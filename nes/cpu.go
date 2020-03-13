@@ -68,6 +68,6 @@ func (cpu *CPU) NegativeFlag() bool {
 func (cpu *CPU) reset() {
 	l := cpu.memory.Read(0xFFFC)
 	h := cpu.memory.Read(0xFFFD)
-	cpu.PC = (uint16(h) << 4) | uint16(l)
+	cpu.PC = (uint16(h) << 8) | uint16(l)
 	cpu.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
