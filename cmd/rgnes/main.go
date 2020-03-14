@@ -24,7 +24,8 @@ func main() {
 	}
 
 	cpuBus := nes.NewCPUBus()
+	irp := nes.NewInterrupt()
 
-	cpu := nes.NewCPU(cpuBus)
+	cpu := nes.NewCPU(cpuBus, irp)
 	fmt.Println(cpu)
 }

@@ -19,11 +19,12 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  byte   // Status Register
 
-	memory Memory
-	noCopy noCopy
+	interrupt *Interrupt
+	memory    Memory
+	noCopy    noCopy
 }
 
-func NewCPU(mem Memory) *CPU {
+func NewCPU(mem Memory, interrupt *Interrupt) *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
 		A: 0x00,
@@ -33,7 +34,8 @@ func NewCPU(mem Memory) *CPU {
 		S: 0xFD,
 		P: reservedFlagMask | breakFlagMask | interruptDisableFlagMask,
 
-		memory: mem,
+		interrupt: interrupt,
+		memory:    mem,
 	}
 }
 
