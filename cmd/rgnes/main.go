@@ -23,9 +23,11 @@ func main() {
 		fmt.Printf("%0x\n", c.ProgramROM.Read(uint16(i)))
 	}
 
-	cpuBus := nes.NewCPUBus()
+	cycle := nes.NewCPUCycle()
+
+	cpuBus := nes.NewCPUBus(cycle)
 	irp := nes.NewInterrupt()
 
-	cpu := nes.NewCPU(cpuBus, irp)
+	cpu := nes.NewCPU(cpuBus, cycle, irp)
 	fmt.Println(cpu)
 }

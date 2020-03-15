@@ -1,11 +1,14 @@
 package nes
 
 type CPUBus struct {
+	cycle  *CPUCycle
 	noCopy noCopy
 }
 
-func NewCPUBus() *CPUBus {
-	return &CPUBus{}
+func NewCPUBus(cycle *CPUCycle) *CPUBus {
+	return &CPUBus{
+		cycle: cycle,
+	}
 }
 
 func (bus *CPUBus) Read(addr uint16) byte {
