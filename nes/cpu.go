@@ -71,12 +71,12 @@ type CPU struct {
 func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
-		A: 0x00,
-		X: 0x00,
-		Y: 0x00,
-		//		PC: TODO: 0xFFFC
-		S: 0xFD,
-		P: reservedFlagMask | breakFlagMask | interruptDisableFlagMask,
+		A:  0x00,
+		X:  0x00,
+		Y:  0x00,
+		PC: 0xFFFC,
+		S:  0xFD,
+		P:  reservedFlagMask | breakFlagMask | interruptDisableFlagMask,
 
 		cycle:     cycle,
 		interrupt: interrupt,
@@ -171,6 +171,10 @@ func (cpu *CPU) pop() byte {
 	return cpu.memory.Read(0x100 | uint16(cpu.S))
 }
 
+func (cpu *CPU) fetch() byte {
+	return cpu.memory.Read(cpu.PC)
+}
+
 // TODO: after reset
 func (cpu *CPU) reset() {
 	cpu.PC = cpu.read16(0xFFFC)
@@ -241,6 +245,27 @@ func (cpu *CPU) calcAddressing(mode addressingMode) (addr uint16, pageCrossed bo
 	}
 
 	return addr, pageCrossed
+}
+
+func (cpu *CPU) Step() int {
+	if cpu.cycle.Stall() > 0 {
+		cpu.cycle.AddStall(-1)
+		return 1
+	}
+
+	if cpu.interrupt.IsNMI() {
+		cpu.nmi()
+		cpu.interrupt.DeassertNMI()
+	} else if cpu.interrupt.IsIRQ() {
+		cpu.irq()
+		cpu.interrupt.DeassertIRQ()
+	}
+
+	// 色々TODO
+
+	// opcode := cpu.fetch()
+
+	return 0
 }
 
 func pagesCross(a uint16, b uint16) bool {
