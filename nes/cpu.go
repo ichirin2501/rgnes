@@ -167,8 +167,8 @@ func (cpu *CPU) read16(addr uint16) uint16 {
 }
 
 func (cpu *CPU) push(val byte) {
-	cpu.S--
 	cpu.memory.Write(0x100|uint16(cpu.S), val)
+	cpu.S--
 }
 
 func (cpu *CPU) push16(val uint16) {
