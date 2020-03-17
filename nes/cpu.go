@@ -104,6 +104,9 @@ func (cpu *CPU) setZeroFlag(cond bool) {
 		cpu.P &= ^zeroFlagMask
 	}
 }
+func (cpu *CPU) updateZeroFlag(val byte) {
+	cpu.setZeroFlag(val == 0x00)
+}
 func (cpu *CPU) interruptDisableFlag() bool {
 	return (cpu.P & interruptDisableFlagMask) == interruptDisableFlagMask
 }
@@ -153,6 +156,9 @@ func (cpu *CPU) setNegativeFlag(cond bool) {
 	} else {
 		cpu.P &= ^negativeFlagMask
 	}
+}
+func (cpu *CPU) updateNegativeFlag(val byte) {
+	cpu.setNegativeFlag(val&0x80 != 0)
 }
 func (cpu *CPU) read16(addr uint16) uint16 {
 	l := cpu.memory.Read(addr)
