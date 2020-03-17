@@ -87,67 +87,73 @@ func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 func (cpu *CPU) carryFlag() bool {
 	return (cpu.P & carryFlagMask) == carryFlagMask
 }
-func (cpu *CPU) setCarryFlag() {
-	cpu.P |= carryFlagMask
-}
-func (cpu *CPU) unsetCarryFlag() {
-	cpu.P &= ^carryFlagMask
+func (cpu *CPU) setCarryFlag(cond bool) {
+	if cond {
+		cpu.P |= carryFlagMask
+	} else {
+		cpu.P &= ^carryFlagMask
+	}
 }
 func (cpu *CPU) zeroFlag() bool {
 	return (cpu.P & zeroFlagMask) == zeroFlagMask
 }
-func (cpu *CPU) setZeroFlag() {
-	cpu.P |= zeroFlagMask
-}
-func (cpu *CPU) unsetZeroFlag() {
-	cpu.P &= ^zeroFlagMask
+func (cpu *CPU) setZeroFlag(cond bool) {
+	if cond {
+		cpu.P |= zeroFlagMask
+	} else {
+		cpu.P &= ^zeroFlagMask
+	}
 }
 func (cpu *CPU) interruptDisableFlag() bool {
 	return (cpu.P & interruptDisableFlagMask) == interruptDisableFlagMask
 }
-func (cpu *CPU) setInterruptDisableFlag() {
-	cpu.P |= interruptDisableFlagMask
-}
-func (cpu *CPU) unsetInterruptDisableFlag() {
-	cpu.P &= ^interruptDisableFlagMask
+func (cpu *CPU) setInterruptDisableFlag(cond bool) {
+	if cond {
+		cpu.P |= interruptDisableFlagMask
+	} else {
+		cpu.P &= ^interruptDisableFlagMask
+	}
 }
 func (cpu *CPU) decimalFlag() bool {
 	return (cpu.P & decimalFlagMask) == decimalFlagMask
 }
-func (cpu *CPU) setDecimalFlag() {
-	cpu.P |= decimalFlagMask
-}
-func (cpu *CPU) unsetDecimalFlag() {
-	cpu.P &= ^decimalFlagMask
+func (cpu *CPU) setDecimalFlag(cond bool) {
+	if cond {
+		cpu.P |= decimalFlagMask
+	} else {
+		cpu.P &= ^decimalFlagMask
+	}
 }
 func (cpu *CPU) breakFlag() bool {
 	return (cpu.P & breakFlagMask) == breakFlagMask
 }
-func (cpu *CPU) setBreakFlag() {
-	cpu.P |= breakFlagMask
-}
-func (cpu *CPU) unsetBreakFlag() {
-	cpu.P &= ^breakFlagMask
+func (cpu *CPU) setBreakFlag(cond bool) {
+	if cond {
+		cpu.P |= breakFlagMask
+	} else {
+		cpu.P &= ^breakFlagMask
+	}
 }
 func (cpu *CPU) overflowFlag() bool {
 	return (cpu.P & overflowFlagMask) == overflowFlagMask
 }
-func (cpu *CPU) setOverflowFlag() {
-	cpu.P |= overflowFlagMask
-}
-func (cpu *CPU) unsetOverflowFlag() {
-	cpu.P &= ^overflowFlagMask
+func (cpu *CPU) setOverflowFlag(cond bool) {
+	if cond {
+		cpu.P |= overflowFlagMask
+	} else {
+		cpu.P &= ^overflowFlagMask
+	}
 }
 func (cpu *CPU) negativeFlag() bool {
 	return (cpu.P & negativeFlagMask) == negativeFlagMask
 }
-func (cpu *CPU) setNegativeFlag() {
-	cpu.P |= negativeFlagMask
+func (cpu *CPU) setNegativeFlag(cond bool) {
+	if cond {
+		cpu.P |= negativeFlagMask
+	} else {
+		cpu.P &= ^negativeFlagMask
+	}
 }
-func (cpu *CPU) unsetNegativeFlag() {
-	cpu.P &= ^negativeFlagMask
-}
-
 func (cpu *CPU) read16(addr uint16) uint16 {
 	l := cpu.memory.Read(addr)
 	h := cpu.memory.Read(addr + 1)
@@ -182,10 +188,10 @@ func (cpu *CPU) reset() {
 }
 
 func (cpu *CPU) nmi() {
-	cpu.unsetBreakFlag()
+	cpu.setBreakFlag(false)
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P)
-	cpu.setInterruptDisableFlag()
+	cpu.setInterruptDisableFlag(true)
 	cpu.PC = cpu.read16(0xFFFA)
 }
 
@@ -193,10 +199,10 @@ func (cpu *CPU) irq() {
 	if cpu.interruptDisableFlag() {
 		return
 	}
-	cpu.unsetBreakFlag()
+	cpu.setBreakFlag(false)
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P)
-	cpu.setInterruptDisableFlag()
+	cpu.setInterruptDisableFlag(true)
 	cpu.PC = cpu.read16(0xFFFE)
 }
 
