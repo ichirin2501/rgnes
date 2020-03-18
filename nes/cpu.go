@@ -11,24 +11,6 @@ const (
 	negativeFlagMask
 )
 
-type addressingMode int
-
-const (
-	absolute addressingMode = iota + 1
-	absoluteX
-	absoluteY
-	accumulator
-	immediate
-	implied
-	indexedIndirect
-	indirect
-	indirectIndexed
-	relative
-	zeroPage
-	zeroPageX
-	zeroPageY
-)
-
 type CPUCycle struct {
 	stall  int
 	cycles int
