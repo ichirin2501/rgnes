@@ -42,6 +42,42 @@ const (
 	cpx
 	cpy
 	dec
+	dex
+	dey
+	eor
+	inc
+	inx
+	iny
+	lsr
+	ora
+	rol
+	ror
+	sbc
+	pha
+	php
+	pla
+	plp
+	jmp
+	jsr
+	rts
+	rti
+	bcc
+	bcs
+	beq
+	bmi
+	bne
+	bpl
+	bvc
+	bvs
+	clc
+	cld
+	cli
+	clv
+	sec
+	sed
+	sei
+	brk
+	nop
 )
 
 type opcode struct {
@@ -126,4 +162,81 @@ var m = map[byte]opcode{
 	0xC0: opcode{Name: cpy, Mode: immediate, Size: 2, Cycle: 2},
 	0xC4: opcode{Name: cpy, Mode: zeroPage, Size: 2, Cycle: 3},
 	0xCC: opcode{Name: cpy, Mode: absolute, Size: 3, Cycle: 4},
+	0xC6: opcode{Name: dec, Mode: zeroPage, Size: 2, Cycle: 5},
+	0xD6: opcode{Name: dec, Mode: zeroPageX, Size: 2, Cycle: 6},
+	0xCE: opcode{Name: dec, Mode: absolute, Size: 3, Cycle: 6},
+	0xDE: opcode{Name: dec, Mode: absoluteX, Size: 3, Cycle: 7},
+	0xCA: opcode{Name: dex, Mode: implied, Size: 1, Cycle: 2},
+	0x88: opcode{Name: dey, Mode: implied, Size: 1, Cycle: 2},
+	0x49: opcode{Name: eor, Mode: immediate, Size: 2, Cycle: 2},
+	0x45: opcode{Name: eor, Mode: zeroPage, Size: 2, Cycle: 3},
+	0x55: opcode{Name: eor, Mode: zeroPageX, Size: 2, Cycle: 4},
+	0x4D: opcode{Name: eor, Mode: absolute, Size: 3, Cycle: 4},
+	0x5D: opcode{Name: eor, Mode: absoluteX, Size: 3, Cycle: 4},
+	0x59: opcode{Name: eor, Mode: absoluteY, Size: 3, Cycle: 4},
+	0x41: opcode{Name: eor, Mode: indexedIndirect, Size: 2, Cycle: 6},
+	0x51: opcode{Name: eor, Mode: indirectIndexed, Size: 2, Cycle: 5},
+	0xE6: opcode{Name: inc, Mode: zeroPage, Size: 2, Cycle: 5},
+	0xF6: opcode{Name: inc, Mode: zeroPageX, Size: 2, Cycle: 6},
+	0xEE: opcode{Name: inc, Mode: absolute, Size: 3, Cycle: 6},
+	0xFE: opcode{Name: inc, Mode: absoluteX, Size: 3, Cycle: 7},
+	0xE8: opcode{Name: inx, Mode: implied, Size: 1, Cycle: 2},
+	0xC8: opcode{Name: iny, Mode: implied, Size: 1, Cycle: 2},
+	0x4A: opcode{Name: lsr, Mode: accumulator, Size: 1, Cycle: 2},
+	0x46: opcode{Name: lsr, Mode: zeroPage, Size: 2, Cycle: 5},
+	0x56: opcode{Name: lsr, Mode: zeroPageX, Size: 2, Cycle: 6},
+	0x4E: opcode{Name: lsr, Mode: absolute, Size: 3, Cycle: 6},
+	0x5E: opcode{Name: lsr, Mode: absoluteX, Size: 3, Cycle: 7},
+	0x09: opcode{Name: ora, Mode: immediate, Size: 2, Cycle: 2},
+	0x05: opcode{Name: ora, Mode: zeroPage, Size: 2, Cycle: 3},
+	0x15: opcode{Name: ora, Mode: zeroPageX, Size: 2, Cycle: 4},
+	0x0D: opcode{Name: ora, Mode: absolute, Size: 3, Cycle: 4},
+	0x1D: opcode{Name: ora, Mode: absoluteX, Size: 3, Cycle: 4},
+	0x19: opcode{Name: ora, Mode: absoluteY, Size: 3, Cycle: 4},
+	0x01: opcode{Name: ora, Mode: indexedIndirect, Size: 2, Cycle: 6},
+	0x11: opcode{Name: ora, Mode: indirectIndexed, Size: 2, Cycle: 5},
+	0x2A: opcode{Name: rol, Mode: accumulator, Size: 1, Cycle: 2},
+	0x26: opcode{Name: rol, Mode: zeroPage, Size: 2, Cycle: 5},
+	0x36: opcode{Name: rol, Mode: zeroPageX, Size: 2, Cycle: 6},
+	0x2E: opcode{Name: rol, Mode: absolute, Size: 3, Cycle: 6},
+	0x3E: opcode{Name: rol, Mode: absoluteX, Size: 3, Cycle: 7},
+	0x6A: opcode{Name: ror, Mode: accumulator, Size: 1, Cycle: 2},
+	0x66: opcode{Name: ror, Mode: zeroPage, Size: 2, Cycle: 5},
+	0x76: opcode{Name: ror, Mode: zeroPageX, Size: 2, Cycle: 6},
+	0x6E: opcode{Name: ror, Mode: absolute, Size: 3, Cycle: 6},
+	0x7E: opcode{Name: ror, Mode: absoluteX, Size: 3, Cycle: 7},
+	0xE9: opcode{Name: sbc, Mode: immediate, Size: 2, Cycle: 2},
+	0xE5: opcode{Name: sbc, Mode: zeroPage, Size: 2, Cycle: 3},
+	0xF5: opcode{Name: sbc, Mode: zeroPageX, Size: 2, Cycle: 4},
+	0xED: opcode{Name: sbc, Mode: absolute, Size: 3, Cycle: 4},
+	0xFD: opcode{Name: sbc, Mode: absoluteX, Size: 3, Cycle: 4},
+	0xF9: opcode{Name: sbc, Mode: absoluteY, Size: 3, Cycle: 4},
+	0xE1: opcode{Name: sbc, Mode: indexedIndirect, Size: 2, Cycle: 6},
+	0xF1: opcode{Name: sbc, Mode: indirectIndexed, Size: 2, Cycle: 5},
+	0x48: opcode{Name: pha, Mode: implied, Size: 1, Cycle: 3},
+	0x08: opcode{Name: php, Mode: implied, Size: 1, Cycle: 3},
+	0x68: opcode{Name: pla, Mode: implied, Size: 1, Cycle: 4},
+	0x28: opcode{Name: plp, Mode: implied, Size: 1, Cycle: 4},
+	0x4C: opcode{Name: jmp, Mode: absolute, Size: 3, Cycle: 3},
+	0x6C: opcode{Name: jmp, Mode: indirect, Size: 3, Cycle: 5},
+	0x20: opcode{Name: jsr, Mode: absolute, Size: 3, Cycle: 6},
+	0x60: opcode{Name: rts, Mode: implied, Size: 1, Cycle: 6},
+	0x40: opcode{Name: rti, Mode: implied, Size: 1, Cycle: 6},
+	0x90: opcode{Name: bcc, Mode: relative, Size: 2, Cycle: 2},
+	0xB0: opcode{Name: bcs, Mode: relative, Size: 2, Cycle: 2},
+	0xF0: opcode{Name: beq, Mode: relative, Size: 2, Cycle: 2},
+	0x30: opcode{Name: bmi, Mode: relative, Size: 2, Cycle: 2},
+	0xD0: opcode{Name: bne, Mode: relative, Size: 2, Cycle: 2},
+	0x10: opcode{Name: bpl, Mode: relative, Size: 2, Cycle: 2},
+	0x50: opcode{Name: bvc, Mode: relative, Size: 2, Cycle: 2},
+	0x70: opcode{Name: bvs, Mode: relative, Size: 2, Cycle: 2},
+	0x18: opcode{Name: clc, Mode: implied, Size: 1, Cycle: 2},
+	0xD8: opcode{Name: cld, Mode: implied, Size: 1, Cycle: 2},
+	0x58: opcode{Name: cli, Mode: implied, Size: 1, Cycle: 2},
+	0xB8: opcode{Name: clv, Mode: implied, Size: 1, Cycle: 2},
+	0x38: opcode{Name: sec, Mode: implied, Size: 1, Cycle: 2},
+	0xF8: opcode{Name: sed, Mode: implied, Size: 1, Cycle: 2},
+	0x78: opcode{Name: sei, Mode: implied, Size: 1, Cycle: 2},
+	0x00: opcode{Name: brk, Mode: implied, Size: 1, Cycle: 7},
+	0xEA: opcode{Name: nop, Mode: implied, Size: 1, Cycle: 2},
 }
