@@ -87,7 +87,7 @@ type opcode struct {
 	Cycle int
 }
 
-var m = map[byte]opcode{
+var opcodeMap = map[byte]opcode{
 	0xA9: opcode{Name: lda, Mode: immediate, Size: 2, Cycle: 2},
 	0xA5: opcode{Name: lda, Mode: zeroPage, Size: 2, Cycle: 3},
 	0xB5: opcode{Name: lda, Mode: zeroPageX, Size: 2, Cycle: 4},
