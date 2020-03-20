@@ -136,26 +136,22 @@ func bit(r cpuRegisterer, m MemoryReader, addr uint16) int {
 	return 0
 }
 
-func compare(r cpuRegisterer, a byte, b byte) int {
-	r.SetCarryFlag(a >= b)
-	r.UpdateNegativeFlag(a - b)
-	r.UpdateZeroFlag(a - b)
-	return 0
-}
-
 func cmp(r cpuRegisterer, m MemoryReader, addr uint16) int {
 	v := m.Read(addr)
-	return compare(r, r.A(), v)
+	compare(r, r.A(), v)
+	return 0
 }
 
 func cpx(r cpuRegisterer, m MemoryReader, addr uint16) int {
 	v := m.Read(addr)
-	return compare(r, r.X(), v)
+	compare(r, r.X(), v)
+	return 0
 }
 
 func cpy(r cpuRegisterer, m MemoryReader, addr uint16) int {
 	v := m.Read(addr)
-	return compare(r, r.Y(), v)
+	compare(r, r.Y(), v)
+	return 0
 }
 
 func dec(r cpuRegisterer, m Memory, addr uint16) int {
@@ -268,12 +264,67 @@ func rol(r cpuRegisterer, m Memory, addr uint16) int {
 	return 0
 }
 
-// TODO
-func ror(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func sbc(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func pha(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func php(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func pla(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
+func rorAcc(r cpuRegisterer) int {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	r.SetCarryFlag((r.A() & 1) == 1)
+	v := (r.A() >> 1) | (c << 7)
+	r.SetA(v)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	return 0
+}
+
+func ror(r cpuRegisterer, m Memory, addr uint16) int {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 1) == 1)
+	v = (v >> 1) | (c << 7)
+	m.Write(addr, v)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	return 0
+}
+
+func sbc(r cpuRegisterer, m MemoryReader, addr uint16) int {
+	a := r.A()
+	b := m.Read(addr)
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := a - b - (1 - c)
+	r.SetA(v)
+	r.SetCarryFlag(uint16(a)-uint16(b)-uint16(1-c) >= 0)
+	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	return 0
+}
+
+func pha(r cpuRegisterer, m MemoryWriter) int {
+	push(r, m, r.A())
+	return 0
+}
+
+func php(r cpuRegisterer, m MemoryWriter) int {
+	push(r, m, r.P()|breakFlagMask)
+	return 0
+}
+
+func pla(r cpuRegisterer, m MemoryReader, addr uint16) int {
+	v := pop(r, m)
+	r.SetA(v)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	return 0
+}
+
 func plp(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func jmp(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func jsr(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
@@ -295,3 +346,19 @@ func sec(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func sed(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func sei(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func brk(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
+
+func compare(r cpuRegisterer, a byte, b byte) {
+	r.SetCarryFlag(a >= b)
+	r.UpdateNegativeFlag(a - b)
+	r.UpdateZeroFlag(a - b)
+}
+
+func push(r registerer, m MemoryWriter, val byte) {
+	m.Write(0x100|uint16(r.S()), val)
+	r.SetS(r.S() - 1)
+}
+
+func pop(r registerer, m MemoryReader) byte {
+	r.SetS(r.S() + 1)
+	return m.Read(0x100 | uint16(r.S()))
+}
