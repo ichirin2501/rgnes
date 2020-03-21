@@ -342,9 +342,31 @@ func jsr(r cpuRegisterer, m MemoryWriter, addr uint16) int {
 	return 0
 }
 
-func rts(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func rti(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func bcc(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
+func rts(r cpuRegisterer, m MemoryReader) int {
+	v := pop16(r, m) + 1
+	r.SetPC(v)
+	return 0
+}
+
+func rti(r cpuRegisterer, m MemoryReader) int {
+	r.SetP(pop(r, m))
+	r.SetPC(pop16(r, m))
+	return 0
+}
+
+func bcc(r cpuRegisterer, addr uint16) int {
+	cycle := 0
+	if !r.CarryFlag() {
+		cycle++
+		pc := r.PC()
+		r.SetPC(addr)
+		if pagesCross(pc, addr) {
+			cycle++
+		}
+	}
+	return cycle
+}
+
 func bcs(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func beq(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func bmi(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
@@ -382,4 +404,10 @@ func push16(r registerer, m MemoryWriter, val uint16) {
 	h := byte(val >> 8)
 	push(r, m, h)
 	push(r, m, l)
+}
+
+func pop16(r registerer, m MemoryReader) uint16 {
+	l := pop(r, m)
+	h := pop(r, m)
+	return uint16(h)<<8 | uint16(l)
 }
