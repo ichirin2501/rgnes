@@ -163,13 +163,6 @@ func nmi(reg cpuRegisterer, memory Memory) {
 	reg.SetPC(read16(memory, 0xFFFA))
 }
 
-func push16(reg registerer, memory MemoryWriter, val uint16) {
-	l := byte(val & 0xFF)
-	h := byte(val >> 8)
-	push(reg, memory, h)
-	push(reg, memory, l)
-}
-
 func read16(memory MemoryReader, addr uint16) uint16 {
 	l := memory.Read(addr)
 	h := memory.Read(addr + 1)

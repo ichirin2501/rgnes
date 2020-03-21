@@ -317,7 +317,7 @@ func php(r cpuRegisterer, m MemoryWriter) int {
 	return 0
 }
 
-func pla(r cpuRegisterer, m MemoryReader, addr uint16) int {
+func pla(r cpuRegisterer, m MemoryReader) int {
 	v := pop(r, m)
 	r.SetA(v)
 	r.UpdateNegativeFlag(v)
@@ -325,9 +325,23 @@ func pla(r cpuRegisterer, m MemoryReader, addr uint16) int {
 	return 0
 }
 
-func plp(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func jmp(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
-func jsr(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
+func plp(r cpuRegisterer, m MemoryReader) int {
+	v := pop(r, m)
+	r.SetP(v)
+	return 0
+}
+
+func jmp(r cpuRegisterer, addr uint16) int {
+	r.SetPC(addr)
+	return 0
+}
+
+func jsr(r cpuRegisterer, m MemoryWriter, addr uint16) int {
+	push16(r, m, r.PC()-1)
+	r.SetPC(addr)
+	return 0
+}
+
 func rts(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func rti(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
 func bcc(r cpuRegisterer, m MemoryReader, addr uint16) int { return 0 }
@@ -361,4 +375,11 @@ func push(r registerer, m MemoryWriter, val byte) {
 func pop(r registerer, m MemoryReader) byte {
 	r.SetS(r.S() + 1)
 	return m.Read(0x100 | uint16(r.S()))
+}
+
+func push16(r registerer, m MemoryWriter, val uint16) {
+	l := byte(val & 0xFF)
+	h := byte(val >> 8)
+	push(r, m, h)
+	push(r, m, l)
 }
