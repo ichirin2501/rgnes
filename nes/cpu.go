@@ -29,9 +29,9 @@ func (c *CPUCycle) AddCycles(x int) int {
 
 type CPU struct {
 	r         *cpuRegister
+	m         Memory
 	cycle     *CPUCycle
 	interrupt *Interrupt
-	memory    Memory
 	noCopy    noCopy
 }
 
@@ -39,15 +39,15 @@ func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
 		r:         newCPURegister(),
+		m:         mem,
 		cycle:     cycle,
 		interrupt: interrupt,
-		memory:    mem,
 	}
 }
 
 // TODO: after reset
 func (cpu *CPU) reset() {
-	cpu.r.PC = read16(cpu.memory, 0xFFFC)
+	cpu.r.PC = read16(cpu.m, 0xFFFC)
 	cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
 
@@ -58,37 +58,37 @@ func (cpu *CPU) Step() int {
 	}
 
 	if cpu.interrupt.IsNMI() {
-		nmi(cpu.r, cpu.memory)
+		nmi(cpu.r, cpu.m)
 		cpu.interrupt.DeassertNMI()
 	} else if cpu.interrupt.IsIRQ() {
-		irq(cpu.r, cpu.memory)
+		irq(cpu.r, cpu.m)
 		cpu.interrupt.DeassertIRQ()
 	}
 
-	opcodeByte := fetch(cpu.r, cpu.memory)
+	opcodeByte := fetch(cpu.r, cpu.m)
 	opcode, ok := opcodeMap[opcodeByte]
 	if !ok {
 		panic(fmt.Sprintf("Unknown opcode: %0x", opcodeByte))
 	}
 	additionalCycle := 0
-	addr, pageCrossed := fetchOperand(cpu.r, cpu.memory, opcode.Mode)
+	addr, pageCrossed := fetchOperand(cpu.r, cpu.m, opcode.Mode)
 	if pageCrossed {
 		additionalCycle++
 	}
 
 	switch opcode.Name {
 	case LDA:
-		lda(cpu.r, cpu.memory, addr)
+		lda(cpu.r, cpu.m, addr)
 	case LDX:
-		ldx(cpu.r, cpu.memory, addr)
+		ldx(cpu.r, cpu.m, addr)
 	case LDY:
-		ldy(cpu.r, cpu.memory, addr)
+		ldy(cpu.r, cpu.m, addr)
 	case STA:
-		sta(cpu.r, cpu.memory, addr)
+		sta(cpu.r, cpu.m, addr)
 	case STX:
-		stx(cpu.r, cpu.memory, addr)
+		stx(cpu.r, cpu.m, addr)
 	case STY:
-		sty(cpu.r, cpu.memory, addr)
+		sty(cpu.r, cpu.m, addr)
 	case TAX:
 		tax(cpu.r)
 	case TAY:
@@ -102,33 +102,33 @@ func (cpu *CPU) Step() int {
 	case TYA:
 		tya(cpu.r)
 	case ADC:
-		adc(cpu.r, cpu.memory, addr)
+		adc(cpu.r, cpu.m, addr)
 	case AND:
-		and(cpu.r, cpu.memory, addr)
+		and(cpu.r, cpu.m, addr)
 	case ASL:
 		if opcode.Mode == accumulator {
 			aslAcc(cpu.r)
 		} else {
-			asl(cpu.r, cpu.memory, addr)
+			asl(cpu.r, cpu.m, addr)
 		}
 	case BIT:
-		bit(cpu.r, cpu.memory, addr)
+		bit(cpu.r, cpu.m, addr)
 	case CMP:
-		cmp(cpu.r, cpu.memory, addr)
+		cmp(cpu.r, cpu.m, addr)
 	case CPX:
-		cpx(cpu.r, cpu.memory, addr)
+		cpx(cpu.r, cpu.m, addr)
 	case CPY:
-		cpy(cpu.r, cpu.memory, addr)
+		cpy(cpu.r, cpu.m, addr)
 	case DEC:
-		dec(cpu.r, cpu.memory, addr)
+		dec(cpu.r, cpu.m, addr)
 	case DEX:
 		dex(cpu.r)
 	case DEY:
 		dey(cpu.r)
 	case EOR:
-		eor(cpu.r, cpu.memory, addr)
+		eor(cpu.r, cpu.m, addr)
 	case INC:
-		inc(cpu.r, cpu.memory, addr)
+		inc(cpu.r, cpu.m, addr)
 	case INX:
 		inx(cpu.r)
 	case INY:
@@ -137,40 +137,40 @@ func (cpu *CPU) Step() int {
 		if opcode.Mode == accumulator {
 			lsrAcc(cpu.r)
 		} else {
-			lsr(cpu.r, cpu.memory, addr)
+			lsr(cpu.r, cpu.m, addr)
 		}
 	case ORA:
-		ora(cpu.r, cpu.memory, addr)
+		ora(cpu.r, cpu.m, addr)
 	case ROL:
 		if opcode.Mode == accumulator {
 			rolAcc(cpu.r)
 		} else {
-			rol(cpu.r, cpu.memory, addr)
+			rol(cpu.r, cpu.m, addr)
 		}
 	case ROR:
 		if opcode.Mode == accumulator {
 			rorAcc(cpu.r)
 		} else {
-			ror(cpu.r, cpu.memory, addr)
+			ror(cpu.r, cpu.m, addr)
 		}
 	case SBC:
-		sbc(cpu.r, cpu.memory, addr)
+		sbc(cpu.r, cpu.m, addr)
 	case PHA:
-		pha(cpu.r, cpu.memory)
+		pha(cpu.r, cpu.m)
 	case PHP:
-		php(cpu.r, cpu.memory)
+		php(cpu.r, cpu.m)
 	case PLA:
-		pla(cpu.r, cpu.memory)
+		pla(cpu.r, cpu.m)
 	case PLP:
-		plp(cpu.r, cpu.memory)
+		plp(cpu.r, cpu.m)
 	case JMP:
 		jmp(cpu.r, addr)
 	case JSR:
-		jsr(cpu.r, cpu.memory, addr)
+		jsr(cpu.r, cpu.m, addr)
 	case RTS:
-		rts(cpu.r, cpu.memory)
+		rts(cpu.r, cpu.m)
 	case RTI:
-		rti(cpu.r, cpu.memory)
+		rti(cpu.r, cpu.m)
 	case BCC:
 		additionalCycle += bcc(cpu.r, addr)
 	case BCS:
@@ -202,7 +202,7 @@ func (cpu *CPU) Step() int {
 	case SEI:
 		sei(cpu.r)
 	case BRK:
-		brk(cpu.r, cpu.memory)
+		brk(cpu.r, cpu.m)
 	case NOP:
 	default:
 		panic("Unable to reach here")
