@@ -379,6 +379,25 @@ func brk(r *cpuRegister, m Memory) {
 	r.PC = read16(m, 0xFFFE)
 }
 
+func nmi(r *cpuRegister, m Memory) {
+	r.SetBreakFlag(false)
+	push16(r, m, r.PC)
+	push(r, m, r.P)
+	r.SetInterruptDisableFlag(true)
+	r.PC = read16(m, 0xFFFA)
+}
+
+func irq(r *cpuRegister, m Memory) {
+	if r.InterruptDisableFlag() {
+		return
+	}
+	r.SetBreakFlag(false)
+	push16(r, m, r.PC)
+	push(r, m, r.P)
+	r.SetInterruptDisableFlag(true)
+	r.PC = read16(m, 0xFFFE)
+}
+
 func compare(r *cpuRegister, a byte, b byte) {
 	r.SetCarryFlag(a >= b)
 	r.UpdateNegativeFlag(a - b)
@@ -409,12 +428,11 @@ func pop16(r *cpuRegister, m MemoryReader) uint16 {
 }
 
 func branch(r *cpuRegister, addr uint16) int {
-	cycle := 0
-	pc := r.PC
-	r.PC = addr
-	if pagesCross(pc, addr) {
+	cycle := 1
+	if pagesCross(r.PC, addr) {
 		cycle++
 	}
+	r.PC = addr
 	return cycle
 }
 

@@ -49,89 +49,88 @@ func (cpu *CPU) reset() {
 	cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
 
-// func (cpu *CPU) irq() {
-// 	if cpu.interruptDisableFlag() {
-// 		return
-// 	}
-// 	cpu.setBreakFlag(false)
-// 	cpu.push16(cpu.PC)
-// 	cpu.push(cpu.P)
-// 	cpu.setInterruptDisableFlag(true)
-// 	cpu.PC = cpu.read16(0xFFFE)
-// }
+func (cpu *CPU) Step() int {
+	if cpu.cycle.Stall() > 0 {
+		cpu.cycle.AddStall(-1)
+		return 1
+	}
 
-// func (cpu *CPU) calcAddressing(mode addressingMode) (addr uint16, pageCrossed bool) {
-// 	pageCrossed = false
+	if cpu.interrupt.IsNMI() {
+		nmi(cpu.r, cpu.memory)
+		cpu.interrupt.DeassertNMI()
+	} else if cpu.interrupt.IsIRQ() {
+		irq(cpu.r, cpu.memory)
+		cpu.interrupt.DeassertIRQ()
+	}
 
-// 	switch mode {
-// 	case absolute:
-// 		addr = cpu.read16(cpu.PC + 1)
-// 	case absoluteX:
-// 		addr = cpu.read16(cpu.PC+1) + uint16(cpu.X)
-// 		pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
-// 	case absoluteY:
-// 		addr = cpu.read16(cpu.PC+1) + uint16(cpu.Y)
-// 		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-// 	case accumulator:
-// 		addr = 0
-// 	case immediate:
-// 		addr = cpu.PC + 1
-// 	case implied:
-// 		addr = 0
-// 	case indexedIndirect:
-// 		baseAddr := uint16((cpu.memory.Read(cpu.PC+1) + cpu.X) & 0xFF)
-// 		addr = uint16(cpu.memory.Read((baseAddr+1)&0xFF))<<8 | uint16(cpu.memory.Read(baseAddr))
-// 	case indirect:
-// 		baseAddr := cpu.read16(cpu.PC + 1)
-// 		addr = uint16(cpu.memory.Read((baseAddr+1)&0xFF))<<8 | uint16(cpu.memory.Read(baseAddr))
-// 	case indirectIndexed:
-// 		baseAddr := uint16(cpu.memory.Read(cpu.PC + 1))
-// 		baseAddr2 := uint16(cpu.memory.Read((baseAddr+1)&0xFF))<<8 | uint16(cpu.memory.Read(baseAddr))
-// 		addr = baseAddr2 + uint16(cpu.Y)
-// 		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-// 	case relative:
-// 		offset := uint16(cpu.memory.Read(cpu.PC + 1))
-// 		if offset < 0x80 {
-// 			addr = cpu.PC + 2 + offset
-// 		} else {
-// 			addr = cpu.PC + 2 + offset - 0x100
-// 		}
-// 	case zeroPage:
-// 		addr = uint16(cpu.memory.Read(cpu.PC + 1))
-// 	case zeroPageX:
-// 		addr = uint16(cpu.memory.Read(cpu.PC+1)+cpu.X) & 0xFF
-// 	case zeroPageY:
-// 		addr = uint16(cpu.memory.Read(cpu.PC+1)+cpu.Y) & 0xFF
-// 	}
+	// 色々TODO
 
-// 	return addr, pageCrossed
-// }
+	// opcodeByte := fetch(cpu.r, cpu.memory)
+	// opcode := opcodeMap[opcodeByte]
 
-// func (cpu *CPU) Step() int {
-// 	if cpu.cycle.Stall() > 0 {
-// 		cpu.cycle.AddStall(-1)
-// 		return 1
-// 	}
+	// addr, pageCrossed := fetchOperand(cpu.r, cpu.memory, opcode.Mode)
 
-// 	if cpu.interrupt.IsNMI() {
-// 		cpu.nmi()
-// 		cpu.interrupt.DeassertNMI()
-// 	} else if cpu.interrupt.IsIRQ() {
-// 		cpu.irq()
-// 		cpu.interrupt.DeassertIRQ()
-// 	}
+	// execute(opcode)
 
-// 	// 色々TODO
+	return 0
+}
 
-// 	// opcode := cpu.fetch()
+func fetch(r *cpuRegister, m MemoryReader) byte {
+	v := m.Read(r.PC)
+	r.PC++
+	return v
+}
 
-// 	return 0
-// }
+func fetch16(r *cpuRegister, m MemoryReader) uint16 {
+	l := fetch(r, m)
+	h := fetch(r, m)
+	return uint16(h)<<8 | uint16(l)
+}
 
-// func nmi(reg cpuRegisterer, memory Memory) {
-// 	reg.SetBreakFlag(false)
-// 	push16(reg, memory, reg.PC())
-// 	push(reg, memory, reg.P())
-// 	reg.SetInterruptDisableFlag(true)
-// 	reg.SetPC(read16(memory, 0xFFFA))
-// }
+func fetchOperand(r *cpuRegister, m MemoryReader, mode addressingMode) (addr uint16, pageCrossed bool) {
+	pageCrossed = false
+
+	switch mode {
+	case absolute:
+		addr = fetch16(r, m)
+	case absoluteX:
+		addr = fetch16(r, m) + uint16(r.X)
+		pageCrossed = pagesCross(addr, addr-uint16(r.X))
+	case absoluteY:
+		addr = fetch16(r, m) + uint16(r.Y)
+		pageCrossed = pagesCross(addr, addr-uint16(r.Y))
+	case accumulator:
+		addr = 0
+	case immediate:
+		addr = r.PC
+		r.PC++
+	case implied:
+		addr = 0
+	case indexedIndirect:
+		baseAddr := uint16((fetch(r, m) + r.X) & 0xFF)
+		addr = uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
+	case indirect:
+		baseAddr := fetch16(r, m)
+		addr = uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
+	case indirectIndexed:
+		baseAddr := uint16(fetch(r, m))
+		baseAddr2 := uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
+		addr = baseAddr2 + uint16(r.Y)
+		pageCrossed = pagesCross(addr, addr-uint16(r.Y))
+	case relative:
+		offset := uint16(fetch(r, m))
+		if offset < 0x80 {
+			addr = r.PC + 2 + offset
+		} else {
+			addr = r.PC + 2 + offset - 0x100
+		}
+	case zeroPage:
+		addr = uint16(fetch(r, m))
+	case zeroPageX:
+		addr = uint16(fetch(r, m)+r.X) & 0xFF
+	case zeroPageY:
+		addr = uint16(fetch(r, m)+r.Y) & 0xFF
+	}
+
+	return addr, pageCrossed
+}
