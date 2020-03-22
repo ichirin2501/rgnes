@@ -26,7 +26,7 @@ func (c *CPUCycle) AddCycles(x int) int {
 }
 
 type CPU struct {
-	reg       cpuRegisterer
+	r         *cpuRegister
 	cycle     *CPUCycle
 	interrupt *Interrupt
 	memory    Memory
@@ -36,40 +36,17 @@ type CPU struct {
 func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
-		reg:       newCPURegister(),
+		r:         newCPURegister(),
 		cycle:     cycle,
 		interrupt: interrupt,
 		memory:    mem,
 	}
 }
 
-func (cpu *CPU) read16(addr uint16) uint16 {
-	return read16(cpu.memory, addr)
-}
-
-func (cpu *CPU) push(val byte) {
-	push(cpu.reg, cpu.memory, val)
-}
-
-func (cpu *CPU) push16(val uint16) {
-	l := byte(val & 0xFF)
-	h := byte(val >> 8)
-	cpu.push(h)
-	cpu.push(l)
-}
-
-func (cpu *CPU) pop() byte {
-	return pop(cpu.reg, cpu.memory)
-}
-
 // TODO: after reset
 func (cpu *CPU) reset() {
-	cpu.reg.SetPC(cpu.read16(0xFFFC))
-	cpu.reg.SetP(reservedFlagMask | breakFlagMask | interruptDisableFlagMask)
-}
-
-func (cpu *CPU) nmi() {
-	nmi(cpu.reg, cpu.memory)
+	cpu.r.PC = read16(cpu.memory, 0xFFFC)
+	cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
 
 // func (cpu *CPU) irq() {
@@ -151,20 +128,10 @@ func (cpu *CPU) nmi() {
 // 	return 0
 // }
 
-func pagesCross(a uint16, b uint16) bool {
-	return a&0xFF00 != b&0xFF00
-}
-
-func nmi(reg cpuRegisterer, memory Memory) {
-	reg.SetBreakFlag(false)
-	push16(reg, memory, reg.PC())
-	push(reg, memory, reg.P())
-	reg.SetInterruptDisableFlag(true)
-	reg.SetPC(read16(memory, 0xFFFA))
-}
-
-func read16(memory MemoryReader, addr uint16) uint16 {
-	l := memory.Read(addr)
-	h := memory.Read(addr + 1)
-	return (uint16(h) << 8) | uint16(l)
-}
+// func nmi(reg cpuRegisterer, memory Memory) {
+// 	reg.SetBreakFlag(false)
+// 	push16(reg, memory, reg.PC())
+// 	push(reg, memory, reg.P())
+// 	reg.SetInterruptDisableFlag(true)
+// 	reg.SetPC(read16(memory, 0xFFFA))
+// }
