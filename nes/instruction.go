@@ -257,7 +257,7 @@ func pha(r *cpuRegister, m MemoryWriter) {
 }
 
 func php(r *cpuRegister, m MemoryWriter) {
-	push(r, m, r.P|breakFlagMask)
+	push(r, m, r.P)
 }
 
 func pla(r *cpuRegister, m MemoryReader) {
@@ -267,7 +267,7 @@ func pla(r *cpuRegister, m MemoryReader) {
 }
 
 func plp(r *cpuRegister, m MemoryReader) {
-	r.P = pop(r, m)
+	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
 }
 
 func jmp(r *cpuRegister, addr uint16) {
@@ -284,7 +284,7 @@ func rts(r *cpuRegister, m MemoryReader) {
 }
 
 func rti(r *cpuRegister, m MemoryReader) {
-	r.P = pop(r, m)
+	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
 	r.PC = pop16(r, m)
 }
 
@@ -374,7 +374,7 @@ func sei(r *cpuRegister) {
 
 func brk(r *cpuRegister, m Memory) {
 	push16(r, m, r.PC)
-	push(r, m, r.P|breakFlagMask)
+	push(r, m, r.P)
 	r.SetInterruptDisableFlag(true)
 	r.PC = read16(m, 0xFFFE)
 }
@@ -434,12 +434,6 @@ func branch(r *cpuRegister, addr uint16) int {
 	}
 	r.PC = addr
 	return cycle
-}
-
-func read16(m MemoryReader, addr uint16) uint16 {
-	l := m.Read(addr)
-	h := m.Read(addr + 1)
-	return (uint16(h) << 8) | uint16(l)
 }
 
 func pagesCross(a uint16, b uint16) bool {

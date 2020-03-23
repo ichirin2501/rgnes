@@ -27,7 +27,7 @@ func newCPURegister() *cpuRegister {
 		Y:  0x00,
 		PC: 0x8000,
 		S:  0xFD,
-		P:  0x34,
+		P:  reservedFlagMask | interruptDisableFlagMask,
 	}
 }
 
