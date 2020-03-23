@@ -1,6 +1,6 @@
 BINNAME=rgnes
 
-.PHONY: all clean
+.PHONY: all clean test
 
 all: test build
 
