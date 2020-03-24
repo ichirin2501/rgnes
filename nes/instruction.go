@@ -257,7 +257,7 @@ func pha(r *cpuRegister, m MemoryWriter) {
 }
 
 func php(r *cpuRegister, m MemoryWriter) {
-	push(r, m, r.P)
+	push(r, m, r.P|breakFlagMask)
 }
 
 func pla(r *cpuRegister, m MemoryReader) {
