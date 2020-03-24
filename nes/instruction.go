@@ -439,3 +439,37 @@ func branch(r *cpuRegister, addr uint16) int {
 func pagesCross(a uint16, b uint16) bool {
 	return a&0xFF00 != b&0xFF00
 }
+
+// undocumented opcode
+
+func kil() {}
+func slo() {}
+func anc() {}
+func rla() {}
+func sre() {}
+func alr() {}
+func rra() {}
+func arr() {}
+func sax(r *cpuRegister, m MemoryWriter, addr uint16) {
+	m.Write(addr, r.A&r.X)
+}
+func xaa() {}
+func ahx() {}
+func tas() {}
+func shy() {}
+func shx() {}
+func lax(r *cpuRegister, m MemoryReader, addr uint16) {
+	v := m.Read(addr)
+	r.X = v
+	r.A = v
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+}
+func las() {}
+func dcp(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr) - 1
+	compare(r, r.A, v)
+	m.Write(addr, v)
+}
+func axs() {}
+func isc() {}

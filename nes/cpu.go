@@ -220,6 +220,28 @@ func (cpu *CPU) Step() {
 	case BRK:
 		brk(cpu.r, cpu.m)
 	case NOP:
+	// case KIL:
+	// case SLO:
+	// case ANC:
+	// case RLA:
+	// case SRE:
+	// case ALR:
+	// case RRA:
+	// case ARR:
+	case SAX:
+		sax(cpu.r, cpu.m, addr)
+	// case XAA:
+	// case AHX:
+	// case TAS:
+	// case SHY:
+	// case SHX:
+	case LAX:
+		lax(cpu.r, cpu.m, addr)
+	// case LAS:
+	case DCP:
+		dcp(cpu.r, cpu.m, addr)
+	// case AXS:
+	// case ISC:
 	default:
 		panic("Unable to reach here")
 	}

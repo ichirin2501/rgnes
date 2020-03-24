@@ -24,10 +24,13 @@ func main() {
 	}
 
 	cycle := nes.NewCPUCycle()
+	ram := nes.NewMemory(0x810)
 
-	cpuBus := nes.NewCPUBus(cycle)
+	cpuBus := nes.NewCPUBus(cycle, ram, c.ProgramROM)
 	irp := nes.NewInterrupt()
 
 	cpu := nes.NewCPU(cpuBus, cycle, irp)
+	cpu.Reset()
 	fmt.Println(cpu)
+
 }
