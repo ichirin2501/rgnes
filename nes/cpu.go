@@ -241,7 +241,8 @@ func (cpu *CPU) Step() {
 	case DCP:
 		dcp(cpu.r, cpu.m, addr)
 	// case AXS:
-	// case ISC:
+	case ISC:
+		isc(cpu.r, cpu.m, addr)
 	default:
 		panic("Unable to reach here")
 	}

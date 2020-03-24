@@ -472,4 +472,21 @@ func dcp(r *cpuRegister, m Memory, addr uint16) {
 	m.Write(addr, v)
 }
 func axs() {}
-func isc() {}
+func isc(r *cpuRegister, m Memory, addr uint16) {
+	k := m.Read(addr) + 1
+
+	a := r.A
+	b := k
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := a - b - (1 - c)
+	r.A = v
+	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
+	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+
+	m.Write(addr, k)
+}
