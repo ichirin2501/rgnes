@@ -246,7 +246,7 @@ func sbc(r *cpuRegister, m MemoryReader, addr uint16) {
 	}
 	v := a - b - (1 - c)
 	r.A = v
-	r.SetCarryFlag(uint16(a)-uint16(b)-uint16(1-c) >= 0)
+	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
 	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
 	r.UpdateNegativeFlag(v)
 	r.UpdateZeroFlag(v)
