@@ -68,14 +68,14 @@ func (cpu *CPU) Step() {
 	}
 
 	opcodeByte := fetch(cpu.r, cpu.m)
-	opcode, ok := opcodeMap[opcodeByte]
-	if !ok {
+	opcode := opcodeMap[opcodeByte]
+	if opcode.Name == UnknownMnemonic {
 		panic(fmt.Sprintf("Unknown opcode: 0x%0x", opcodeByte))
 	}
 	additionalCycle := 0
 	addr, pageCrossed := fetchOperand(cpu.r, cpu.m, opcode.Mode)
 	if pageCrossed {
-		additionalCycle++
+		additionalCycle += opcode.PageCycle
 	}
 
 	// debug
@@ -89,8 +89,8 @@ func (cpu *CPU) Step() {
 	if bytes < 3 {
 		w2 = "  "
 	}
-	fmt.Printf("%4X  %s %s %s  %s %28sA:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d    => %02x%02x\n",
-		prevPC, w0, w1, w2, opcode.Name, "", cpu.r.A, cpu.r.X, cpu.r.Y, cpu.r.P, cpu.r.S, (cpu.cycle.Cycles()*3)%341, (addr>>8)&0xFF, addr&0xFF)
+	fmt.Printf("%04X  %s %s %s  %s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d\n",
+		prevPC, w0, w1, w2, opcode.Name, cpu.r.A, cpu.r.X, cpu.r.Y, cpu.r.P, cpu.r.S, (cpu.cycle.Cycles()*3)%341)
 
 	switch opcode.Name {
 	case LDA:
