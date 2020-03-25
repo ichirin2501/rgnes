@@ -443,21 +443,66 @@ func pagesCross(a uint16, b uint16) bool {
 // undocumented opcode
 
 func kil() {}
-func slo() {}
+
+func slo(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 0x80) == 0x80)
+	v <<= 1
+	m.Write(addr, v)
+
+	r.A |= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
 func anc() {}
-func rla() {}
-func sre() {}
+
+func rla(r *cpuRegister, m Memory, addr uint16) {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 0x80) == 0x80)
+	v = (v << 1) | c
+	m.Write(addr, v)
+
+	r.A &= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
+func sre(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 1) == 1)
+	v >>= 1
+	m.Write(addr, v)
+
+	r.A ^= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
 func alr() {}
+
 func rra() {}
+
 func arr() {}
+
 func sax(r *cpuRegister, m MemoryWriter, addr uint16) {
 	m.Write(addr, r.A&r.X)
 }
+
 func xaa() {}
+
 func ahx() {}
+
 func tas() {}
+
 func shy() {}
+
 func shx() {}
+
 func lax(r *cpuRegister, m MemoryReader, addr uint16) {
 	v := m.Read(addr)
 	r.X = v
@@ -465,15 +510,20 @@ func lax(r *cpuRegister, m MemoryReader, addr uint16) {
 	r.UpdateNegativeFlag(v)
 	r.UpdateZeroFlag(v)
 }
+
 func las() {}
+
 func dcp(r *cpuRegister, m Memory, addr uint16) {
 	v := m.Read(addr) - 1
 	compare(r, r.A, v)
 	m.Write(addr, v)
 }
+
 func axs() {}
+
 func isc(r *cpuRegister, m Memory, addr uint16) {
 	k := m.Read(addr) + 1
+	m.Write(addr, k)
 
 	a := r.A
 	b := k
@@ -487,6 +537,4 @@ func isc(r *cpuRegister, m Memory, addr uint16) {
 	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
 	r.UpdateNegativeFlag(v)
 	r.UpdateZeroFlag(v)
-
-	m.Write(addr, k)
 }

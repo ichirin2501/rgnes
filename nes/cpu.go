@@ -221,10 +221,13 @@ func (cpu *CPU) Step() {
 		brk(cpu.r, cpu.m)
 	case NOP:
 	// case KIL:
-	// case SLO:
+	case SLO:
+		slo(cpu.r, cpu.m, addr)
 	// case ANC:
-	// case RLA:
-	// case SRE:
+	case RLA:
+		rla(cpu.r, cpu.m, addr)
+	case SRE:
+		sre(cpu.r, cpu.m, addr)
 	// case ALR:
 	// case RRA:
 	// case ARR:
