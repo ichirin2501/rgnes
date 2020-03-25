@@ -485,7 +485,29 @@ func sre(r *cpuRegister, m Memory, addr uint16) {
 
 func alr() {}
 
-func rra() {}
+func rra(r *cpuRegister, m Memory, addr uint16) {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	k := m.Read(addr)
+	r.SetCarryFlag((k & 1) == 1)
+	k = (k >> 1) | (c << 7)
+	m.Write(addr, k)
+
+	a := r.A
+	b := k
+	c = byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := a + b + c
+	r.A = v
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	r.SetCarryFlag(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	r.SetOverflowFlag((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+}
 
 func arr() {}
 

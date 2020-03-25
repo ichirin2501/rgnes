@@ -229,7 +229,8 @@ func (cpu *CPU) Step() {
 	case SRE:
 		sre(cpu.r, cpu.m, addr)
 	// case ALR:
-	// case RRA:
+	case RRA:
+		rra(cpu.r, cpu.m, addr)
 	// case ARR:
 	case SAX:
 		sax(cpu.r, cpu.m, addr)
