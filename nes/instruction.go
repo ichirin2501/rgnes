@@ -246,7 +246,7 @@ func sbc(r *cpuRegister, m MemoryReader, addr uint16) {
 	}
 	v := a - b - (1 - c)
 	r.A = v
-	r.SetCarryFlag(uint16(a)-uint16(b)-uint16(1-c) >= 0)
+	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
 	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
 	r.UpdateNegativeFlag(v)
 	r.UpdateZeroFlag(v)
@@ -267,7 +267,7 @@ func pla(r *cpuRegister, m MemoryReader) {
 }
 
 func plp(r *cpuRegister, m MemoryReader) {
-	r.P = pop(r, m)
+	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
 }
 
 func jmp(r *cpuRegister, addr uint16) {
@@ -284,7 +284,7 @@ func rts(r *cpuRegister, m MemoryReader) {
 }
 
 func rti(r *cpuRegister, m MemoryReader) {
-	r.P = pop(r, m)
+	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
 	r.PC = pop16(r, m)
 }
 
@@ -374,7 +374,7 @@ func sei(r *cpuRegister) {
 
 func brk(r *cpuRegister, m Memory) {
 	push16(r, m, r.PC)
-	push(r, m, r.P|breakFlagMask)
+	push(r, m, r.P)
 	r.SetInterruptDisableFlag(true)
 	r.PC = read16(m, 0xFFFE)
 }
@@ -436,12 +436,127 @@ func branch(r *cpuRegister, addr uint16) int {
 	return cycle
 }
 
-func read16(m MemoryReader, addr uint16) uint16 {
-	l := m.Read(addr)
-	h := m.Read(addr + 1)
-	return (uint16(h) << 8) | uint16(l)
-}
-
 func pagesCross(a uint16, b uint16) bool {
 	return a&0xFF00 != b&0xFF00
+}
+
+// undocumented opcode
+
+func kil() {}
+
+func slo(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 0x80) == 0x80)
+	v <<= 1
+	m.Write(addr, v)
+
+	r.A |= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
+func anc() {}
+
+func rla(r *cpuRegister, m Memory, addr uint16) {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 0x80) == 0x80)
+	v = (v << 1) | c
+	m.Write(addr, v)
+
+	r.A &= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
+func sre(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr)
+	r.SetCarryFlag((v & 1) == 1)
+	v >>= 1
+	m.Write(addr, v)
+
+	r.A ^= v
+	r.UpdateNegativeFlag(r.A)
+	r.UpdateZeroFlag(r.A)
+}
+
+func alr() {}
+
+func rra(r *cpuRegister, m Memory, addr uint16) {
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	k := m.Read(addr)
+	r.SetCarryFlag((k & 1) == 1)
+	k = (k >> 1) | (c << 7)
+	m.Write(addr, k)
+
+	a := r.A
+	b := k
+	c = byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := a + b + c
+	r.A = v
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+	r.SetCarryFlag(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	r.SetOverflowFlag((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+}
+
+func arr() {}
+
+func sax(r *cpuRegister, m MemoryWriter, addr uint16) {
+	m.Write(addr, r.A&r.X)
+}
+
+func xaa() {}
+
+func ahx() {}
+
+func tas() {}
+
+func shy() {}
+
+func shx() {}
+
+func lax(r *cpuRegister, m MemoryReader, addr uint16) {
+	v := m.Read(addr)
+	r.X = v
+	r.A = v
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
+}
+
+func las() {}
+
+func dcp(r *cpuRegister, m Memory, addr uint16) {
+	v := m.Read(addr) - 1
+	compare(r, r.A, v)
+	m.Write(addr, v)
+}
+
+func axs() {}
+
+func isc(r *cpuRegister, m Memory, addr uint16) {
+	k := m.Read(addr) + 1
+	m.Write(addr, k)
+
+	a := r.A
+	b := k
+	c := byte(0)
+	if r.CarryFlag() {
+		c = 1
+	}
+	v := a - b - (1 - c)
+	r.A = v
+	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
+	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	r.UpdateNegativeFlag(v)
+	r.UpdateZeroFlag(v)
 }

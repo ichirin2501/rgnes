@@ -46,16 +46,18 @@ func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 }
 
 // TODO: after reset
-func (cpu *CPU) reset() {
+func (cpu *CPU) Reset() {
 	cpu.r.PC = read16(cpu.m, 0xFFFC)
 	cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
 
-func (cpu *CPU) Step() int {
+func (cpu *CPU) Step() {
 	if cpu.cycle.Stall() > 0 {
 		cpu.cycle.AddStall(-1)
-		return 1
 	}
+
+	// DEBUG
+	prevPC := cpu.r.PC
 
 	if cpu.interrupt.IsNMI() {
 		nmi(cpu.r, cpu.m)
@@ -66,15 +68,29 @@ func (cpu *CPU) Step() int {
 	}
 
 	opcodeByte := fetch(cpu.r, cpu.m)
-	opcode, ok := opcodeMap[opcodeByte]
-	if !ok {
-		panic(fmt.Sprintf("Unknown opcode: %0x", opcodeByte))
+	opcode := opcodeMap[opcodeByte]
+	if opcode.Name == UnknownMnemonic {
+		panic(fmt.Sprintf("Unknown opcode: 0x%0x", opcodeByte))
 	}
 	additionalCycle := 0
 	addr, pageCrossed := fetchOperand(cpu.r, cpu.m, opcode.Mode)
 	if pageCrossed {
-		additionalCycle++
+		additionalCycle += opcode.PageCycle
 	}
+
+	// debug
+	bytes := cpu.r.PC - prevPC
+	w0 := fmt.Sprintf("%02X", cpu.m.Read(prevPC))
+	w1 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+1))
+	w2 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+2))
+	if bytes < 2 {
+		w1 = "  "
+	}
+	if bytes < 3 {
+		w2 = "  "
+	}
+	fmt.Printf("%04X  %s %s %s  %s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d\n",
+		prevPC, w0, w1, w2, opcode.Name, cpu.r.A, cpu.r.X, cpu.r.Y, cpu.r.P, cpu.r.S, (cpu.cycle.Cycles()*3)%341)
 
 	switch opcode.Name {
 	case LDA:
@@ -204,11 +220,38 @@ func (cpu *CPU) Step() int {
 	case BRK:
 		brk(cpu.r, cpu.m)
 	case NOP:
+	// case KIL:
+	case SLO:
+		slo(cpu.r, cpu.m, addr)
+	// case ANC:
+	case RLA:
+		rla(cpu.r, cpu.m, addr)
+	case SRE:
+		sre(cpu.r, cpu.m, addr)
+	// case ALR:
+	case RRA:
+		rra(cpu.r, cpu.m, addr)
+	// case ARR:
+	case SAX:
+		sax(cpu.r, cpu.m, addr)
+	// case XAA:
+	// case AHX:
+	// case TAS:
+	// case SHY:
+	// case SHX:
+	case LAX:
+		lax(cpu.r, cpu.m, addr)
+	// case LAS:
+	case DCP:
+		dcp(cpu.r, cpu.m, addr)
+	// case AXS:
+	case ISC:
+		isc(cpu.r, cpu.m, addr)
 	default:
 		panic("Unable to reach here")
 	}
 
-	return opcode.Cycle + additionalCycle
+	cpu.cycle.AddCycles(opcode.Cycle + additionalCycle)
 }
 
 func fetch(r *cpuRegister, m MemoryReader) byte {
@@ -243,22 +286,25 @@ func fetchOperand(r *cpuRegister, m MemoryReader, mode addressingMode) (addr uin
 	case implied:
 		addr = 0
 	case indexedIndirect:
-		baseAddr := uint16((fetch(r, m) + r.X) & 0xFF)
-		addr = uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
+		a := uint16(fetch(r, m) + r.X)
+		b := (a & 0xFF00) | uint16(byte(a)+1)
+		addr = uint16(m.Read(b))<<8 | uint16(m.Read(a))
 	case indirect:
-		baseAddr := fetch16(r, m)
-		addr = uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
+		a := fetch16(r, m)
+		b := (a & 0xFF00) | uint16(byte(a)+1)
+		addr = uint16(m.Read(b))<<8 | uint16(m.Read(a))
 	case indirectIndexed:
-		baseAddr := uint16(fetch(r, m))
-		baseAddr2 := uint16(m.Read((baseAddr+1)&0xFF))<<8 | uint16(m.Read(baseAddr))
-		addr = baseAddr2 + uint16(r.Y)
+		a := uint16(fetch(r, m))
+		b := (a & 0xFF00) | uint16(byte(a)+1)
+		baseAddr := uint16(m.Read(b))<<8 | uint16(m.Read(a))
+		addr = baseAddr + uint16(r.Y)
 		pageCrossed = pagesCross(addr, addr-uint16(r.Y))
 	case relative:
 		offset := uint16(fetch(r, m))
 		if offset < 0x80 {
-			addr = r.PC + 2 + offset
+			addr = r.PC + offset
 		} else {
-			addr = r.PC + 2 + offset - 0x100
+			addr = r.PC + offset - 0x100
 		}
 	case zeroPage:
 		addr = uint16(fetch(r, m))
