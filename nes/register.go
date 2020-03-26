@@ -107,3 +107,12 @@ func (r *cpuRegister) SetNegativeFlag(cond bool) {
 func (r *cpuRegister) UpdateNegativeFlag(val byte) {
 	r.SetNegativeFlag(val&0x80 != 0)
 }
+
+// TODO
+type ppuRegister struct {
+}
+
+// TODO
+func newPPURegister() *ppuRegister {
+	return &ppuRegister{}
+}
