@@ -80,7 +80,7 @@ func adc(r *cpuRegister, m MemoryReader, addr uint16) {
 }
 
 func and(r *cpuRegister, m MemoryReader, addr uint16) {
-	r.A = r.A & m.Read(addr)
+	r.A &= m.Read(addr)
 	r.UpdateNegativeFlag(r.A)
 	r.UpdateZeroFlag(r.A)
 }
