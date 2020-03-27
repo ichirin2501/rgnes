@@ -1,21 +1,19 @@
 package nes
 
 type CPUBus struct {
-	cycle  *CPUCycle
 	ram    Memory
 	ppu    Memory
 	apu    Memory
-	prg    MemoryReader
+	mapper Memory
 	noCopy noCopy
 }
 
-func NewCPUBus(cycle *CPUCycle, ram Memory, ppu Memory, apu Memory, prg MemoryReader) *CPUBus {
+func NewCPUBus(ram Memory, ppu Memory, apu Memory, mapper Memory) *CPUBus {
 	return &CPUBus{
-		cycle: cycle,
-		ram:   ram,
-		ppu:   ppu,
-		apu:   apu,
-		prg:   prg,
+		ram:    ram,
+		ppu:    ppu,
+		apu:    apu,
+		mapper: mapper,
 	}
 }
 
@@ -29,10 +27,10 @@ func (bus *CPUBus) Read(addr uint16) byte {
 	case addr == 0x4017: // TODO: 2p
 	case addr < 0x4020:
 		return bus.apu.Read(addr % 0x20)
-	case addr >= 0x6000:
-		return bus.prg.Read(addr - 0xC000)
+	case addr >= 0x4020:
+		return bus.mapper.Read(addr)
 	}
-	panic("unimplemented")
+	panic("Unable to reach here")
 }
 
 func (bus *CPUBus) Write(addr uint16, val byte) {
@@ -45,7 +43,7 @@ func (bus *CPUBus) Write(addr uint16, val byte) {
 	case addr == 0x4016: // TODO: keypad
 	case addr < 0x4020:
 		bus.apu.Write(addr%0x20, val)
-	default:
-		panic("unimplemented")
+	case addr >= 0x4020:
+		bus.mapper.Write(addr, val)
 	}
 }

@@ -1,29 +1,34 @@
 package nes
 
 import (
+	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 )
 
 const (
-	nesHeaderSize    = 0x0010
+	iNESMagicNumber  = 0x1a53454e
 	programROMUnit   = 0x4000
 	characterROMUnit = 0x2000
 )
 
-type iNESHeader [nesHeaderSize]byte
-
-func (h iNESHeader) ProgramSize() int {
-	return int(h[4]) * programROMUnit
-}
-func (h iNESHeader) CharacterSize() int {
-	return int(h[5]) * characterROMUnit
+type iNESHeader struct {
+	Magic   uint32
+	PRGSize byte
+	CHRSize byte
+	Flags6  byte // Mapper, mirroring, battery, trainer
+	Flags7  byte // Mapper, VS/Playchoice, NES 2.0
+	Flags8  byte // PRG-RAM size (rarely used extension)
+	Flags9  byte // TV system (rarely used extension)
+	Flags10 byte // TV system, PRG-RAM presence (unofficial, rarely used extension)
+	_       [5]byte
 }
 
 type Cassette struct {
-	Header       iNESHeader
-	ProgramROM   MemoryReader
-	CharacterROM MemoryReader
+	PRG    []byte
+	CHR    []byte
+	Mapper byte
 }
 
 func NewCassette(path string) (*Cassette, error) {
@@ -33,38 +38,30 @@ func NewCassette(path string) (*Cassette, error) {
 	}
 	defer f.Close()
 
-	var header iNESHeader
-	hn, err := f.ReadAt(header[:], 0)
-	if err != nil {
+	header := &iNESHeader{}
+	if err := binary.Read(f, binary.LittleEndian, header); err != nil {
 		return nil, err
-	}
-	if hn != nesHeaderSize {
-		return nil, errors.New("fail read header")
 	}
 
-	// read prg-rom
-	prgRom := make([]byte, header.ProgramSize())
-	n, err := f.ReadAt(prgRom, nesHeaderSize)
-	if err != nil {
-		return nil, err
-	}
-	if n != header.ProgramSize() {
-		return nil, errors.New("fail read prg-rom")
+	if header.Magic != iNESMagicNumber {
+		return nil, errors.New("invalid file")
 	}
 
-	// read chr-rom
-	chrRom := make([]byte, header.CharacterSize())
-	m, err := f.ReadAt(chrRom, nesHeaderSize+int64(header.ProgramSize()))
-	if err != nil {
+	mapper := (header.Flags7 & 0xF0) | (header.Flags6&0xF0)>>4
+
+	prgRom := make([]byte, int(header.PRGSize)*programROMUnit)
+	if _, err := io.ReadFull(f, prgRom); err != nil {
 		return nil, err
 	}
-	if m != header.CharacterSize() {
-		return nil, errors.New("fail read chr-rom")
+
+	chrRom := make([]byte, int(header.CHRSize)*characterROMUnit)
+	if _, err := io.ReadFull(f, chrRom); err != nil {
+		return nil, err
 	}
 
 	return &Cassette{
-		Header:       header,
-		ProgramROM:   memory(prgRom),
-		CharacterROM: memory(chrRom),
+		PRG:    prgRom,
+		CHR:    chrRom,
+		Mapper: mapper,
 	}, nil
 }
