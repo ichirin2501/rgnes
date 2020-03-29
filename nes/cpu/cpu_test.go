@@ -1,7 +1,10 @@
 package cpu
 
 import (
-	"path/filepath"
+	"bufio"
+	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/ichirin2501/rgnes/nes/apu"
@@ -13,14 +16,21 @@ import (
 )
 
 func TestCPU(t *testing.T) {
-	path := filepath.Join("testdata", "nestest.nes")
-	c, err := cassette.NewCassette(path)
+	os.Setenv("DEBUG", "1")
+	buf := bytes.NewBuffer(make([]byte, 0))
+	debugWriter = buf
+	defer func() {
+		os.Setenv("DEBUG", "0")
+		debugWriter = os.Stdout
+	}()
+
+	c, err := cassette.NewCassette("testdata/nestest.nes")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mapper := cassette.NewMapper(c)
 	cycle := NewCPUCycle()
-	ram := memory.NewMemory(0x81000)
+	ram := memory.NewMemory(0x8100)
 	ppu := ppu.NewPPU()
 	apu := apu.NewAPU()
 	cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper)
@@ -30,5 +40,29 @@ func TestCPU(t *testing.T) {
 	cpu.r.PC = 0xC000
 	for i := 0; i < 8991; i++ {
 		cpu.Step()
+	}
+
+	f, err := os.Open("testdata/nestest-formatted2.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	expectedReader := bufio.NewReader(f)
+
+	for {
+		got, err1 := buf.ReadString('\n')
+		want, err2 := expectedReader.ReadString('\n')
+
+		if err1 == io.EOF && err2 == io.EOF {
+			break
+		}
+		if err1 != nil || err2 != nil {
+			t.Fatal("don't eq")
+		}
+
+		if got != want {
+			t.Fatalf("\n got:%vwant:%v", got, want)
+		}
 	}
 }

@@ -2,6 +2,8 @@ package cpu
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/ichirin2501/rgnes/nes/interrupt"
 	"github.com/ichirin2501/rgnes/nes/memory"
@@ -30,20 +32,27 @@ func (c *CPUCycle) AddCycles(x int) int {
 	return c.cycles
 }
 
+var debugWriter io.Writer = os.Stdout
+
 type CPU struct {
 	r         *cpuRegister
 	m         memory.Memory
 	cycle     *CPUCycle
 	interrupt *interrupt.Interrupt
+	debug     bool
 }
 
 func NewCPU(mem memory.Memory, cycle *CPUCycle, interrupt *interrupt.Interrupt) *CPU {
-	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
+	debug := false
+	if os.Getenv("DEBUG") == "1" {
+		debug = true
+	}
 	return &CPU{
 		r:         newCPURegister(),
 		m:         mem,
 		cycle:     cycle,
 		interrupt: interrupt,
+		debug:     debug,
 	}
 }
 
@@ -58,7 +67,7 @@ func (cpu *CPU) Step() {
 		cpu.cycle.AddStall(-1)
 	}
 
-	// DEBUG
+	// for DEBUG
 	prevPC := cpu.r.PC
 
 	if cpu.interrupt.IsNMI() {
@@ -71,28 +80,26 @@ func (cpu *CPU) Step() {
 
 	opcodeByte := fetch(cpu.r, cpu.m)
 	opcode := opcodeMap[opcodeByte]
-	if opcode.Name == UnknownMnemonic {
-		panic(fmt.Sprintf("Unknown opcode: 0x%0x", opcodeByte))
-	}
 	additionalCycle := 0
 	addr, pageCrossed := fetchOperand(cpu.r, cpu.m, opcode.Mode)
 	if pageCrossed {
 		additionalCycle += opcode.PageCycle
 	}
 
-	// debug
-	bytes := cpu.r.PC - prevPC
-	w0 := fmt.Sprintf("%02X", cpu.m.Read(prevPC))
-	w1 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+1))
-	w2 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+2))
-	if bytes < 2 {
-		w1 = "  "
+	if cpu.debug {
+		bytes := cpu.r.PC - prevPC
+		w0 := fmt.Sprintf("%02X", cpu.m.Read(prevPC))
+		w1 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+1))
+		w2 := fmt.Sprintf("%02X", cpu.m.Read(prevPC+2))
+		if bytes < 2 {
+			w1 = "  "
+		}
+		if bytes < 3 {
+			w2 = "  "
+		}
+		fmt.Fprintf(debugWriter, "%04X  %s %s %s  %s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d\n",
+			prevPC, w0, w1, w2, opcode.Name, cpu.r.A, cpu.r.X, cpu.r.Y, cpu.r.P, cpu.r.S, (cpu.cycle.Cycles()*3)%341)
 	}
-	if bytes < 3 {
-		w2 = "  "
-	}
-	fmt.Printf("%04X  %s %s %s  %s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d\n",
-		prevPC, w0, w1, w2, opcode.Name, cpu.r.A, cpu.r.X, cpu.r.Y, cpu.r.P, cpu.r.S, (cpu.cycle.Cycles()*3)%341)
 
 	switch opcode.Name {
 	case LDA:
