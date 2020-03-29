@@ -1,8 +1,7 @@
-package nes
+package ppu
 
 type PPU struct {
-	r      *ppuRegister
-	noCopy noCopy
+	r *ppuRegister
 }
 
 func NewPPU() *PPU {

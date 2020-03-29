@@ -1,12 +1,15 @@
-package nes
+package cpu
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ichirin2501/rgnes/nes/interrupt"
+	"github.com/ichirin2501/rgnes/nes/memory"
+)
 
 type CPUCycle struct {
 	stall  int
 	cycles int
-
-	noCopy noCopy
 }
 
 func NewCPUCycle() *CPUCycle {
@@ -29,13 +32,12 @@ func (c *CPUCycle) AddCycles(x int) int {
 
 type CPU struct {
 	r         *cpuRegister
-	m         Memory
+	m         memory.Memory
 	cycle     *CPUCycle
-	interrupt *Interrupt
-	noCopy    noCopy
+	interrupt *interrupt.Interrupt
 }
 
-func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
+func NewCPU(mem memory.Memory, cycle *CPUCycle, interrupt *interrupt.Interrupt) *CPU {
 	// ref. http://wiki.nesdev.com/w/index.php/CPU_power_up_state#cite_note-1
 	return &CPU{
 		r:         newCPURegister(),
@@ -47,7 +49,7 @@ func NewCPU(mem Memory, cycle *CPUCycle, interrupt *Interrupt) *CPU {
 
 // TODO: after reset
 func (cpu *CPU) Reset() {
-	cpu.r.PC = read16(cpu.m, 0xFFFC)
+	cpu.r.PC = memory.Read16(cpu.m, 0xFFFC)
 	cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
 }
 
@@ -254,19 +256,19 @@ func (cpu *CPU) Step() {
 	cpu.cycle.AddCycles(opcode.Cycle + additionalCycle)
 }
 
-func fetch(r *cpuRegister, m MemoryReader) byte {
+func fetch(r *cpuRegister, m memory.MemoryReader) byte {
 	v := m.Read(r.PC)
 	r.PC++
 	return v
 }
 
-func fetch16(r *cpuRegister, m MemoryReader) uint16 {
+func fetch16(r *cpuRegister, m memory.MemoryReader) uint16 {
 	l := fetch(r, m)
 	h := fetch(r, m)
 	return uint16(h)<<8 | uint16(l)
 }
 
-func fetchOperand(r *cpuRegister, m MemoryReader, mode addressingMode) (addr uint16, pageCrossed bool) {
+func fetchOperand(r *cpuRegister, m memory.MemoryReader, mode addressingMode) (addr uint16, pageCrossed bool) {
 	pageCrossed = false
 
 	switch mode {

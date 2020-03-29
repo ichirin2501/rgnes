@@ -1,9 +1,13 @@
-package nes
+package cassette
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ichirin2501/rgnes/nes/memory"
+)
 
 type Mapper interface {
-	Memory
+	memory.Memory
 	Reset()
 }
 

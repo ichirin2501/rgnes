@@ -1,4 +1,4 @@
-package nes
+package memory
 
 type MemoryReader interface {
 	Read(addr uint16) byte
@@ -25,7 +25,7 @@ func (m memory) Write(addr uint16, val byte) {
 	m[addr] = val
 }
 
-func read16(m MemoryReader, addr uint16) uint16 {
+func Read16(m MemoryReader, addr uint16) uint16 {
 	l := m.Read(addr)
 	h := m.Read(addr + 1)
 	return (uint16(h) << 8) | uint16(l)

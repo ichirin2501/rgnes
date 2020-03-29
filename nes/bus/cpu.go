@@ -1,14 +1,15 @@
-package nes
+package bus
+
+import "github.com/ichirin2501/rgnes/nes/memory"
 
 type CPUBus struct {
-	ram    Memory
-	ppu    Memory
-	apu    Memory
-	mapper Memory
-	noCopy noCopy
+	ram    memory.Memory
+	ppu    memory.Memory
+	apu    memory.Memory
+	mapper memory.Memory
 }
 
-func NewCPUBus(ram Memory, ppu Memory, apu Memory, mapper Memory) *CPUBus {
+func NewCPUBus(ram memory.Memory, ppu memory.Memory, apu memory.Memory, mapper memory.Memory) *CPUBus {
 	return &CPUBus{
 		ram:    ram,
 		ppu:    ppu,

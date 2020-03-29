@@ -1,4 +1,4 @@
-package nes
+package cassette
 
 type Mapper0 struct {
 	*Cassette

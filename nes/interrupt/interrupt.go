@@ -1,10 +1,8 @@
-package nes
+package interrupt
 
 type Interrupt struct {
 	nmi bool
 	irq bool
-
-	noCopy noCopy
 }
 
 func NewInterrupt() *Interrupt {
