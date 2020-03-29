@@ -1,5 +1,6 @@
 package ppu
 
+// Controller ($2000)
 const (
 	_ byte = (1 << iota)
 	_
@@ -11,8 +12,9 @@ const (
 	nmiOnVBlankMask
 )
 
+// Mask ($2001)
 const (
-	grayscaleMask byte = (1 << iota)
+	grayScaleMask byte = (1 << iota)
 	showLeftBackgroundMask
 	showLeftSpritesMask
 	showBackgroundMask
@@ -20,6 +22,18 @@ const (
 	emphaticRedMask
 	emphaticGreenMask
 	emphaticBlueMask
+)
+
+// Status ($2002)
+const (
+	_ byte = 1 << iota
+	_
+	_
+	_
+	_
+	spriteOverflowMask
+	sprite0HitMask
+	vBlankStartedMask
 )
 
 type ppuRegister struct {
@@ -37,11 +51,11 @@ func newPPURegister() *ppuRegister {
 	return &ppuRegister{}
 }
 
-func (p *ppuRegister) nameTableID() byte {
+func (p *ppuRegister) nametableID() byte {
 	return p.Controller & 0x03
 }
 
-func (p *ppuRegister) ppuAddrIncrFlag() bool {
+func (p *ppuRegister) vRAMAddrIncrFlag() bool {
 	return (p.Controller & vRAMAddrIncrMask) == vRAMAddrIncrMask
 }
 
@@ -62,7 +76,7 @@ func (p *ppuRegister) nmiOnVBlankFlag() bool {
 }
 
 func (p *ppuRegister) grayScaleEnable() bool {
-	return (p.Mask & grayscaleMask) != grayscaleMask
+	return (p.Mask & grayScaleMask) != grayScaleMask
 }
 
 func (p *ppuRegister) showLeftBackground() bool {
@@ -79,4 +93,16 @@ func (p *ppuRegister) showBackground() bool {
 
 func (p *ppuRegister) showSprites() bool {
 	return (p.Mask & showSpritesMask) == showSpritesMask
+}
+
+func (p *ppuRegister) spriteOverflow() bool {
+	return (p.Status & spriteOverflowMask) == spriteOverflowMask
+}
+
+func (p *ppuRegister) sprite0HitFlag() bool {
+	return (p.Status & sprite0HitMask) == sprite0HitMask
+}
+
+func (p *ppuRegister) vBlankStarted() bool {
+	return (p.Status & vBlankStartedMask) == vBlankStartedMask
 }

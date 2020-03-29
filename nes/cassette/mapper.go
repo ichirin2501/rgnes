@@ -2,12 +2,12 @@ package cassette
 
 import (
 	"fmt"
-
-	"github.com/ichirin2501/rgnes/nes/memory"
 )
 
 type Mapper interface {
-	memory.Memory
+	Read(addr uint16) byte
+	Write(addr uint16, val byte)
+	String() string
 	Reset()
 }
 

@@ -17,20 +17,18 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(c)
+	//fmt.Println(c)
+	fmt.Printf("len(c.PRG) = 0x%04X\n", len(c.PRG))
+	fmt.Printf("len(c.CHR) = 0x%04X\n", len(c.CHR))
 
-	for i := 0; i < 10; i++ {
-		fmt.Printf("%0x\n", c.ProgramROM.Read(uint16(i)))
-	}
+	// cycle := nes.NewCPUCycle()
+	// ram := nes.NewMemory(0x810)
 
-	cycle := nes.NewCPUCycle()
-	ram := nes.NewMemory(0x810)
+	// cpuBus := nes.NewCPUBus(cycle, ram, c.ProgramROM)
+	// irp := nes.NewInterrupt()
 
-	cpuBus := nes.NewCPUBus(cycle, ram, c.ProgramROM)
-	irp := nes.NewInterrupt()
-
-	cpu := nes.NewCPU(cpuBus, cycle, irp)
-	cpu.Reset()
-	fmt.Println(cpu)
+	// cpu := nes.NewCPU(cpuBus, cycle, irp)
+	// cpu.Reset()
+	// fmt.Println(cpu)
 
 }
