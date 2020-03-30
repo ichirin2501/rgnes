@@ -14,10 +14,10 @@ func NewPPU() *PPU {
 }
 
 // TODO
-func (p *PPU) Read(addr uint16) byte {
+func (ppu *PPU) Read(addr uint16) byte {
 	switch addr {
 	case 0x0002:
-		return p.readStatus()
+		return ppu.readStatus()
 	case 0x0004:
 	case 0x0007:
 	}
@@ -25,7 +25,7 @@ func (p *PPU) Read(addr uint16) byte {
 }
 
 // TODO
-func (p *PPU) Write(addr uint16, val byte) {
+func (ppu *PPU) Write(addr uint16, val byte) {
 	switch addr {
 	case 0x0000:
 	case 0x0001:
@@ -38,10 +38,10 @@ func (p *PPU) Write(addr uint16, val byte) {
 	}
 }
 
-func (p *PPU) readStatus() byte {
-	v := p.r.Status & (spriteOverflowMask | sprite0HitMask | vBlankStartedMask)
-	p.r.SetVBlankStarted(false)
-	p.r.Latch = false
+func (ppu *PPU) readStatus() byte {
+	v := ppu.r.Status & (spriteOverflowMask | sprite0HitMask | vBlankStartedMask)
+	ppu.r.SetVBlankStarted(false)
+	ppu.r.Latch = false
 	return v
 }
 
@@ -55,15 +55,33 @@ func (p *PPU) readStatus() byte {
 // 	}
 // }
 
-func (p *PPU) Step() {
-	if p.ScanLine == 241 && p.Cycle == 1 {
-		p.r.SetVBlankStarted(true)
+func (ppu *PPU) rendering() bool {
+	return ppu.r.ShowBackground() || ppu.r.ShowSprites()
+}
+
+func (ppu *PPU) Step() {
+	if 0 <= ppu.ScanLine && ppu.ScanLine <= 239 {
+
+	}
+
+	if ppu.ScanLine == 241 && ppu.Cycle == 1 {
+		ppu.r.SetVBlankStarted(true)
 	}
 
 	// Pre-render line
-	if p.ScanLine == 261 && p.Cycle == 1 {
-		p.r.SetVBlankStarted(false)
-		p.r.SetSprite0HitFlag(false)
-		p.r.SetSpriteOverflow(false)
+	if ppu.ScanLine == 261 && ppu.Cycle == 1 {
+		ppu.r.SetVBlankStarted(false)
+		ppu.r.SetSprite0HitFlag(false)
+		ppu.r.SetSpriteOverflow(false)
+	}
+
+	ppu.Cycle++
+	if ppu.Cycle == 341 {
+		ppu.Cycle = 0
+		ppu.ScanLine++
+		if ppu.ScanLine == 262 {
+			ppu.ScanLine = 0
+			//ppu.Flame ^= 1
+		}
 	}
 }
