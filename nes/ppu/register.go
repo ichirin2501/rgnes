@@ -44,6 +44,8 @@ type ppuRegister struct {
 	Scroll     uint16
 	Addr       uint16
 	Data       byte
+
+	Latch bool
 }
 
 // TODO
@@ -51,58 +53,82 @@ func newPPURegister() *ppuRegister {
 	return &ppuRegister{}
 }
 
-func (p *ppuRegister) nametableID() byte {
+func (p *ppuRegister) NametableID() byte {
 	return p.Controller & 0x03
 }
 
-func (p *ppuRegister) vRAMAddrIncrFlag() bool {
+func (p *ppuRegister) VRAMAddrIncrFlag() bool {
 	return (p.Controller & vRAMAddrIncrMask) == vRAMAddrIncrMask
 }
 
-func (p *ppuRegister) spritePatternAddrFlag() bool {
+func (p *ppuRegister) SpritePatternAddrFlag() bool {
 	return (p.Controller & spritePatternAddrMask) == spritePatternAddrMask
 }
 
-func (p *ppuRegister) backgroundPatternAddrFlag() bool {
+func (p *ppuRegister) BackgroundPatternAddrFlag() bool {
 	return (p.Controller & backgroundPatternAddrMask) == backgroundPatternAddrMask
 }
 
-func (p *ppuRegister) spriteSizeFlag() bool {
+func (p *ppuRegister) SpriteSizeFlag() bool {
 	return (p.Controller & spriteSizeMask) == spriteSizeMask
 }
 
-func (p *ppuRegister) nmiOnVBlankFlag() bool {
+func (p *ppuRegister) NMIOnVBlankFlag() bool {
 	return (p.Controller & nmiOnVBlankMask) == nmiOnVBlankMask
 }
 
-func (p *ppuRegister) grayScaleEnable() bool {
+func (p *ppuRegister) GrayScaleEnable() bool {
 	return (p.Mask & grayScaleMask) != grayScaleMask
 }
 
-func (p *ppuRegister) showLeftBackground() bool {
+func (p *ppuRegister) ShowLeftBackground() bool {
 	return (p.Mask & showLeftBackgroundMask) == showLeftBackgroundMask
 }
 
-func (p *ppuRegister) showLeftSprites() bool {
+func (p *ppuRegister) ShowLeftSprites() bool {
 	return (p.Mask & showLeftSpritesMask) == showLeftSpritesMask
 }
 
-func (p *ppuRegister) showBackground() bool {
+func (p *ppuRegister) ShowBackground() bool {
 	return (p.Mask & showBackgroundMask) == showBackgroundMask
 }
 
-func (p *ppuRegister) showSprites() bool {
+func (p *ppuRegister) ShowSprites() bool {
 	return (p.Mask & showSpritesMask) == showSpritesMask
 }
 
-func (p *ppuRegister) spriteOverflow() bool {
+func (p *ppuRegister) SpriteOverflow() bool {
 	return (p.Status & spriteOverflowMask) == spriteOverflowMask
 }
 
-func (p *ppuRegister) sprite0HitFlag() bool {
+func (p *ppuRegister) SetSpriteOverflow(cond bool) {
+	if cond {
+		p.Status |= spriteOverflowMask
+	} else {
+		p.Status &= ^spriteOverflowMask
+	}
+}
+
+func (p *ppuRegister) Sprite0HitFlag() bool {
 	return (p.Status & sprite0HitMask) == sprite0HitMask
 }
 
-func (p *ppuRegister) vBlankStarted() bool {
+func (p *ppuRegister) SetSprite0HitFlag(cond bool) {
+	if cond {
+		p.Status |= sprite0HitMask
+	} else {
+		p.Status &= ^sprite0HitMask
+	}
+}
+
+func (p *ppuRegister) VBlankStarted() bool {
 	return (p.Status & vBlankStartedMask) == vBlankStartedMask
+}
+
+func (p *ppuRegister) SetVBlankStarted(cond bool) {
+	if cond {
+		p.Status |= vBlankStartedMask
+	} else {
+		p.Status &= ^vBlankStartedMask
+	}
 }
