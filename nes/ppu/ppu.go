@@ -1,15 +1,18 @@
 package ppu
 
-type PPU struct {
-	r *ppuRegister
+import "github.com/ichirin2501/rgnes/nes/memory"
 
+type PPU struct {
+	r        *ppuRegister
+	m        memory.Memory
 	ScanLine int
 	Cycle    int
 }
 
-func NewPPU() *PPU {
+func NewPPU(m memory.Memory) *PPU {
 	return &PPU{
 		r: newPPURegister(),
+		m: m,
 	}
 }
 
