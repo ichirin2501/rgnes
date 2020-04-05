@@ -7,8 +7,9 @@ type PPUBus struct {
 	mapper memory.Memory
 }
 
-func NewPPUBus(mapper memory.Memory) *PPUBus {
+func NewPPUBus(ram memory.Memory, mapper memory.Memory) *PPUBus {
 	return &PPUBus{
+		ram:    ram,
 		mapper: mapper,
 	}
 }

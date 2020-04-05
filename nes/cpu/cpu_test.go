@@ -31,7 +31,11 @@ func TestCPU(t *testing.T) {
 	mapper := cassette.NewMapper(c)
 	cycle := NewCPUCycle()
 	ram := memory.NewMemory(0x8100)
-	ppu := ppu.NewPPU()
+
+	ppuRam := memory.NewMemory(0x2000)
+	ppuBus := bus.NewPPUBus(ppuRam, mapper)
+	ppu := ppu.NewPPU(ppuBus)
+
 	apu := apu.NewAPU()
 	cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper)
 	irp := interrupt.NewInterrupt()
