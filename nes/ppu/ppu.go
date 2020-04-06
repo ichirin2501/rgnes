@@ -62,9 +62,41 @@ func (ppu *PPU) rendering() bool {
 	return ppu.r.ShowBackground() || ppu.r.ShowSprites()
 }
 
-func (ppu *PPU) Step() {
-	if 0 <= ppu.ScanLine && ppu.ScanLine <= 239 {
+func (ppu *PPU) visibleFrame() bool {
+	return ppu.ScanLine == 261 || 0 <= ppu.ScanLine && ppu.ScanLine < 240
+}
 
+// ref: http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
+func (ppu *PPU) Step() {
+
+	if ppu.rendering() {
+		// vram fetch
+		if ppu.visibleFrame() && (1 <= ppu.Cycle && ppu.Cycle < 257 || 321 <= ppu.Cycle && ppu.Cycle < 337) {
+			if ppu.Cycle > 0 {
+				switch ppu.Cycle % 8 {
+				case 0: // High BG tile byte
+				case 2: // NT byte
+				case 4: // AT byte
+				case 6: // Low BG tile byte
+				}
+			}
+		}
+
+		if ppu.visibleFrame() && (280 <= ppu.Cycle && ppu.Cycle < 305) {
+			// vert(v) = vert(t)
+		}
+
+		if ppu.visibleFrame() && (0 < ppu.Cycle && ppu.Cycle < 256 || 321 <= ppu.Cycle && ppu.Cycle < 337) {
+			// incr hori(v)
+		}
+
+		if ppu.visibleFrame() && ppu.Cycle == 256 {
+			// incr vert(v)
+		}
+
+		if ppu.visibleFrame() && ppu.Cycle == 257 {
+			// hori(v) = hori(t)
+		}
 	}
 
 	if ppu.ScanLine == 241 && ppu.Cycle == 1 {
