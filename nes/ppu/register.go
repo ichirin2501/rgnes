@@ -45,7 +45,9 @@ type ppuRegister struct {
 	Addr       uint16
 	Data       byte
 
-	Latch bool
+	t uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
+	x byte   // Fine X scroll (3 bits)
+	w bool   // First or second write toggle (1 bit)
 }
 
 // TODO

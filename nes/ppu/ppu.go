@@ -44,19 +44,62 @@ func (ppu *PPU) Write(addr uint16, val byte) {
 func (ppu *PPU) readStatus() byte {
 	v := ppu.r.Status & (spriteOverflowMask | sprite0HitMask | vBlankStartedMask)
 	ppu.r.SetVBlankStarted(false)
-	ppu.r.Latch = false
+	ppu.r.w = false
 	return v
 }
 
-// func (p *PPU) writeScroll(val byte) {
-// 	if p.r.Latch {
+// $2005: PPUSCROLL
+func (ppu *PPU) writeScroll(val byte) {
+	if !ppu.r.w {
+		// first write
+		// d refers to the data written to the port, and A through H to individual bits of a value.
+		// t: ........ ...HGFED = d: HGFED...
+		// x:               CBA = d: .....CBA
+		// w:                   = 1
+		ppu.r.t = (ppu.r.t & 0xFFE0) | (uint16(val) >> 3)
+		ppu.r.x = val & 0x07
+		ppu.r.w = true
+	} else {
+		// second write
+		// t: .CBA..HG FED..... = d: HGFEDCBA
+		// w:                   = 0
+		t1 := (ppu.r.t & 0x8FFF) | ((uint16(val) & 0x07) << 12) // CBA
+		t2 := (ppu.r.t & 0xFC1F) | ((uint16(val) & 0xF8) << 2)  // HGFED
+		ppu.r.t = t1 | t2
+		ppu.r.w = false
+	}
+}
 
-// 		p.r.Latch = false
-// 	} else {
+func (ppu *PPU) incrementX() {
+	v := ppu.r.Addr
+	if (v & 0x001F) == 31 {
+		v &= ^uint16(0x001F)
+		v ^= 0x0400
+	} else {
+		v++
+	}
+	ppu.r.Addr = v
+}
 
-// 		p.r.Latch = true
-// 	}
-// }
+func (ppu *PPU) incrementY() {
+	v := ppu.r.Addr
+	if (v & 0x7000) != 0x7000 {
+		v += 0x1000
+	} else {
+		v &= ^uint16(0x7000)
+		y := (v & 0x03E0) >> 5
+		if y == 29 {
+			y = 0
+			v ^= 0x0800
+		} else if y == 31 {
+			y = 0
+		} else {
+			y++
+		}
+		v = (v & ^uint16(0x03E0)) | (y << 5)
+	}
+	ppu.r.Addr = v
+}
 
 func (ppu *PPU) rendering() bool {
 	return ppu.r.ShowBackground() || ppu.r.ShowSprites()
