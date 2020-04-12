@@ -19,7 +19,7 @@ func NewPPU(m memory.Memory) *PPU {
 // TODO
 func (ppu *PPU) Read(addr uint16) byte {
 	switch addr {
-	case 0x0002:
+	case 0x0002: // $2002: PPUSTATUS
 		return ppu.readStatus()
 	case 0x0004:
 	case 0x0007:
@@ -30,8 +30,10 @@ func (ppu *PPU) Read(addr uint16) byte {
 // TODO
 func (ppu *PPU) Write(addr uint16, val byte) {
 	switch addr {
-	case 0x0000:
-	case 0x0001:
+	case 0x0000: // $2000: PPUCTRL
+		ppu.writeController(val)
+	case 0x0001: // $2001: PPUMASK
+		ppu.writeMask(val)
 	case 0x0003:
 	case 0x0004:
 	case 0x0005: // $2005: PPUSCROLL
@@ -43,6 +45,19 @@ func (ppu *PPU) Write(addr uint16, val byte) {
 	}
 }
 
+// $2000: PPUCTRL
+func (ppu *PPU) writeController(val byte) {
+	ppu.r.Controller = val
+	// t: ....BA.. ........ = d: ......BA
+	ppu.r.t = (ppu.r.t & 0xF3FF) | (uint16(val)&0x03)<<10
+}
+
+// $2001: PPUMASK
+func (ppu *PPU) writeMask(val byte) {
+	ppu.r.Mask = val
+}
+
+// $2002: PPUSTATUS
 func (ppu *PPU) readStatus() byte {
 	v := ppu.r.Status & (spriteOverflowMask | sprite0HitMask | vBlankStartedMask)
 	ppu.r.SetVBlankStarted(false)
