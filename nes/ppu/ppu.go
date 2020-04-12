@@ -34,8 +34,10 @@ func (ppu *PPU) Write(addr uint16, val byte) {
 	case 0x0001:
 	case 0x0003:
 	case 0x0004:
-	case 0x0005:
-	case 0x0006:
+	case 0x0005: // $2005: PPUSCROLL
+		ppu.writeScroll(val)
+	case 0x0006: // $2006: PPUADDR
+		ppu.writeAddr(val)
 	case 0x0007:
 	default:
 	}
@@ -56,8 +58,8 @@ func (ppu *PPU) writeScroll(val byte) {
 		// t: ........ ...HGFED = d: HGFED...
 		// x:               CBA = d: .....CBA
 		// w:                   = 1
-		ppu.r.t = (ppu.r.t & 0xFFE0) | (uint16(val) >> 3)
-		ppu.r.x = val & 0x07
+		ppu.r.t = (ppu.r.t & 0xFFE0) | (uint16(val) >> 3) // HGFED
+		ppu.r.x = val & 0x07                              // CBA
 		ppu.r.w = true
 	} else {
 		// second write
@@ -66,6 +68,26 @@ func (ppu *PPU) writeScroll(val byte) {
 		t1 := (ppu.r.t & 0x8FFF) | ((uint16(val) & 0x07) << 12) // CBA
 		t2 := (ppu.r.t & 0xFC1F) | ((uint16(val) & 0xF8) << 2)  // HGFED
 		ppu.r.t = t1 | t2
+		ppu.r.w = false
+	}
+}
+
+// $2006: PPUADDR
+func (ppu *PPU) writeAddr(val byte) {
+	if !ppu.r.w {
+		// first write
+		// t: ..FEDCBA ........ = d: ..FEDCBA
+		// t: .X...... ........ = 0
+		// w:                   = 1
+		ppu.r.t = (ppu.r.t & 0x80FF) | (uint16(val)&0x3F)<<8
+		ppu.r.w = true
+	} else {
+		// second write
+		// t: ........ HGFEDCBA = d: HGFEDCBA
+		// v                    = t
+		// w:                   = 0
+		ppu.r.t = (ppu.r.t & 0xFF00) | uint16(val)
+		ppu.r.Addr = ppu.r.t
 		ppu.r.w = false
 	}
 }
