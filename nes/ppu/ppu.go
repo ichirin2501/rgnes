@@ -22,7 +22,8 @@ func (ppu *PPU) Read(addr uint16) byte {
 	case 0x0002: // $2002: PPUSTATUS
 		return ppu.readStatus()
 	case 0x0004:
-	case 0x0007:
+	case 0x0007: // $2007: PPUDATA
+		return ppu.readData()
 	}
 	return 0
 }
@@ -40,7 +41,8 @@ func (ppu *PPU) Write(addr uint16, val byte) {
 		ppu.writeScroll(val)
 	case 0x0006: // $2006: PPUADDR
 		ppu.writeAddr(val)
-	case 0x0007:
+	case 0x0007: // $2007: PPUDATA
+		ppu.writeData(val)
 	default:
 	}
 }
@@ -104,6 +106,36 @@ func (ppu *PPU) writeAddr(val byte) {
 		ppu.r.t = (ppu.r.t & 0xFF00) | uint16(val)
 		ppu.r.Addr = ppu.r.t
 		ppu.r.w = false
+	}
+}
+
+// $2007: PPUDATA read
+func (ppu *PPU) readData() byte {
+	// http://wiki.nesdev.com/w/index.php/PPU_registers#The_PPUDATA_read_buffer_.28post-fetch.29
+	buf := ppu.r.Data
+	ppu.r.Data = ppu.m.Read(ppu.r.Addr)
+
+	if ppu.r.Addr&0x3F00 == 0x3F00 {
+		// palette table
+		buf = ppu.r.Data
+	}
+
+	if ppu.r.VRAMAddrIncrFlag() {
+		ppu.r.Addr += 32
+	} else {
+		ppu.r.Addr++
+	}
+
+	return buf
+}
+
+// $2007: PPUDATA write
+func (ppu *PPU) writeData(val byte) {
+	ppu.m.Write(ppu.r.Addr, val)
+	if ppu.r.VRAMAddrIncrFlag() {
+		ppu.r.Addr += 32
+	} else {
+		ppu.r.Addr++
 	}
 }
 
