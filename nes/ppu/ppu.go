@@ -139,6 +139,19 @@ func (ppu *PPU) writeData(val byte) {
 	}
 }
 
+// copyX() is `hori(v) = hori(t)` in NTSC PPU Frame Timing
+func (ppu *PPU) copyX() {
+	// v: .....F.. ...EDCBA = t: .....F.. ...EDCBA
+	ppu.r.Addr = (ppu.r.Addr & 0xFBE0) | (ppu.r.t & 0x041F)
+}
+
+// copyY() is `vert(v) = vert(t)` in NTSC PPU Frame Timing
+func (ppu *PPU) copyY() {
+	// v: .IHGF.ED CBA..... = t: .IHGF.ED CBA.....
+	ppu.r.Addr = (ppu.r.Addr & 0x841F) | (ppu.r.t & 0x7BE0)
+}
+
+// incrementX() is `incr hori(v)` in NTSC PPU Frame Timing
 func (ppu *PPU) incrementX() {
 	v := ppu.r.Addr
 	if (v & 0x001F) == 31 {
@@ -150,6 +163,7 @@ func (ppu *PPU) incrementX() {
 	ppu.r.Addr = v
 }
 
+// incrementY() is `incr vert(v)` in NTSC PPU Frame Timing
 func (ppu *PPU) incrementY() {
 	v := ppu.r.Addr
 	if (v & 0x7000) != 0x7000 {
@@ -195,19 +209,19 @@ func (ppu *PPU) Step() {
 		}
 
 		if ppu.visibleFrame() && (280 <= ppu.Cycle && ppu.Cycle < 305) {
-			// vert(v) = vert(t)
+			ppu.copyY()
 		}
 
-		if ppu.visibleFrame() && (0 < ppu.Cycle && ppu.Cycle < 256 || 321 <= ppu.Cycle && ppu.Cycle < 337) {
-			// incr hori(v)
+		if ppu.visibleFrame() && (0 < ppu.Cycle && ppu.Cycle < 256 || 321 <= ppu.Cycle && ppu.Cycle < 337) && ppu.Cycle%8 == 0 {
+			ppu.incrementX()
 		}
 
 		if ppu.visibleFrame() && ppu.Cycle == 256 {
-			// incr vert(v)
+			ppu.incrementY()
 		}
 
 		if ppu.visibleFrame() && ppu.Cycle == 257 {
-			// hori(v) = hori(t)
+			ppu.copyX()
 		}
 	}
 
