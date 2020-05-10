@@ -1,16 +1,20 @@
 BINNAME=rgnes
 
-.PHONY: all clean test
+.PHONY: dep
+dep:
+	go mod download
+	go mod tidy
 
-all: test build
-
+.PHONY: build
 build:
 	go build -ldflags='-w -s' -o $(BINNAME) ./cmd/$(BINNAME)/main.go
 
+.PHONY: test
 test:
 	go test -race -v ./...
 	go vet ./...
 
+.PHONY: clean
 clean:
 	go clean
 	go clean -testcache
