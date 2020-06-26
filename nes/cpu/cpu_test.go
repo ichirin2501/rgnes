@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/ichirin2501/rgnes/nes/apu"
 	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/cassette"
@@ -64,9 +66,6 @@ func TestCPU(t *testing.T) {
 		if err1 != nil || err2 != nil {
 			t.Fatal("don't eq")
 		}
-
-		if got != want {
-			t.Fatalf("\n got:%vwant:%v", got, want)
-		}
+		assert.Equal(t, want, got)
 	}
 }
