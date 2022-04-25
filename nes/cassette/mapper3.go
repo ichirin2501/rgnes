@@ -2,37 +2,37 @@ package cassette
 
 import "fmt"
 
-type Mapper0 struct {
+type Mapper3 struct {
 	*Cassette
-	prgBanks int
+	chrBank  int
 	prgBank1 int
 	prgBank2 int
 }
 
-func NewMapper0(c *Cassette) *Mapper0 {
+func NewMapper3(c *Cassette) *Mapper3 {
 	prgBanks := len(c.PRG) / 0x4000
-	prgBank1 := 0
 	prgBank2 := prgBanks - 1
-	return &Mapper0{
+	return &Mapper3{
 		Cassette: c,
-		prgBanks: prgBanks,
-		prgBank1: prgBank1,
+		chrBank:  0,
+		prgBank1: 0,
 		prgBank2: prgBank2,
 	}
 }
 
-func (m *Mapper0) String() string {
-	return "Mapper 0"
+func (m *Mapper3) String() string {
+	return "Mapper 3"
 }
 
-func (m *Mapper0) Reset() {
+func (m *Mapper3) Reset() {
 	// nothing
 }
 
-func (m *Mapper0) Read(addr uint16) byte {
+func (m *Mapper3) Read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		return m.CHR[addr]
+		index := m.chrBank*0x2000 + int(addr)
+		return m.CHR[index]
 	case 0x6000 <= addr && addr < 0x8000:
 		return m.SRAM[addr-0x6000]
 	case 0x8000 <= addr && addr < 0xC000:
@@ -42,19 +42,21 @@ func (m *Mapper0) Read(addr uint16) byte {
 		index := m.prgBank2*0x4000 + int(addr-0xC000)
 		return m.PRG[index]
 	default:
-		panic(fmt.Sprintf("Unable to reach Mapper0.Read(0x%04x)", addr))
+		panic(fmt.Sprintf("Unable to reach Mapper3.Read(0x%04x)", addr))
 	}
 }
 
-func (m *Mapper0) Write(addr uint16, val byte) {
+func (m *Mapper3) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		m.CHR[addr] = val
+		index := m.chrBank*0x2000 + int(addr)
+		m.CHR[index] = val
 	case 0x6000 <= addr && addr < 0x8000:
 		m.SRAM[addr-0x6000] = val
 	case 0x8000 <= addr:
-		m.prgBank1 = int(val) % m.prgBanks
+		// https://www.nesdev.org/wiki/INES_Mapper_003#Bank_select_($8000-$FFFF)
+		m.chrBank = int(val & 0x3)
 	default:
-		panic(fmt.Sprintf("Unable to reach Mapper0.Write(0x%04x) = 0x%02x", addr, val))
+		panic(fmt.Sprintf("Unable to reach Mapper3.Write(0x%04x) = 0x%02x", addr, val))
 	}
 }

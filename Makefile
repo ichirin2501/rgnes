@@ -12,7 +12,6 @@ build:
 .PHONY: test
 test:
 	go test -race -v ./...
-	go vet ./...
 
 .PHONY: clean
 clean:

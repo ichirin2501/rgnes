@@ -14,7 +14,9 @@ type Mapper interface {
 func NewMapper(c *Cassette) Mapper {
 	switch c.Mapper {
 	case 0:
-		return &Mapper0{c}
+		return NewMapper0(c)
+	case 3:
+		return NewMapper3(c)
 	}
 	panic(fmt.Sprintf("Unsupported mapper: %0x", c.Mapper))
 }

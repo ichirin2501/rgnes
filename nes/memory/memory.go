@@ -11,17 +11,17 @@ type Memory interface {
 	MemoryWriter
 }
 
-type memory []byte
+type MemoryType []byte
 
 func NewMemory(size int) Memory {
 	buf := make([]byte, size)
-	return memory(buf)
+	return MemoryType(buf)
 }
 
-func (m memory) Read(addr uint16) byte {
+func (m MemoryType) Read(addr uint16) byte {
 	return m[addr]
 }
-func (m memory) Write(addr uint16, val byte) {
+func (m MemoryType) Write(addr uint16, val byte) {
 	m[addr] = val
 }
 
