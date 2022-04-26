@@ -343,7 +343,7 @@ func Test_InstrTestV5(t *testing.T) {
 			ram := memory.NewMemory(0x8100)
 			irp := &Interrupter{}
 			fake := &fakeRenderer{}
-			ppu := ppu.NewPPU(fake, c.CHR, mapper, c.Mirror, irp, nil)
+			ppu := ppu.NewPPU(fake, mapper, c.Mirror, irp, nil)
 			apu := apu.NewAPU()
 			joypad := nes.NewJoypad()
 			cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper, joypad)

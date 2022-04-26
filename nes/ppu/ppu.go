@@ -22,7 +22,6 @@ type Interrupter interface {
 }
 
 type PPU struct {
-	chrROM       []byte
 	mapper       cassette.Mapper
 	vRAM         [2048]byte // include nametable and attribute
 	paletteTable [32]byte
@@ -59,16 +58,13 @@ type PPU struct {
 	interrupter Interrupter
 }
 
-func NewPPU(renderer Renderer, chrROM []byte, mapper cassette.Mapper, mirroring cassette.MirroringType, i Interrupter, trace Trace) *PPU {
+func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, i Interrupter, trace Trace) *PPU {
 	ppu := &PPU{
-		chrROM:      chrROM,
 		mapper:      mapper,
 		mirroring:   mirroring,
 		renderer:    renderer,
 		interrupter: i,
 		trace:       trace,
-		// Cycle:       341,
-		// scanLine:    240,
 	}
 	return ppu
 }
@@ -79,9 +75,8 @@ func (ppu *PPU) WriteController(val byte) {
 	ppu.ctrl = ControlRegister(val)
 	// If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
 	// changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-	// vblank line
-	if 241 <= ppu.scanLine && ppu.scanLine <= 260 && ppu.status.VBlankStarted() && !beforeGeneratedVBlankNMI && ppu.ctrl.GenerateVBlankNMI() {
-		ppu.interrupter.TriggerNMI()
+	if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI {
+		ppu.triggerNMI()
 	}
 	// t: ...GH.. ........ <- d: ......GH
 	// <used elsewhere>    <- d: ABCDEF..
@@ -91,14 +86,6 @@ func (ppu *PPU) WriteController(val byte) {
 // $2001: PPUMASK
 func (ppu *PPU) WriteMask(val byte) {
 	ppu.mask = MaskRegister(val)
-	//fmt.Printf("[debug] ppu WriteMask val = 0x%0x\n", val)
-	// for i := 0; i < 240/8; i++ {
-	// 	fmt.Printf("0x%04x: ", 0x2000+256/8*i)
-	// 	for j := 0; j < 256/8; j++ {
-	// 		fmt.Printf("%02x ", ppu.readVRAM(0x2000+(256/8)*uint16(i)+uint16(j)))
-	// 	}
-	// 	fmt.Println("")
-	// }
 }
 
 // $2002: PPUSTATUS
@@ -128,7 +115,6 @@ func (ppu *PPU) WriteOAMData(val byte) {
 
 // $2005: PPUSCROLL
 func (ppu *PPU) WriteScroll(val byte) {
-	//fmt.Printf("[debug] ppu WriteScroll val = 0x%0x\n", val)
 	if !ppu.w {
 		// first write
 		// t: ....... ...ABCDE <- d: ABCDE...
@@ -150,7 +136,6 @@ func (ppu *PPU) WriteScroll(val byte) {
 
 // $2006: PPUADDR
 func (ppu *PPU) WritePPUAddr(val byte) {
-	//fmt.Printf("[debug] ppu WritePPUAddr val = 0x%0x\n", val)
 	if !ppu.w {
 		// first write
 		// t: .CDEFGH ........ <- d: ..CDEFGH
@@ -219,7 +204,6 @@ func (ppu *PPU) mirrorVRAMAddr(addr uint16) uint16 {
 
 // $2007: PPUDATA read
 func (ppu *PPU) ReadPPUData() byte {
-	//fmt.Printf("[debug] ppu ReadPPUAddr\n")
 	addr := ppu.v
 	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
 	return ppu.readPPUData(addr)
@@ -259,7 +243,6 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 
 // $2007: PPUDATA write
 func (ppu *PPU) WritePPUData(val byte) {
-	//fmt.Printf("[debug] ppu WritePPUAddr val = 0x%0x\n", val)
 	addr := ppu.v
 	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
 	ppu.writePPUData(addr, val)
@@ -275,7 +258,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
 		ppu.writePPUData(addr-0x1000, val)
-	case 0x3F00 <= addr && addr <= 0x3FFF:
+	case 0x3F00 <= addr && addr <= 0x3F1F:
 		if addr == 0x3F10 || addr == 0x3F14 || addr == 0x3F18 || addr == 0x3F1C {
 			// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
 			ppu.paletteTable[addr-0x3F00-0x10] = val
@@ -385,14 +368,12 @@ func (ppu *PPU) fetchAttributeTableByte() {
 func (ppu *PPU) fetchPatternTableLowByte() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() + uint16(ppu.nameTableByte)*16 + fineY
-	//ppu.patternTableLowByte = ppu.chrROM[addr]
 	ppu.patternTableLowByte = ppu.mapper.Read(addr)
 }
 
 func (ppu *PPU) fetchPatternTableHighByte() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() + uint16(ppu.nameTableByte)*16 + fineY
-	//ppu.patternTableHighByte = ppu.chrROM[addr+8]
 	ppu.patternTableHighByte = ppu.mapper.Read(addr + 8)
 }
 
@@ -445,14 +426,16 @@ func (ppu *PPU) renderPixel() {
 		// 	fmt.Printf("[debug] (%d,%d)\tcycle:%d\taddr:%0x\tppu.paletteTable[addr]:%0x\tppu.v:%0x\tppu.x:%d\n", x, y, ppu.Cycle, addr, ppu.paletteTable[addr], ppu.v, ppu.x)
 		// }
 
-		addr = byte(ppu.patternAttributeHighBit>>15)<<3 | byte(ppu.patternAttributeLowBit>>15)<<2 | byte(ppu.patternTableHighBit>>15)<<1 | byte(ppu.patternTableLowBit>>15)
+		addr = byte(ppu.patternAttributeHighBit>>15)<<3 |
+			byte(ppu.patternAttributeLowBit>>15)<<2 |
+			byte(ppu.patternTableHighBit>>15)<<1 |
+			byte(ppu.patternTableLowBit>>15)
 	}
 	c := Palette[(ppu.paletteTable[addr])%64]
 	ppu.renderer.Render(x, y, c)
 }
 
 func (ppu *PPU) tick() {
-	//fmt.Printf("[debug] cycle:%d\tscanLine:%d\tppu.v:0x%04x\tppu.t:0x%04x\tcoarseY:%d\n", ppu.Cycle, ppu.scanLine, ppu.v, ppu.t, (ppu.v>>5)&0x1F)
 	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
 		if ppu.f == 1 && ppu.scanLine == 261 && ppu.Cycle == 339 {
 			ppu.Cycle = 0

@@ -92,7 +92,7 @@ func realMain() error {
 	trace := &cpu.Trace{}
 	irp := &cpu.Interrupter{}
 
-	ppu := ppu.NewPPU(renderer, c.CHR, mapper, c.Mirror, irp, trace)
+	ppu := ppu.NewPPU(renderer, mapper, c.Mirror, irp, trace)
 
 	joypad := nes.NewJoypad()
 	apu := apu.NewAPU()
