@@ -21,9 +21,68 @@ type Interrupter interface {
 	TriggerNMI()
 }
 
+type vram struct {
+	ram       [2048]byte
+	mirroring cassette.MirroringType
+}
+
+func newVRAM(m cassette.MirroringType) *vram {
+	return &vram{mirroring: m}
+}
+
+func (m *vram) mirrorAddr(addr uint16) uint16 {
+	if 0x3000 <= addr {
+		panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
+	}
+	nameIdx := (addr - 0x2000) / 0x400
+	if m.mirroring == cassette.MirroringHorizontal {
+		// [0x2000 .. 0x2400) and [0x2400 .. 0x2800) => the first 1 KiB of VRAM
+		// [0x2800 .. 0x2C00) and [0x2C00 .. 0x3000) => the second 1 KiB of VRAM
+		switch nameIdx {
+		case 0:
+			// addr[0x2000,0x2400) => vaddr[0x000,0x400)
+			return addr - 0x2000
+		case 1, 2:
+			// addr[0x2400,0x2800) => vaddr[0x000,0x400)
+			// addr[0x2800,0x2C00) => vaddr[0x400,0x800)
+			return addr - 0x2400
+		case 3:
+			// addr[0x2C00,0x3000) => vaddr[0x400,0x800)
+			return addr - 0x2800
+		default:
+			panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
+		}
+	} else if m.mirroring == cassette.MirroringVertical {
+		// [0x2000 .. 0x2400) and [0x2800 .. 0x2C00) => the first 1 KiB of VRAM
+		// [0x2400 .. 0x2800) and [0x2C00 .. 0x3000) => the second 1 KiB of VRAM
+		switch nameIdx {
+		case 0, 1:
+			// addr[0x2000,0x2400) => vaddr[0x000,0x400)
+			// addr[0x2400,0x2800) => vaddr[0x400,0x800)
+			return addr - 0x2000
+		case 2, 3:
+			// addr[0x2800,0x2C00) => vaddr[0x000,0x400)
+			// addr[0x2C00,0x3000) => vaddr[0x400,0x800)
+			return addr - 0x2800
+		default:
+			panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
+		}
+	} else {
+		panic(fmt.Sprintf("unimplemented ppu mirroing addr type: %d", m.mirroring))
+	}
+}
+
+func (m *vram) Read(addr uint16) byte {
+	return m.ram[m.mirrorAddr(addr)]
+}
+
+func (m *vram) Write(addr uint16, val byte) {
+	m.ram[m.mirrorAddr(addr)] = val
+}
+
 type PPU struct {
 	mapper       cassette.Mapper
-	vRAM         [2048]byte // include nametable and attribute
+	vram         *vram // include nametable and attribute
 	paletteTable [32]byte
 	oamData      [256]byte
 	ctrl         ControlRegister
@@ -60,6 +119,7 @@ type PPU struct {
 
 func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, i Interrupter, trace Trace) *PPU {
 	ppu := &PPU{
+		vram:        newVRAM(mirroring),
 		mapper:      mapper,
 		mirroring:   mirroring,
 		renderer:    renderer,
@@ -73,8 +133,9 @@ func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirror
 func (ppu *PPU) WriteController(val byte) {
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ControlRegister(val)
-	// If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
-	// changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
+	// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
+	// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
+	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
 	if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI {
 		ppu.triggerNMI()
 	}
@@ -92,6 +153,11 @@ func (ppu *PPU) WriteMask(val byte) {
 func (ppu *PPU) ReadStatus() byte {
 	st := ppu.status.Get()
 	ppu.status.ResetVBlankStarted()
+
+	// TODO: suppress NMI, scanlineとcycleを見て先読みする
+	// https://www.nesdev.org/wiki/NMI#Race_condition
+	//
+
 	// w:                  <- 0
 	ppu.w = false
 	return st
@@ -122,7 +188,6 @@ func (ppu *PPU) WriteScroll(val byte) {
 		// w:                  <- 1
 		ppu.t = (ppu.t & 0xFFE0) | (uint16(val) >> 3) // ABCDE
 		ppu.x = val & 0x07                            // FGH
-		//fmt.Printf("[debug] WriteScroll val = %0x, ppu.x = %0x\n", val, ppu.x)
 		ppu.w = true
 	} else {
 		// second write
@@ -155,53 +220,6 @@ func (ppu *PPU) WritePPUAddr(val byte) {
 	}
 }
 
-func (ppu *PPU) readVRAM(addr uint16) byte {
-	return ppu.vRAM[ppu.mirrorVRAMAddr(addr)]
-}
-
-func (ppu *PPU) writeVRAM(addr uint16, val byte) {
-	ppu.vRAM[ppu.mirrorVRAMAddr(addr)] = val
-}
-
-func (ppu *PPU) mirrorVRAMAddr(addr uint16) uint16 {
-	nameIdx := (addr - 0x2000) / 0x400
-	if ppu.mirroring == cassette.MirroringHorizontal {
-		// [0x2000 .. 0x2400) and [0x2400 .. 0x2800) => the first 1 KiB of VRAM
-		// [0x2800 .. 0x2C00) and [0x2C00 .. 0x3F00) => the second 1 KiB of VRAM
-		switch nameIdx {
-		case 0:
-			// addr[0x2000,0x2400) => vaddr[0x000,0x400)
-			return addr - 0x2000
-		case 1, 2:
-			// addr[0x2400,0x2800) => vaddr[0x000,0x400)
-			// addr[0x2800,0x2C00) => vaddr[0x400,0x800)
-			return addr - 0x2400
-		case 3:
-			// addr[0x2C00,0x3F00) => vaddr[0x400,0x800)
-			return addr - 0x2800
-		default:
-			panic("adfadfald;kjfdas")
-		}
-	} else if ppu.mirroring == cassette.MirroringVertical {
-		// [0x2000 .. 0x2400) and [0x2800 .. 0x2C00) => the first 1 KiB of VRAM
-		// [0x2400 .. 0x2800) and [0x2C00 .. 0x3F00) => the second 1 KiB of VRAM
-		switch nameIdx {
-		case 0, 1:
-			// addr[0x2000,0x2400) => vaddr[0x000,0x400)
-			// addr[0x2400,0x2800) => vaddr[0x400,0x800)
-			return addr - 0x2000
-		case 2, 3:
-			// addr[0x2800,0x2C00) => vaddr[0x000,0x400)
-			// addr[0x2C00,0x3F00) => vaddr[0x400,0x800)
-			return addr - 0x2800
-		default:
-			panic("aaaaaaaaaaaaaa")
-		}
-	} else {
-		panic(fmt.Sprintf("unimplemented ppu mirroing type: %d", ppu.mirroring))
-	}
-}
-
 // $2007: PPUDATA read
 func (ppu *PPU) ReadPPUData() byte {
 	addr := ppu.v
@@ -221,17 +239,25 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		return res
 	case 0x2000 <= addr && addr <= 0x2FFF:
 		res := ppu.buf
-		ppu.buf = ppu.readVRAM(addr)
+		ppu.buf = ppu.vram.Read(addr)
 		return res
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
 		return ppu.readPPUData(addr - 0x1000)
 	case 0x3F00 <= addr && addr <= 0x3F1F:
+		// https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
+		// > Reading palette data from $3F00-$3FFF works differently. The palette data is placed immediately on the data bus, and hence no priming read is required.
+		// > Reading the palettes still updates the internal buffer though, but the data placed in it is the mirrored nametable data that would appear "underneath" the palette.
+		// > (Checking the PPU memory map should make this clearer.)
 		if addr == 0x3F10 || addr == 0x3F14 || addr == 0x3F18 || addr == 0x3F1C {
 			// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
-			return ppu.paletteTable[addr-0x3F00-0x10]
+			res := ppu.paletteTable[addr-0x3F00-0x10]
+			ppu.buf = ppu.readPPUData(addr - 0x1000)
+			return res
 		} else {
-			return ppu.paletteTable[addr-0x3F00]
+			res := ppu.paletteTable[addr-0x3F00]
+			ppu.buf = ppu.readPPUData(addr - 0x1000)
+			return res
 		}
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
@@ -254,7 +280,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 	case 0x000 <= addr && addr <= 0x1FFF:
 		ppu.mapper.Write(addr, val)
 	case 0x2000 <= addr && addr <= 0x2FFF:
-		ppu.writeVRAM(addr, val)
+		ppu.vram.Write(addr, val)
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
 		ppu.writePPUData(addr-0x1000, val)
@@ -337,13 +363,13 @@ func (ppu *PPU) incrementY() {
 func (ppu *PPU) fetchNameTableByte() {
 	v := ppu.v
 	addr := 0x2000 | (v & 0x0FFF)
-	ppu.nameTableByte = ppu.readVRAM(addr)
+	ppu.nameTableByte = ppu.vram.Read(addr)
 }
 
 func (ppu *PPU) fetchAttributeTableByte() {
 	v := ppu.v
 	addr := 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-	b := ppu.readVRAM(addr)
+	b := ppu.vram.Read(addr)
 	//
 	// b
 	// 7654 3210

@@ -12,55 +12,55 @@ import (
 func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	tests := []struct {
 		name string
-		ppu  *PPU
+		ram  *vram
 		addr uint16
 		want uint16
 	}{
 		{
 			"1",
-			&PPU{mirroring: cassette.MirroringHorizontal},
+			newVRAM(cassette.MirroringHorizontal),
 			0x2003,
 			0x0003,
 		},
 		{
 			"2",
-			&PPU{mirroring: cassette.MirroringHorizontal},
+			newVRAM(cassette.MirroringHorizontal),
 			0x2403,
 			0x0003,
 		},
 		{
 			"3",
-			&PPU{mirroring: cassette.MirroringHorizontal},
+			newVRAM(cassette.MirroringHorizontal),
 			0x2800,
 			0x0400,
 		},
 		{
 			"4",
-			&PPU{mirroring: cassette.MirroringHorizontal},
+			newVRAM(cassette.MirroringHorizontal),
 			0x2C00,
 			0x0400,
 		},
 		{
 			"5",
-			&PPU{mirroring: cassette.MirroringVertical},
+			newVRAM(cassette.MirroringVertical),
 			0x2000,
 			0x0000,
 		},
 		{
 			"6",
-			&PPU{mirroring: cassette.MirroringVertical},
+			newVRAM(cassette.MirroringVertical),
 			0x2801,
 			0x0001,
 		},
 		{
 			"7",
-			&PPU{mirroring: cassette.MirroringVertical},
+			newVRAM(cassette.MirroringVertical),
 			0x2400,
 			0x0400,
 		},
 		{
 			"8",
-			&PPU{mirroring: cassette.MirroringVertical},
+			newVRAM(cassette.MirroringVertical),
 			0x2C01,
 			0x0401,
 		},
@@ -69,7 +69,7 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.ppu.mirrorVRAMAddr(tt.addr)
+			got := tt.ram.mirrorAddr(tt.addr)
 			assert.Equal(t, tt.want, got)
 		})
 	}

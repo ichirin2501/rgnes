@@ -129,7 +129,7 @@ func Test_AddressingMode(t *testing.T) {
 	tests := []struct {
 		name            string
 		op              *opcode
-		r               *cpuRegister
+		cpu             *CPU
 		m               []byte // MemoryReader
 		wantAddr        uint16
 		wantPageCrossed bool
@@ -137,7 +137,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"absolute",
 			&opcode{Mode: absolute},
-			&cpuRegister{},
+			&CPU{},
 			[]byte{0x01, 0x20},
 			0x2001,
 			false,
@@ -145,7 +145,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"zeroPage",
 			&opcode{Mode: zeroPage},
-			&cpuRegister{},
+			&CPU{},
 			[]byte{0x01, 0x20},
 			0x0001,
 			false,
@@ -153,7 +153,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"zeroPageX/1",
 			&opcode{Mode: zeroPageX},
-			&cpuRegister{X: 0xFF},
+			&CPU{X: 0xFF},
 			[]byte{0x01, 0x20},
 			0x0000,
 			false,
@@ -161,7 +161,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"zeroPageX/2",
 			&opcode{Mode: zeroPageX},
-			&cpuRegister{X: 0x10},
+			&CPU{X: 0x10},
 			[]byte{0x01, 0x20},
 			0x0011,
 			false,
@@ -169,7 +169,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"zeroPageY/1",
 			&opcode{Mode: zeroPageY},
-			&cpuRegister{Y: 0x20},
+			&CPU{Y: 0x20},
 			[]byte{0x01, 0x20},
 			0x0021,
 			false,
@@ -177,7 +177,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"relative/1",
 			&opcode{Mode: relative},
-			&cpuRegister{PC: 0x5},
+			&CPU{PC: 0x5},
 			[]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00},
 			0x0007,
 			false,
@@ -185,7 +185,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"relative/2",
 			&opcode{Mode: relative},
-			&cpuRegister{PC: 0x5},
+			&CPU{PC: 0x5},
 			[]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00},
 			0x0005,
 			false,
@@ -193,7 +193,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"absoluteX/1",
 			&opcode{Mode: absoluteX},
-			&cpuRegister{PC: 0x0, X: 0x1},
+			&CPU{PC: 0x0, X: 0x1},
 			[]byte{0xFF, 0x00},
 			0x0100,
 			true,
@@ -201,7 +201,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"absoluteX/2",
 			&opcode{Mode: absoluteX},
-			&cpuRegister{PC: 0x0, X: 0x1},
+			&CPU{PC: 0x0, X: 0x1},
 			[]byte{0xFE, 0x01},
 			0x01FF,
 			false,
@@ -209,7 +209,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"absoluteY/2",
 			&opcode{Mode: absoluteY},
-			&cpuRegister{PC: 0x0, Y: 0x1},
+			&CPU{PC: 0x0, Y: 0x1},
 			[]byte{0xFE, 0x02},
 			0x02FF,
 			false,
@@ -217,7 +217,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"indirect",
 			&opcode{Mode: indirect},
-			&cpuRegister{PC: 0x00},
+			&CPU{PC: 0x00},
 			[]byte{0x03, 0x00, 0x00, 0x22, 0x33},
 			0x3322,
 			false,
@@ -226,7 +226,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"indexedIndirect/1",
 			&opcode{Mode: indexedIndirect},
-			&cpuRegister{PC: 0x01, X: 0xFF},
+			&CPU{PC: 0x01, X: 0xFF},
 			[]byte{0x00, 0x04, 0x00, 0x40, 0x01},
 			0x0140,
 			false,
@@ -234,7 +234,7 @@ func Test_AddressingMode(t *testing.T) {
 		{
 			"indirectIndexed/1",
 			&opcode{Mode: indirectIndexed},
-			&cpuRegister{PC: 0x00, Y: 0x20},
+			&CPU{PC: 0x00, Y: 0x20},
 			[]byte{0x02, 0x00, 0x01, 0x50, 0x00},
 			0x5021,
 			false,
@@ -247,7 +247,8 @@ func Test_AddressingMode(t *testing.T) {
 			mem := memory.MemoryType(tt.m)
 
 			cpuBus := bus.NewCPUBus(mem, nil, nil, nil, nil)
-			cpu := &CPU{r: tt.r, m: cpuBus}
+			cpu := tt.cpu
+			cpu.m = cpuBus
 			gotAddr, gotPageCrossed := cpu.fetchOperand(tt.op)
 			assert.Equal(t, tt.wantAddr, gotAddr)
 			assert.Equal(t, tt.wantPageCrossed, gotPageCrossed)
@@ -268,10 +269,10 @@ func Test_InstrTestV5(t *testing.T) {
 			"02-implied.nes",
 			"../../roms/instr_test-v5/rom_singles/02-implied.nes",
 		},
-		// {
-		// 	"03-immediate.nes",
-		// 	"../../roms/instr_test-v5/rom_singles/03-immediate.nes",
-		// },
+		{
+			"03-immediate.nes",
+			"../../roms/instr_test-v5/rom_singles/03-immediate.nes",
+		},
 		{
 			"04-zero_page.nes",
 			"../../roms/instr_test-v5/rom_singles/04-zero_page.nes",
@@ -284,10 +285,10 @@ func Test_InstrTestV5(t *testing.T) {
 			"06-absolute.nes",
 			"../../roms/instr_test-v5/rom_singles/06-absolute.nes",
 		},
-		// {
-		// 	"07-abs_xy.nes",
-		// 	"../../roms/instr_test-v5/rom_singles/07-abs_xy.nes",
-		// },
+		{
+			"07-abs_xy.nes",
+			"../../roms/instr_test-v5/rom_singles/07-abs_xy.nes",
+		},
 		{
 			"08-ind_x.nes",
 			"../../roms/instr_test-v5/rom_singles/08-ind_x.nes",

@@ -14,23 +14,23 @@ type CPUCycle struct {
 	cycles int
 }
 
-type interruptType byte
+type InterruptType byte
 
 const (
-	interruptNone interruptType = iota
-	interruptNMI
-	interruptIRQ
+	InterruptNone InterruptType = iota
+	InterruptNMI
+	InterruptIRQ
 )
 
 type Interrupter struct {
-	t interruptType
+	I InterruptType
 }
 
 func (i *Interrupter) TriggerNMI() {
-	i.t = interruptNMI
+	i.I = InterruptNMI
 }
 func (i *Interrupter) TriggerIRQ() {
-	i.t = interruptIRQ
+	i.I = InterruptIRQ
 }
 
 func NewCPUCycle() *CPUCycle {
@@ -132,10 +132,7 @@ func (t *Trace) SetCPUInstructionReadByte(v *byte) { t.InstructionReadByte = v }
 func (t *Trace) SetPPUX(v uint16)                  { t.PPUX = v }
 func (t *Trace) SetPPUY(v uint16)                  { t.PPUY = v }
 func (t *Trace) SetPPUVBlankState(v bool)          { t.PPUVBlankState = v }
-
-func (t *Trace) AddCPUCycle(v int) { t.Cycle += v }
-
-//func (t *Trace) AddCPUCycle(v int) { t.Cycle += v * 3 }
+func (t *Trace) AddCPUCycle(v int)                 { t.Cycle += v }
 func (t *Trace) AddCPUByteCode(v byte) {
 	t.ByteCode = append(t.ByteCode, v)
 }
@@ -145,21 +142,14 @@ func (t *Trace) Reset() {
 	t.ByteCode = t.ByteCode[:0]
 }
 
-// type Trace interface {
-// 	SetCPURegisterA(byte)
-// 	SetCPURegisterX(byte)
-// 	SetCPURegisterY(byte)
-// 	SetCPURegisterPC(uint16)
-// 	SetCPURegisterS(byte)
-// 	SetCPURegisterP(byte)
-// 	SetCPUByteCode([]byte)
-// 	SetCPUMnemonic(Mnemonic)
-// 	SetCPUAddressingResult(string)
-// 	SetCPUInstructionReadByte(*byte)
-// }
-
 type CPU struct {
-	r         *cpuRegister
+	A  byte   // Accumulator
+	X  byte   // Index
+	Y  byte   // Index
+	PC uint16 // Program Counter
+	S  byte   // Stack Pointer
+	P  StatusRegister
+
 	m         *bus.CPUBus
 	cycle     *CPUCycle
 	interrupt *Interrupter
@@ -168,7 +158,13 @@ type CPU struct {
 
 func NewCPU(mem *bus.CPUBus, cycle *CPUCycle, i *Interrupter, t *Trace) *CPU {
 	return &CPU{
-		r:         newCPURegister(),
+		A:  0x00,
+		X:  0x00,
+		Y:  0x00,
+		PC: 0x8000,
+		S:  0xFD,
+		P:  StatusRegister(0x24),
+
 		m:         mem,
 		cycle:     cycle,
 		interrupt: i,
@@ -178,9 +174,8 @@ func NewCPU(mem *bus.CPUBus, cycle *CPUCycle, i *Interrupter, t *Trace) *CPU {
 
 // TODO: after reset
 func (cpu *CPU) Reset() {
-	cpu.r.PC = memory.Read16(cpu.m, 0xFFFC)
-	//cpu.r.P = reservedFlagMask | breakFlagMask | interruptDisableFlagMask
-	cpu.r.P = reservedFlagMask | interruptDisableFlagMask
+	cpu.PC = memory.Read16(cpu.m, 0xFFFC)
+	cpu.P = StatusRegister(0x24)
 }
 
 func (cpu *CPU) Step() int {
@@ -190,28 +185,29 @@ func (cpu *CPU) Step() int {
 
 	additionalCycle := 0
 
-	switch cpu.interrupt.t {
-	case interruptNMI:
+	switch cpu.interrupt.I {
+	case InterruptNMI:
 		cpu.nmi()
-		additionalCycle += 2
-	case interruptIRQ:
-		// TODO
+		// https://www.nesdev.org/wiki/Consistent_frame_synchronization#Ideal_NMI
+		additionalCycle += 7
+	case InterruptIRQ:
 		cpu.irq()
+		additionalCycle += 7
 	}
-	cpu.interrupt.t = interruptNone
+	cpu.interrupt.I = InterruptNone
 
 	if cpu.t != nil {
-		cpu.t.SetCPURegisterA(cpu.r.A)
-		cpu.t.SetCPURegisterX(cpu.r.X)
-		cpu.t.SetCPURegisterY(cpu.r.Y)
-		cpu.t.SetCPURegisterPC(cpu.r.PC)
-		cpu.t.SetCPURegisterS(cpu.r.S)
-		cpu.t.SetCPURegisterP(cpu.r.P)
+		cpu.t.SetCPURegisterA(cpu.A)
+		cpu.t.SetCPURegisterX(cpu.X)
+		cpu.t.SetCPURegisterY(cpu.Y)
+		cpu.t.SetCPURegisterPC(cpu.PC)
+		cpu.t.SetCPURegisterS(cpu.S)
+		cpu.t.SetCPURegisterP(cpu.P.Byte())
 	}
 
-	//fmt.Printf("[debug] before fetch(): cpu.r.PC = 0x%04X  _____ %s\n", cpu.r.PC, cpu.t.NESTestString())
+	//fmt.Printf("[debug] before fetch(): cpu.PC = 0x%04X  _____ %s\n", cpu.PC, cpu.t.NESTestString())
 
-	opcodeByte := fetch(cpu.r, cpu.m)
+	opcodeByte := cpu.fetch()
 	opcode := opcodeMap[opcodeByte]
 
 	//fmt.Printf("[debug] after fetch(): %s\n", cpu.t.NESTestString())
@@ -353,9 +349,9 @@ func (cpu *CPU) Step() int {
 	case BRK:
 		cpu.brk()
 	case NOP:
-	case KIL:
-		// TODO
-		cpu.kil()
+	// case KIL:
+	// 	// TODO
+	// 	cpu.kil()
 	case SLO:
 		cpu.slo(addr)
 	case ANC:
@@ -364,28 +360,28 @@ func (cpu *CPU) Step() int {
 		cpu.rla(addr)
 	case SRE:
 		cpu.sre(addr)
-	// case ALR:
+	case ALR:
+		cpu.alr(addr)
 	case RRA:
 		cpu.rra(addr)
 	case ARR:
-		// TODO
-		// cpu.arr(addr)
+		cpu.arr(addr)
 	case SAX:
 		cpu.sax(addr)
 	// case XAA:
-	case AHX:
-		// TODO
+	// case AHX:
 	// case TAS:
-	// case SHY:
-	// case SHX:
+	case SHY:
+		cpu.shy(addr)
+	case SHX:
+		cpu.shx(addr)
 	case LAX:
 		cpu.lax(addr)
 	// case LAS:
-	// 	// TODO
-	// 	cpu.las()
 	case DCP:
 		cpu.dcp(addr)
-	// case AXS:
+	case AXS:
+		cpu.axs(addr)
 	case ISB:
 		cpu.isb(addr)
 	default:
@@ -396,16 +392,10 @@ func (cpu *CPU) Step() int {
 	return opcode.Cycle + additionalCycle
 }
 
-func fetch(r *cpuRegister, m memory.MemoryReader) byte {
-	v := m.Read(r.PC)
-	r.PC++
+func (cpu *CPU) fetch() byte {
+	v := cpu.m.Read(cpu.PC)
+	cpu.PC++
 	return v
-}
-
-func fetch16(r *cpuRegister, m memory.MemoryReader) uint16 {
-	l := fetch(r, m)
-	h := fetch(r, m)
-	return uint16(h)<<8 | uint16(l)
 }
 
 func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
@@ -413,8 +403,8 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 
 	switch op.Mode {
 	case absolute:
-		l := fetch(cpu.r, cpu.m)
-		h := fetch(cpu.r, cpu.m)
+		l := cpu.fetch()
+		h := cpu.fetch()
 		addr = uint16(h)<<8 | uint16(l)
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(l)
@@ -426,16 +416,15 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 			}
 		}
 	case absoluteX:
-		l := fetch(cpu.r, cpu.m)
-		h := fetch(cpu.r, cpu.m)
+		l := cpu.fetch()
+		h := cpu.fetch()
 		a := uint16(h)<<8 | uint16(l)
-		addr = a + uint16(cpu.r.X)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.r.X))
+		addr = a + uint16(cpu.X)
+		pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
 		if pageCrossed {
 			// dummy read
-			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.r.X)) & 0xFF)
+			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
 			cpu.m.Read(dummyAddr)
-			//fmt.Printf("occer dummyRead 0x%04X\n", dummyAddr)
 		}
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(l)
@@ -443,16 +432,15 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.m.ReadForTest(addr)))
 		}
 	case absoluteY:
-		l := fetch(cpu.r, cpu.m)
-		h := fetch(cpu.r, cpu.m)
+		l := cpu.fetch()
+		h := cpu.fetch()
 		a := uint16(h)<<8 | uint16(l)
-		addr = a + uint16(cpu.r.Y)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.r.Y))
+		addr = a + uint16(cpu.Y)
+		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 		if pageCrossed {
 			// dummy read
-			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.r.Y)) & 0xFF)
+			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
 			cpu.m.Read(dummyAddr)
-			//fmt.Printf("occer dummyRead 0x%04X\n", dummyAddr)
 		}
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(l)
@@ -465,8 +453,8 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 			cpu.t.SetCPUAddressingResult("A")
 		}
 	case immediate:
-		addr = cpu.r.PC
-		cpu.r.PC++
+		addr = cpu.PC
+		cpu.PC++
 		if cpu.t != nil {
 			a := cpu.m.ReadForTest(addr)
 			cpu.t.AddCPUByteCode(a)
@@ -475,8 +463,8 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 	case implied:
 		addr = 0
 	case indexedIndirect:
-		k := fetch(cpu.r, cpu.m)
-		a := uint16(k + cpu.r.X)
+		k := cpu.fetch()
+		a := uint16(k + cpu.X)
 		b := (a & 0xFF00) | uint16(byte(a)+1)
 		addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
 		if cpu.t != nil {
@@ -484,8 +472,8 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.m.ReadForTest(addr)))
 		}
 	case indirect:
-		l := fetch(cpu.r, cpu.m)
-		h := fetch(cpu.r, cpu.m)
+		l := cpu.fetch()
+		h := cpu.fetch()
 		a := uint16(h)<<8 | uint16(l)
 		b := (a & 0xFF00) | uint16(byte(a)+1)
 		addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
@@ -495,51 +483,50 @@ func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%04X) = %04X", a, addr))
 		}
 	case indirectIndexed:
-		a := uint16(fetch(cpu.r, cpu.m))
+		a := uint16(cpu.fetch())
 		b := (a & 0xFF00) | uint16(byte(a)+1)
 		baseAddr := uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
-		addr = baseAddr + uint16(cpu.r.Y)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.r.Y))
+		addr = baseAddr + uint16(cpu.Y)
+		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 		if pageCrossed {
 			// dummy read
 			h := baseAddr & 0xFF00
 			l := baseAddr & 0x00FF
-			dummyAddr := h | ((l + uint16(cpu.r.Y)) & 0xFF)
+			dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
 			cpu.m.Read(dummyAddr)
-			//fmt.Printf("occer dummyRead 0x%04X\n", dummyAddr)
 		}
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(byte(a))
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.m.ReadForTest(addr)))
 		}
 	case relative:
-		offset := uint16(fetch(cpu.r, cpu.m))
+		offset := uint16(cpu.fetch())
 		if offset < 0x80 {
-			addr = cpu.r.PC + offset
+			addr = cpu.PC + offset
 		} else {
-			addr = cpu.r.PC + offset - 0x100
+			addr = cpu.PC + offset - 0x100
 		}
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(byte(offset))
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
 		}
 	case zeroPage:
-		a := fetch(cpu.r, cpu.m)
+		a := cpu.fetch()
 		addr = uint16(a)
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(a)
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.m.ReadForTest(addr)))
 		}
 	case zeroPageX:
-		a := fetch(cpu.r, cpu.m)
-		addr = uint16(a+cpu.r.X) & 0xFF
+		a := cpu.fetch()
+		addr = uint16(a+cpu.X) & 0xFF
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(a)
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))
 		}
 	case zeroPageY:
-		a := fetch(cpu.r, cpu.m)
-		addr = uint16(a+cpu.r.Y) & 0xFF
+		a := cpu.fetch()
+		addr = uint16(a+cpu.Y) & 0xFF
 		if cpu.t != nil {
 			cpu.t.AddCPUByteCode(a)
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))

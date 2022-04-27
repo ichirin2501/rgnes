@@ -114,9 +114,12 @@ func realMain() error {
 
 			trace.AddCPUCycle(cycle)
 
+			//beforeI := irp.I
 			for i := 0; i < cycle*3; i++ {
 				ppu.Step()
 			}
+			//afterI := irp.I
+			//fmt.Printf("interrupt type: before:%v after:%v\n", beforeI, afterI)
 			select {
 			case k := <-keyEvents:
 				switch k {
