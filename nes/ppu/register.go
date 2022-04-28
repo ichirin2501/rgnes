@@ -74,11 +74,7 @@ func (c *ControlRegister) MasterSlaveSelect() byte {
 }
 
 func (c *ControlRegister) GenerateVBlankNMI() bool {
-	if (byte(*c) & 0x80) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*c) & 0x80) == 0x80
 }
 
 // Mask Register
@@ -97,63 +93,28 @@ func (c *ControlRegister) GenerateVBlankNMI() bool {
 type MaskRegister byte
 
 func (m *MaskRegister) IsGreyscale() bool {
-	if (byte(*m) & 0x01) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x01) == 0x01
 }
-
 func (m *MaskRegister) ShowBackgroundLeftMost8pxlScreen() bool {
-	if (byte(*m) & 0x02) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x02) == 0x02
 }
 func (m *MaskRegister) ShowSpritesLeftMost8pxlScreen() bool {
-	if (byte(*m) & 0x04) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x04) == 0x04
 }
 func (m *MaskRegister) ShowBackground() bool {
-	if (byte(*m) & 0x08) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x08) == 0x08
 }
-
 func (m *MaskRegister) ShowSprites() bool {
-	if (byte(*m) & 0x10) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x10) == 0x10
 }
-
 func (m *MaskRegister) EmphasizeRed() bool {
-	if (byte(*m) & 0x20) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x20) == 0x20
 }
 func (m *MaskRegister) EmphasizeGreen() bool {
-	if (byte(*m) & 0x40) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x40) == 0x40
 }
 func (m *MaskRegister) EmphasizeBlue() bool {
-	if (byte(*m) & 0x80) == 0 {
-		return false
-	} else {
-		return true
-	}
+	return (byte(*m) & 0x80) == 0x80
 }
 
 // Status Register
@@ -179,28 +140,28 @@ func (m *MaskRegister) EmphasizeBlue() bool {
 //             pre-render line.
 type StatusRegister byte
 
-func (s *StatusRegister) SetSpriteOverflow() {
-	*s |= 0x20
+func (s *StatusRegister) SetSpriteOverflow(val bool) {
+	if val {
+		*s |= 0x20
+	} else {
+		*s &= 0xDF
+	}
 }
 
-func (s *StatusRegister) ResetSpriteOverflow() {
-	*s &= 0xDF
+func (s *StatusRegister) SetSprite0Hit(val bool) {
+	if val {
+		*s |= 0x40
+	} else {
+		*s &= 0xBF
+	}
 }
 
-func (s *StatusRegister) SetSprite0Hit() {
-	*s |= 0x40
-}
-
-func (s *StatusRegister) ResetSprite0Hit() {
-	*s &= 0xBF
-}
-
-func (s *StatusRegister) SetVBlankStarted() {
-	*s |= 0x80
-}
-
-func (s *StatusRegister) ResetVBlankStarted() {
-	*s &= 0x7F
+func (s *StatusRegister) SetVBlankStarted(val bool) {
+	if val {
+		*s |= 0x80
+	} else {
+		*s &= 0x7F
+	}
 }
 
 func (s *StatusRegister) VBlankStarted() bool {

@@ -99,6 +99,8 @@ type PPU struct {
 	mirroring    cassette.MirroringType
 	renderer     Renderer
 
+	//suppressVBlankFlag bool
+
 	nameTableByte        byte
 	attributeTableByte   byte
 	patternTableLowByte  byte
@@ -152,11 +154,10 @@ func (ppu *PPU) WriteMask(val byte) {
 // $2002: PPUSTATUS
 func (ppu *PPU) ReadStatus() byte {
 	st := ppu.status.Get()
-	ppu.status.ResetVBlankStarted()
+	ppu.status.SetVBlankStarted(false)
 
 	// TODO: suppress NMI, scanlineとcycleを見て先読みする
 	// https://www.nesdev.org/wiki/NMI#Race_condition
-	//
 
 	// w:                  <- 0
 	ppu.w = false
@@ -170,7 +171,20 @@ func (ppu *PPU) WriteOAMAddr(val byte) {
 
 // $2004: OAMDATA read
 func (ppu *PPU) ReadOAMData() byte {
-	return ppu.oamData[ppu.oamAddr]
+	if ppu.visibleScanLine() && 1 <= ppu.Cycle && ppu.Cycle <= 64 {
+		// https://www.nesdev.org/wiki/PPU_sprite_evaluation#Details
+		// > Cycles 1-64: Secondary OAM (32-byte buffer for current sprites on scanline) is initialized to $FF - attempting to read $2004 will return $FF.
+		return 0xFF
+	}
+	// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
+	// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
+	// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
+	// > Bits that have decayed also read back as 0 through OAMDATA.
+	res := ppu.oamData[ppu.oamAddr]
+	if (ppu.oamAddr & 0x03) == 0x02 {
+		res &= 0xE3
+	}
+	return res
 }
 
 // $2004: OAMDATA write
@@ -407,6 +421,10 @@ func (ppu *PPU) visibleFrame() bool {
 	return ppu.scanLine == 261 || 0 <= ppu.scanLine && ppu.scanLine < 240
 }
 
+func (ppu *PPU) visibleScanLine() bool {
+	return ppu.scanLine < 240
+}
+
 func (ppu *PPU) loadNextPixelData() {
 	ppu.patternTableHighBit |= uint16(ppu.patternTableHighByte)
 	ppu.patternTableLowBit |= uint16(ppu.patternTableLowByte)
@@ -418,45 +436,36 @@ func (ppu *PPU) loadNextPixelData() {
 	}
 }
 
-// func (ppu *PPU) backgroundPixel() byte {
-// 	if !ppu.mask.ShowBackground() {
-// 		return 0
-// 	}
-// 	return ppu.fixedTileLine.pixelPattern[ppu.x]
-// }
+func (ppu *PPU) backgroundPixel() byte {
+	if !ppu.mask.ShowBackground() {
+		return 0
+	}
+	addr := byte(ppu.patternAttributeHighBit>>15)<<3 |
+		byte(ppu.patternAttributeLowBit>>15)<<2 |
+		byte(ppu.patternTableHighBit>>15)<<1 |
+		byte(ppu.patternTableLowBit>>15)
+	return addr
+}
+
+func (ppu *PPU) spritePixel() byte {
+	if !ppu.mask.ShowSprites() {
+		return 0
+	}
+	// TODO
+	return 0
+}
 
 func (ppu *PPU) renderPixel() {
 	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	y := ppu.scanLine
 
-	// 使いたいパレットを取ってくる
 	addr := byte(0)
-	if ppu.mask.ShowBackground() {
-		// やっぱりbit型がほしいねぇ〜
-		//fmt.Printf("[debug] ppu.cycle = %d\n", ppu.Cycle)
-		//fmt.Println("[debug] ", ppu.fixedTileLine)
-		//fmt.Printf("[debug] len(ppu.fixedTileLine.pixelPattern) => %d\n", len(ppu.fixedTileLine.pixelPattern))
-		//fmt.Printf("[debug] ppu.x = %d\n", ppu.x)
-		//fmt.Printf("[debug] pixelPattern[%d]= %d\n", ppu.x, ppu.fixedTileLine.pixelPattern[ppu.x])
-		// if ppu.x != 0 {
-		// 	fmt.Printf("[debug] ppu.x = %d\n", ppu.x)
-		// }
-		//fmt.Printf("[debug] (%d,%d)\tcycle:%d\tppu.v:%0x\tppu.x:%d\n", x, y, ppu.Cycle, ppu.v, ppu.x)
-		// ppu.x は相対位置だが、shift register に対する相対位置...という話があるぞ...!!!
-		//addr = (ppu.fixedTileLine.attr << 2) | ppu.fixedTileLine.pixelPattern[ppu.x]
-		// addr = (ppu.fixedTileLine.attr << 2) | ppu.fixedTileLine.pixelPattern[x%8]
-		// if ppu.fixedTileLine.nameTableByte == 0x48 {
-		// 	fmt.Printf("[debug] (%d,%d) => fixedTileLine:%v\tnameTableByte:%0x\tplowByte:%0x\tphighByte:%0x\n", x, y, ppu.fixedTileLine, ppu.nameTableByte, ppu.patternTableLowByte, ppu.patternTableHighByte)
-		// }
-		// if addr != 0 {
-		// 	fmt.Printf("[debug] (%d,%d)\tcycle:%d\taddr:%0x\tppu.paletteTable[addr]:%0x\tppu.v:%0x\tppu.x:%d\n", x, y, ppu.Cycle, addr, ppu.paletteTable[addr], ppu.v, ppu.x)
-		// }
 
-		addr = byte(ppu.patternAttributeHighBit>>15)<<3 |
-			byte(ppu.patternAttributeLowBit>>15)<<2 |
-			byte(ppu.patternTableHighBit>>15)<<1 |
-			byte(ppu.patternTableLowBit>>15)
-	}
+	// todo
+	bg := ppu.backgroundPixel()
+	//sp := ppu.spritePixel()
+	addr = bg
+
 	c := Palette[(ppu.paletteTable[addr])%64]
 	ppu.renderer.Render(x, y, c)
 }
@@ -476,6 +485,7 @@ func (ppu *PPU) tick() {
 		ppu.scanLine++
 		if ppu.scanLine > 261 {
 			ppu.scanLine = 0
+			//ppu.suppressVBlankFlag = false
 			ppu.f ^= 1
 		}
 	}
@@ -490,14 +500,13 @@ func (ppu *PPU) Step() {
 	}
 	rendering := ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 	preLine := ppu.scanLine == 261
-	visibleLine := ppu.scanLine < 240
-	renderLine := preLine || visibleLine
+	renderLine := preLine || ppu.visibleScanLine()
 	visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	preFetchCycle := ppu.Cycle >= 321 && ppu.Cycle <= 336
 	fetchCycle := preFetchCycle || visibleCycle
 
 	if rendering {
-		if visibleLine && visibleCycle {
+		if ppu.visibleScanLine() && visibleCycle {
 			ppu.renderPixel()
 		}
 		if renderLine && fetchCycle {
@@ -536,16 +545,17 @@ func (ppu *PPU) Step() {
 		}
 	}
 
+	// vblank
 	if ppu.scanLine == 241 && ppu.Cycle == 1 {
-		ppu.status.SetVBlankStarted()
+		ppu.status.SetVBlankStarted(true)
 		ppu.triggerNMI()
 	}
 
 	// Pre-render line
 	if preLine && ppu.Cycle == 1 {
-		ppu.status.ResetVBlankStarted()
-		ppu.status.ResetSprite0Hit()
-		ppu.status.ResetSpriteOverflow()
+		ppu.status.SetVBlankStarted(false)
+		ppu.status.SetSprite0Hit(false)
+		ppu.status.SetSpriteOverflow(false)
 	}
 
 	ppu.tick()
