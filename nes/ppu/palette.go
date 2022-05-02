@@ -1,6 +1,8 @@
 package ppu
 
-import "image/color"
+import (
+	"image/color"
+)
 
 var Palette [64]color.Color
 
@@ -20,5 +22,68 @@ func init() {
 		g := byte(c >> 8)
 		b := byte(c)
 		Palette[i] = &color.RGBA{r, g, b, 0xFF}
+	}
+}
+
+type paletteRAM [32]byte
+
+func (p *paletteRAM) Read(addr *paletteAddr) byte {
+	// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+	a := addr.GetAddr()
+	if a == 0x10 || a == 0x14 || a == 0x18 || a == 0x1C {
+		return p[a-0x10]
+	} else {
+		return p[a]
+	}
+}
+
+func (p *paletteRAM) Write(addr *paletteAddr, val byte) {
+	a := addr.GetAddr()
+	if a == 0x10 || a == 0x14 || a == 0x18 || a == 0x1C {
+		p[a-0x10] = val
+	} else {
+		p[a] = val
+	}
+}
+
+// https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
+// 43210
+// |||||
+// |||++ - Pixel value from tile data
+// |++-- - Palette number from attribute table or OAM
+// +---- - Background/Sprite select
+type paletteAddr struct {
+	pixel         byte
+	paletteNumber byte
+	isSprite      bool
+}
+
+func newPaletteAddr(isSprite bool, paletteNumber byte, pixel byte) *paletteAddr {
+	if paletteNumber > 0b11 {
+		panic("palette number must be within 2 bits")
+	}
+	if pixel > 0b11 {
+		panic("pixel value must be within 2 bits")
+	}
+	return &paletteAddr{
+		isSprite:      isSprite,
+		paletteNumber: paletteNumber,
+		pixel:         pixel,
+	}
+}
+
+func parsePaletteAddr(addr byte) *paletteAddr {
+	return &paletteAddr{
+		pixel:         addr & 0b11,
+		paletteNumber: (addr >> 2) & 0b11,
+		isSprite:      (addr & 0b10000) == 0b10000,
+	}
+}
+
+func (p *paletteAddr) GetAddr() byte {
+	if p.isSprite {
+		return 0x10 | (p.paletteNumber << 2) | p.pixel
+	} else {
+		return (p.paletteNumber << 2) | p.pixel
 	}
 }

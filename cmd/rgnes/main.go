@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -106,6 +107,10 @@ func realMain() error {
 	}
 
 	go func() {
+		ticker := time.NewTicker(16 * time.Millisecond)
+		defer ticker.Stop()
+		beforeppuy := uint16(0)
+
 		for {
 			trace.Reset()
 			cycle := cpu.Step()
@@ -118,6 +123,12 @@ func realMain() error {
 			for i := 0; i < cycle*3; i++ {
 				ppu.Step()
 			}
+
+			if beforeppuy > trace.PPUY {
+				<-ticker.C
+				//fmt.Println("ticker on: ", time.Now())
+			}
+			beforeppuy = trace.PPUY
 			//afterI := irp.I
 			//fmt.Printf("interrupt type: before:%v after:%v\n", beforeI, afterI)
 			select {

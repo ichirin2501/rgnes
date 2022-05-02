@@ -80,11 +80,89 @@ func (m *vram) Write(addr uint16, val byte) {
 	m.ram[m.mirrorAddr(addr)] = val
 }
 
+// 76543210
+// ||||||||
+// ||||||++ - Palette (4 to 7) of sprite
+// |||+++-- - Unimplemented (read 0)
+// ||+----- - Priority (0: in front of background; 1: behind background)
+// |+------ - Flip sprite horizontally
+// +------- - Flip sprite vertically
+type spriteAttribute byte
+
+func (s *spriteAttribute) Palette() byte {
+	return byte(*s) & 0x3
+}
+func (s *spriteAttribute) BehindBackground() bool {
+	return (byte(*s) & 0x20) == 0x20
+}
+func (s *spriteAttribute) FlipSpriteHorizontally() bool {
+	return (byte(*s) & 0x40) == 0x40
+}
+func (s *spriteAttribute) FlipSpriteVertically() bool {
+	return (byte(*s) & 0x80) == 0x80
+}
+func (s *spriteAttribute) Byte() byte {
+	return byte(*s)
+}
+
+// https://www.nesdev.org/wiki/PPU_OAM
+type sprite struct {
+	y          byte            // Byte 0
+	tileIndex  byte            // Byte 1
+	attributes spriteAttribute // Byte 2
+	x          byte            // Byte 3
+}
+
+type oam []*sprite
+
+func (o oam) GetSpriteByAddr(addr byte) *sprite {
+	return o[addr/4]
+}
+func (o oam) GetSpriteByIndex(idx byte) *sprite {
+	return o[idx]
+}
+func (o oam) SetSpriteByIndex(idx byte, src sprite) {
+	o[idx] = &src
+}
+func (o oam) GetByte(addr byte) byte {
+	e := o[addr/4]
+	switch addr % 4 {
+	case 0:
+		return e.y
+	case 1:
+		return e.tileIndex
+	case 2:
+		return e.attributes.Byte()
+	case 3:
+		return e.x
+	}
+	panic("aaaaaaaaaaaaaaa")
+}
+func (o oam) SetByte(addr byte, val byte) {
+	e := o[addr/4]
+	switch addr % 4 {
+	case 0:
+		e.y = val
+	case 1:
+		e.tileIndex = val
+	case 2:
+		e.attributes = spriteAttribute(val)
+	case 3:
+		e.x = val
+	}
+}
+
+type spriteSlot struct {
+	attributes spriteAttribute
+	x          byte
+	lo         byte // pattern table low bit
+	hi         byte // pattern table high bit
+}
+
 type PPU struct {
 	mapper       cassette.Mapper
 	vram         *vram // include nametable and attribute
-	paletteTable [32]byte
-	oamData      [256]byte
+	paletteTable paletteRAM
 	ctrl         ControlRegister
 	mask         MaskRegister
 	status       StatusRegister
@@ -98,16 +176,20 @@ type PPU struct {
 	Cycle        int
 	mirroring    cassette.MirroringType
 	renderer     Renderer
-
+	f            byte // even/odd frame flag (1 bit)
 	//suppressVBlankFlag bool
 
+	// sprites temp variables
+	primaryOAM   oam
+	secondaryOAM oam
+	spriteSlots  [8]spriteSlot
+	spriteFounds int
+
+	// background temp variables
 	nameTableByte        byte
 	attributeTableByte   byte
 	patternTableLowByte  byte
 	patternTableHighByte byte
-
-	f byte // even/odd frame flag (1 bit)
-
 	// shift register
 	// curr = higher bit =  >>15
 	patternTableLowBit      uint16
@@ -120,10 +202,21 @@ type PPU struct {
 }
 
 func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, i Interrupter, trace Trace) *PPU {
+	po := make([]*sprite, 64)
+	for i := 0; i < 64; i++ {
+		po[i] = &sprite{}
+	}
+	so := make([]*sprite, 8)
+	for i := 0; i < 8; i++ {
+		so[i] = &sprite{}
+	}
 	ppu := &PPU{
-		vram:        newVRAM(mirroring),
-		mapper:      mapper,
-		mirroring:   mirroring,
+		vram:         newVRAM(mirroring),
+		mapper:       mapper,
+		mirroring:    mirroring,
+		primaryOAM:   oam(po),
+		secondaryOAM: oam(so),
+
 		renderer:    renderer,
 		interrupter: i,
 		trace:       trace,
@@ -180,7 +273,7 @@ func (ppu *PPU) ReadOAMData() byte {
 	// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
 	// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
 	// > Bits that have decayed also read back as 0 through OAMDATA.
-	res := ppu.oamData[ppu.oamAddr]
+	res := ppu.primaryOAM.GetByte(ppu.oamAddr)
 	if (ppu.oamAddr & 0x03) == 0x02 {
 		res &= 0xE3
 	}
@@ -189,7 +282,12 @@ func (ppu *PPU) ReadOAMData() byte {
 
 // $2004: OAMDATA write
 func (ppu *PPU) WriteOAMData(val byte) {
-	ppu.oamData[ppu.oamAddr] = val
+	if (ppu.scanLine == 261 || ppu.visibleScanLine()) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+		// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
+		// ignore
+		return
+	}
+	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
 	ppu.oamAddr++
 }
 
@@ -259,20 +357,9 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		// Mirrors of $2000-$2EFF
 		return ppu.readPPUData(addr - 0x1000)
 	case 0x3F00 <= addr && addr <= 0x3F1F:
-		// https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
-		// > Reading palette data from $3F00-$3FFF works differently. The palette data is placed immediately on the data bus, and hence no priming read is required.
-		// > Reading the palettes still updates the internal buffer though, but the data placed in it is the mirrored nametable data that would appear "underneath" the palette.
-		// > (Checking the PPU memory map should make this clearer.)
-		if addr == 0x3F10 || addr == 0x3F14 || addr == 0x3F18 || addr == 0x3F1C {
-			// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
-			res := ppu.paletteTable[addr-0x3F00-0x10]
-			ppu.buf = ppu.readPPUData(addr - 0x1000)
-			return res
-		} else {
-			res := ppu.paletteTable[addr-0x3F00]
-			ppu.buf = ppu.readPPUData(addr - 0x1000)
-			return res
-		}
+		res := ppu.paletteTable.Read(parsePaletteAddr(byte(addr - 0x3F00)))
+		ppu.buf = ppu.vram.Read(addr - 0x1000)
+		return res
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
 		return ppu.readPPUData(0x3F00 + ((addr - 0x3F20) % 32))
@@ -299,12 +386,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 		// Mirrors of $2000-$2EFF
 		ppu.writePPUData(addr-0x1000, val)
 	case 0x3F00 <= addr && addr <= 0x3F1F:
-		if addr == 0x3F10 || addr == 0x3F14 || addr == 0x3F18 || addr == 0x3F1C {
-			// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
-			ppu.paletteTable[addr-0x3F00-0x10] = val
-		} else {
-			ppu.paletteTable[addr-0x3F00] = val
-		}
+		ppu.paletteTable.Write(parsePaletteAddr(byte(addr-0x3F00)), val)
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
 		ppu.writePPUData(0x3F00+((addr-0x3F20)%32), val)
@@ -316,7 +398,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 // $4014: OAMDMA write
 func (ppu *PPU) WriteOAMDMA(data []byte) {
 	for i := 0; i < len(data); i++ {
-		ppu.oamData[ppu.oamAddr] = data[i]
+		ppu.primaryOAM.SetByte(ppu.oamAddr, data[i])
 		ppu.oamAddr++
 	}
 	// todo: cycle
@@ -417,8 +499,57 @@ func (ppu *PPU) fetchPatternTableHighByte() {
 	ppu.patternTableHighByte = ppu.mapper.Read(addr + 8)
 }
 
+func (ppu *PPU) fetchSpriteForNextScanline() {
+	// called cycle: 264, 272, ..., 320
+	sidx := (ppu.Cycle - 264) / 8
+	s := ppu.secondaryOAM.GetSpriteByIndex(byte(sidx))
+	// ignore?
+	if s.y == 0xFF {
+		return
+	}
+	// todo: 8x16
+	if !(uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+8) {
+		return
+	}
+	y := uint(ppu.scanLine) - uint(s.y)
+	if s.attributes.FlipSpriteVertically() {
+		y = 7 - y
+	}
+	// 8x8 only yet
+	addr := ppu.ctrl.SpritePatternAddr() + uint16(s.tileIndex)*16 + uint16(y)
+	lo := ppu.mapper.Read(addr)
+	hi := ppu.mapper.Read(addr + 8)
+
+	ppu.spriteSlots[ppu.spriteFounds] = spriteSlot{
+		x:          s.x,
+		attributes: s.attributes,
+		lo:         lo,
+		hi:         hi,
+	}
+	ppu.spriteFounds++
+}
+
+func (ppu *PPU) evalSpriteForNextScanline() {
+	if ppu.scanLine >= 240 {
+		panic("uaaaaaaaaaaaaxxxxxaaaa")
+	}
+	sidx := byte(0)
+	for i := byte(0); i < 64; i++ {
+		s := ppu.primaryOAM.GetSpriteByIndex(i)
+		// in y range
+		d := ppu.ctrl.SpriteSize()
+		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
+			ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
+			sidx++
+			if sidx > 7 {
+				return
+			}
+		}
+	}
+}
+
 func (ppu *PPU) visibleFrame() bool {
-	return ppu.scanLine == 261 || 0 <= ppu.scanLine && ppu.scanLine < 240
+	return ppu.scanLine == 261 || ppu.scanLine < 240
 }
 
 func (ppu *PPU) visibleScanLine() bool {
@@ -436,37 +567,75 @@ func (ppu *PPU) loadNextPixelData() {
 	}
 }
 
-func (ppu *PPU) backgroundPixel() byte {
+func (ppu *PPU) backgroundPixelPaletteAddr() *paletteAddr {
 	if !ppu.mask.ShowBackground() {
-		return 0
+		return nil
 	}
-	addr := byte(ppu.patternAttributeHighBit>>15)<<3 |
-		byte(ppu.patternAttributeLowBit>>15)<<2 |
-		byte(ppu.patternTableHighBit>>15)<<1 |
-		byte(ppu.patternTableLowBit>>15)
-	return addr
+	x := ppu.Cycle - 1
+	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
+		return nil
+	}
+	at := (byte(ppu.patternAttributeHighBit>>15) << 1) | byte(ppu.patternAttributeLowBit>>15)
+	pi := (byte(ppu.patternTableHighBit>>15) << 1) | byte(ppu.patternTableLowBit>>15)
+	return newPaletteAddr(false, at, pi)
 }
 
-func (ppu *PPU) spritePixel() byte {
+func (ppu *PPU) spritePixelPaletteAddrAndSlot() (*paletteAddr, *spriteSlot) {
 	if !ppu.mask.ShowSprites() {
-		return 0
+		return nil, nil
 	}
-	// TODO
-	return 0
+	x := ppu.Cycle - 1
+	if x < 8 && !ppu.mask.ShowSpritesLeftMost8pxlScreen() {
+		return nil, nil
+	}
+	for i := 0; i < ppu.spriteFounds; i++ {
+		s := ppu.spriteSlots[i]
+		if int(s.x) <= x && x < int(s.x)+8 {
+			// in range
+			dx := x - int(s.x)
+			if s.attributes.FlipSpriteHorizontally() {
+				dx = 7 - dx
+			}
+			hb := (s.hi & (1 << (7 - dx))) >> (7 - dx)
+			lb := (s.lo & (1 << (7 - dx))) >> (7 - dx)
+			p := (hb << 1) | lb
+			if p == 0 {
+				// todo: comment
+				continue
+			}
+			return newPaletteAddr(true, s.attributes.Palette(), p), &s
+		}
+	}
+	return nil, nil
+}
+
+func (ppu *PPU) multiplexPixelPaletteAddr() *paletteAddr {
+	bp := ppu.backgroundPixelPaletteAddr()
+	sp, s := ppu.spritePixelPaletteAddrAndSlot()
+
+	if bp == nil && sp == nil {
+		// 0x3F00, universal background color
+		return &paletteAddr{}
+	} else if bp == nil && sp != nil {
+		return sp
+	} else if bp != nil && sp == nil {
+		return bp
+	} else {
+		// bp != nil && sp != nil
+		if s.attributes.BehindBackground() {
+			return bp
+		} else {
+			return sp
+		}
+	}
 }
 
 func (ppu *PPU) renderPixel() {
 	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	y := ppu.scanLine
 
-	addr := byte(0)
-
-	// todo
-	bg := ppu.backgroundPixel()
-	//sp := ppu.spritePixel()
-	addr = bg
-
-	c := Palette[(ppu.paletteTable[addr])%64]
+	addr := ppu.multiplexPixelPaletteAddr()
+	c := Palette[ppu.paletteTable.Read(addr)%64]
 	ppu.renderer.Render(x, y, c)
 }
 
@@ -528,6 +697,41 @@ func (ppu *PPU) Step() {
 				ppu.loadNextPixelData()
 			}
 		}
+
+		// secondary OAM clear
+		if 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.visibleScanLine() {
+			if ppu.Cycle%2 == 1 {
+				addr := ppu.Cycle / 2
+				ppu.secondaryOAM.SetByte(byte(addr), 0xFF)
+			}
+		}
+		// sprite eval for next scanline
+		// 65 <= ppu.Cycle <= 256
+		if ppu.Cycle == 256 && ppu.visibleScanLine() {
+			ppu.evalSpriteForNextScanline()
+		}
+		// sprite fetch
+		if 257 <= ppu.Cycle && ppu.Cycle <= 320 {
+			// init
+			if ppu.Cycle == 257 {
+				ppu.spriteFounds = 0
+			}
+			switch ppu.Cycle % 8 {
+			case 1:
+				// garbage NT byte
+			case 3:
+				// garbage AT byte
+			case 5:
+				// fetch sprite pattern table low byte
+				// this process is included in fetchSpriteForNextScanline
+			case 7:
+				// fetch sprite pattern table high byte
+				// this process is included in fetchSpriteForNextScanline
+			case 0:
+				ppu.fetchSpriteForNextScanline()
+			}
+		}
+
 		if preLine && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
 			ppu.copyY()
 		}

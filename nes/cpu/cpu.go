@@ -188,13 +188,16 @@ func (cpu *CPU) Step() int {
 	switch cpu.interrupt.I {
 	case InterruptNMI:
 		cpu.nmi()
+		cpu.interrupt.I = InterruptNone
 		// https://www.nesdev.org/wiki/Consistent_frame_synchronization#Ideal_NMI
-		additionalCycle += 7
+		// additionalCycle += 7
+		return 7
 	case InterruptIRQ:
 		cpu.irq()
-		additionalCycle += 7
+		cpu.interrupt.I = InterruptNone
+		//additionalCycle += 7
+		return 7
 	}
-	cpu.interrupt.I = InterruptNone
 
 	if cpu.t != nil {
 		cpu.t.SetCPURegisterA(cpu.A)
