@@ -288,11 +288,6 @@ func (ppu *PPU) ReadOAMData() byte {
 
 // $2004: OAMDATA write
 func (ppu *PPU) WriteOAMData(val byte) {
-	if (ppu.scanLine == 261 || ppu.visibleScanLine()) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
-		// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
-		// ignore
-		return
-	}
 	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
 	ppu.oamAddr++
 }
@@ -514,6 +509,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 		return
 	}
 	// todo: in range処理はたぶんいらない。手前のevalのところでやるため
+	// todo: 代わりに有効なsecondoamをちゃんと見る? <- 上記の s.y == 0xFF で弾いてるから大丈夫説ある
 	// if !(uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+8) {
 	// 	return
 	// }
@@ -544,9 +540,6 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 		s := ppu.primaryOAM.GetSpriteByIndex(i)
 		// in y range
 		d := ppu.ctrl.SpriteSize()
-		if d == 16 {
-			panic("size 16 yannkeeeeeeeeeee")
-		}
 		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
 			if sidx < 8 {
 				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
@@ -587,9 +580,14 @@ func (ppu *PPU) backgroundPixelPaletteAddr() *paletteAddr {
 	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
 		return newPaletteAddr(false, 0, 0)
 	}
-	at := (byte(ppu.patternAttributeHighBit>>15) << 1) | byte(ppu.patternAttributeLowBit>>15)
-	pi := (byte(ppu.patternTableHighBit>>15) << 1) | byte(ppu.patternTableLowBit>>15)
-	return newPaletteAddr(false, at, pi)
+
+	talo := byte((ppu.patternAttributeLowBit >> (15 - ppu.x)) & 0b1)
+	tahi := byte((ppu.patternAttributeHighBit >> (15 - ppu.x)) & 0b1)
+
+	ttlo := byte((ppu.patternTableLowBit >> (15 - ppu.x)) & 0b1)
+	tthi := byte((ppu.patternTableHighBit >> (15 - ppu.x)) & 0b1)
+
+	return newPaletteAddr(false, (tahi<<1)|talo, (tthi<<1)|ttlo)
 }
 
 func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (*paletteAddr, int) {
@@ -637,11 +635,12 @@ func (ppu *PPU) multiplexPixelPaletteAddr() *paletteAddr {
 		return bp
 	} else {
 		// bp != 0 && sp != 0
+		s := ppu.spriteSlots[slotIdx]
 		x := ppu.Cycle - 1
+
 		if x < 255 && slotIdx == 0 {
 			ppu.status.SetSprite0Hit(true)
 		}
-		s := ppu.spriteSlots[slotIdx]
 		if s.attributes.BehindBackground() {
 			return bp
 		} else {
