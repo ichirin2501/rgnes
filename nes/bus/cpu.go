@@ -94,10 +94,12 @@ func (bus *CPUBus) Write(addr uint16, val byte) {
 		bus.Write(0x2000+((addr-0x2008)%0x08), val)
 	case (0x4000 <= addr && addr <= 0x4013) || addr == 0x4015 || addr == 0x4017:
 		// ignore ppu
+		// panic("unimplement write ppu")
 	case addr == 0x4014:
 		buf := make([]byte, 256)
+		a := uint16(val) << 8
 		for i := 0; i < 256; i++ {
-			buf[i] = bus.CPURAM.Read((uint16(val) + uint16(i)) % 0x800)
+			buf[i] = bus.CPURAM.Read((a + uint16(i)) % 0x800)
 		}
 		bus.ppu.WriteOAMDMA(buf)
 	case addr == 0x4016:

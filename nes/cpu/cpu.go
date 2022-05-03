@@ -2,17 +2,10 @@ package cpu
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/memory"
 )
-
-type CPUCycle struct {
-	stall  int
-	cycles int
-}
 
 type InterruptType byte
 
@@ -23,35 +16,30 @@ const (
 )
 
 type Interrupter struct {
-	I InterruptType
+	stall     int
+	cycles    int
+	delayNMI  bool
+	interrupt InterruptType
 }
 
 func (i *Interrupter) TriggerNMI() {
-	i.I = InterruptNMI
+	i.interrupt = InterruptNMI
+}
+func (i *Interrupter) SetDelayNMI() {
+	i.delayNMI = true
 }
 func (i *Interrupter) TriggerIRQ() {
-	i.I = InterruptIRQ
+	i.interrupt = InterruptIRQ
 }
-
-func NewCPUCycle() *CPUCycle {
-	return &CPUCycle{}
+func (i *Interrupter) DMASuspend() {
+	// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
+	// > The CPU is suspended during the transfer, which will take 513 or 514 cycles after the $4014 write tick.
+	// > (1 wait state cycle while waiting for writes to complete, +1 if on an odd CPU cycle, then 256 alternating read/write cycles.)
+	i.stall += 513
+	if i.cycles%2 == 1 {
+		i.stall++
+	}
 }
-func (c *CPUCycle) Stall() int {
-	return c.stall
-}
-func (c *CPUCycle) Cycles() int {
-	return c.cycles
-}
-func (c *CPUCycle) AddStall(x int) int {
-	c.stall += x
-	return c.stall
-}
-func (c *CPUCycle) AddCycles(x int) int {
-	c.cycles += x
-	return c.cycles
-}
-
-var debugWriter io.Writer = os.Stdout
 
 type Trace struct {
 	A                   byte
@@ -143,6 +131,8 @@ func (t *Trace) Reset() {
 }
 
 type CPU struct {
+	*Interrupter
+
 	A  byte   // Accumulator
 	X  byte   // Index
 	Y  byte   // Index
@@ -150,25 +140,22 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  StatusRegister
 
-	m         *bus.CPUBus
-	cycle     *CPUCycle
-	interrupt *Interrupter
-	t         *Trace
+	m *bus.CPUBus
+	t *Trace
 }
 
-func NewCPU(mem *bus.CPUBus, cycle *CPUCycle, i *Interrupter, t *Trace) *CPU {
+func NewCPU(mem *bus.CPUBus, i *Interrupter, t *Trace) *CPU {
 	return &CPU{
+		Interrupter: i,
+
 		A:  0x00,
 		X:  0x00,
 		Y:  0x00,
 		PC: 0x8000,
 		S:  0xFD,
 		P:  StatusRegister(0x24),
-
-		m:         mem,
-		cycle:     cycle,
-		interrupt: i,
-		t:         t,
+		m:  mem,
+		t:  t,
 	}
 }
 
@@ -179,25 +166,29 @@ func (cpu *CPU) Reset() {
 }
 
 func (cpu *CPU) Step() int {
-	if cpu.cycle.Stall() > 0 {
-		cpu.cycle.AddStall(-1)
+	if cpu.stall > 0 {
+		cpu.stall--
+		return 1
 	}
 
 	additionalCycle := 0
 
-	switch cpu.interrupt.I {
+	switch cpu.interrupt {
 	case InterruptNMI:
-		cpu.nmi()
-		cpu.interrupt.I = InterruptNone
-		// https://www.nesdev.org/wiki/Consistent_frame_synchronization#Ideal_NMI
-		// additionalCycle += 7
-		return 7
+		if !cpu.delayNMI {
+			cpu.nmi()
+			cpu.interrupt = InterruptNone
+			cpu.cycles += 7
+			return 7
+		}
 	case InterruptIRQ:
 		cpu.irq()
-		cpu.interrupt.I = InterruptNone
-		//additionalCycle += 7
+		cpu.interrupt = InterruptNone
+		cpu.cycles += 7
 		return 7
 	}
+
+	cpu.delayNMI = false
 
 	if cpu.t != nil {
 		cpu.t.SetCPURegisterA(cpu.A)
@@ -391,7 +382,7 @@ func (cpu *CPU) Step() int {
 		panic(fmt.Sprintf("Unable to reach: opcode.Name:%s", opcode.Name))
 	}
 
-	cpu.cycle.AddCycles(opcode.Cycle + additionalCycle)
+	cpu.cycles += opcode.Cycle + additionalCycle
 	return opcode.Cycle + additionalCycle
 }
 

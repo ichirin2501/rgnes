@@ -78,9 +78,7 @@ func realMain() error {
 		return err
 	}
 	mapper := cassette.NewMapper(c)
-
-	cycle := cpu.NewCPUCycle()
-	ram := memory.NewMemory(0x8100)
+	ram := memory.NewMemory(0x800)
 
 	// debug
 	// for i := 0; i < len(c.CHR); i++ {
@@ -99,7 +97,7 @@ func realMain() error {
 	apu := apu.NewAPU()
 	cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper, joypad)
 
-	cpu := cpu.NewCPU(cpuBus, cycle, irp, trace)
+	cpu := cpu.NewCPU(cpuBus, irp, trace)
 	cpu.Reset()
 	trace.AddCPUCycle(7)
 	for i := 0; i < 7*3; i++ {

@@ -17,8 +17,10 @@ type Trace interface {
 	SetPPUVBlankState(bool)
 }
 
-type Interrupter interface {
+type CPU interface {
 	TriggerNMI()
+	SetDelayNMI()
+	DMASuspend()
 }
 
 type vram struct {
@@ -177,7 +179,8 @@ type PPU struct {
 	mirroring    cassette.MirroringType
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
-	//suppressVBlankFlag bool
+
+	suppressVBlankFlag bool
 
 	// sprites temp variables
 	primaryOAM   oam
@@ -197,11 +200,11 @@ type PPU struct {
 	patternAttributeLowBit  uint16
 	patternAttributeHighBit uint16
 
-	trace       Trace
-	interrupter Interrupter
+	trace Trace
+	cpu   CPU
 }
 
-func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, i Interrupter, trace Trace) *PPU {
+func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
 	po := make([]*sprite, 64)
 	for i := 0; i < 64; i++ {
 		po[i] = &sprite{}
@@ -217,9 +220,9 @@ func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirror
 		primaryOAM:   oam(po),
 		secondaryOAM: oam(so),
 
-		renderer:    renderer,
-		interrupter: i,
-		trace:       trace,
+		renderer: renderer,
+		cpu:      c,
+		trace:    trace,
 	}
 	return ppu
 }
@@ -231,8 +234,11 @@ func (ppu *PPU) WriteController(val byte) {
 	// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
 	// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
 	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-	if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI {
-		ppu.triggerNMI()
+	//if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
+	if !beforeGeneratedVBlankNMI && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
+		ppu.cpu.TriggerNMI()
+		// https://archive.nes.science/nesdev-forums/f3/t10006.xhtml#p111038
+		ppu.cpu.SetDelayNMI()
 	}
 	// t: ...GH.. ........ <- d: ......GH
 	// <used elsewhere>    <- d: ABCDEF..
@@ -249,8 +255,13 @@ func (ppu *PPU) ReadStatus() byte {
 	st := ppu.status.Get()
 	ppu.status.SetVBlankStarted(false)
 
-	// TODO: suppress NMI, scanlineとcycleを見て先読みする
 	// https://www.nesdev.org/wiki/NMI#Race_condition
+	if ppu.scanLine == 241 && ppu.Cycle == 1 {
+		if ppu.status.VBlankStarted() {
+			panic("nannde vblank started 1....")
+		}
+		ppu.suppressVBlankFlag = true
+	}
 
 	// w:                  <- 0
 	ppu.w = false
@@ -264,11 +275,6 @@ func (ppu *PPU) WriteOAMAddr(val byte) {
 
 // $2004: OAMDATA read
 func (ppu *PPU) ReadOAMData() byte {
-	if ppu.visibleScanLine() && 1 <= ppu.Cycle && ppu.Cycle <= 64 {
-		// https://www.nesdev.org/wiki/PPU_sprite_evaluation#Details
-		// > Cycles 1-64: Secondary OAM (32-byte buffer for current sprites on scanline) is initialized to $FF - attempting to read $2004 will return $FF.
-		return 0xFF
-	}
 	// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
 	// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
 	// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
@@ -401,12 +407,12 @@ func (ppu *PPU) WriteOAMDMA(data []byte) {
 		ppu.primaryOAM.SetByte(ppu.oamAddr, data[i])
 		ppu.oamAddr++
 	}
-	// todo: cycle
+	ppu.cpu.DMASuspend()
 }
 
 func (ppu *PPU) triggerNMI() {
 	if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-		ppu.interrupter.TriggerNMI()
+		ppu.cpu.TriggerNMI()
 	}
 }
 
@@ -507,10 +513,10 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 	if s.y == 0xFF {
 		return
 	}
-	// todo: 8x16
-	if !(uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+8) {
-		return
-	}
+	// todo: in range処理はたぶんいらない。手前のevalのところでやるため
+	// if !(uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+8) {
+	// 	return
+	// }
 	y := uint(ppu.scanLine) - uint(s.y)
 	if s.attributes.FlipSpriteVertically() {
 		y = 7 - y
@@ -538,12 +544,18 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 		s := ppu.primaryOAM.GetSpriteByIndex(i)
 		// in y range
 		d := ppu.ctrl.SpriteSize()
+		if d == 16 {
+			panic("size 16 yannkeeeeeeeeeee")
+		}
 		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
-			ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
-			sidx++
-			if sidx > 7 {
-				return
+			if sidx < 8 {
+				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
 			}
+			sidx++
+		}
+		if sidx > 8 {
+			ppu.status.SetSpriteOverflow(true)
+			return
 		}
 	}
 }
@@ -569,24 +581,24 @@ func (ppu *PPU) loadNextPixelData() {
 
 func (ppu *PPU) backgroundPixelPaletteAddr() *paletteAddr {
 	if !ppu.mask.ShowBackground() {
-		return nil
+		return newPaletteAddr(false, 0, 0)
 	}
 	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
-		return nil
+		return newPaletteAddr(false, 0, 0)
 	}
 	at := (byte(ppu.patternAttributeHighBit>>15) << 1) | byte(ppu.patternAttributeLowBit>>15)
 	pi := (byte(ppu.patternTableHighBit>>15) << 1) | byte(ppu.patternTableLowBit>>15)
 	return newPaletteAddr(false, at, pi)
 }
 
-func (ppu *PPU) spritePixelPaletteAddrAndSlot() (*paletteAddr, *spriteSlot) {
+func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (*paletteAddr, int) {
 	if !ppu.mask.ShowSprites() {
-		return nil, nil
+		return newPaletteAddr(true, 0, 0), -1
 	}
 	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowSpritesLeftMost8pxlScreen() {
-		return nil, nil
+		return newPaletteAddr(true, 0, 0), -1
 	}
 	for i := 0; i < ppu.spriteFounds; i++ {
 		s := ppu.spriteSlots[i]
@@ -600,28 +612,36 @@ func (ppu *PPU) spritePixelPaletteAddrAndSlot() (*paletteAddr, *spriteSlot) {
 			lb := (s.lo & (1 << (7 - dx))) >> (7 - dx)
 			p := (hb << 1) | lb
 			if p == 0 {
-				// todo: comment
+				// transparent pixel
+				// https://www.nesdev.org/wiki/PPU_rendering#Preface
+				// > The current pixel for each "active" sprite is checked (from highest to lowest priority),
+				// > and the first non-transparent pixel moves on to a multiplexer, where it joins the BG pixel.
 				continue
 			}
-			return newPaletteAddr(true, s.attributes.Palette(), p), &s
+			return newPaletteAddr(true, s.attributes.Palette(), p), i
 		}
 	}
-	return nil, nil
+	return newPaletteAddr(true, 0, 0), -1
 }
 
 func (ppu *PPU) multiplexPixelPaletteAddr() *paletteAddr {
 	bp := ppu.backgroundPixelPaletteAddr()
-	sp, s := ppu.spritePixelPaletteAddrAndSlot()
+	sp, slotIdx := ppu.spritePixelPaletteAddrAndSlotIndex()
 
-	if bp == nil && sp == nil {
+	if bp.pixel == 0 && sp.pixel == 0 {
 		// 0x3F00, universal background color
 		return &paletteAddr{}
-	} else if bp == nil && sp != nil {
+	} else if bp.pixel == 0 && sp.pixel != 0 {
 		return sp
-	} else if bp != nil && sp == nil {
+	} else if bp.pixel != 0 && sp.pixel == 0 {
 		return bp
 	} else {
-		// bp != nil && sp != nil
+		// bp != 0 && sp != 0
+		x := ppu.Cycle - 1
+		if x < 255 && slotIdx == 0 {
+			ppu.status.SetSprite0Hit(true)
+		}
+		s := ppu.spriteSlots[slotIdx]
 		if s.attributes.BehindBackground() {
 			return bp
 		} else {
@@ -644,6 +664,7 @@ func (ppu *PPU) tick() {
 		if ppu.f == 1 && ppu.scanLine == 261 && ppu.Cycle == 339 {
 			ppu.Cycle = 0
 			ppu.scanLine = 0
+			ppu.suppressVBlankFlag = false
 			ppu.f ^= 1
 			return
 		}
@@ -654,7 +675,7 @@ func (ppu *PPU) tick() {
 		ppu.scanLine++
 		if ppu.scanLine > 261 {
 			ppu.scanLine = 0
-			//ppu.suppressVBlankFlag = false
+			ppu.suppressVBlankFlag = false
 			ppu.f ^= 1
 		}
 	}
@@ -751,8 +772,10 @@ func (ppu *PPU) Step() {
 
 	// vblank
 	if ppu.scanLine == 241 && ppu.Cycle == 1 {
-		ppu.status.SetVBlankStarted(true)
-		ppu.triggerNMI()
+		if !ppu.suppressVBlankFlag {
+			ppu.status.SetVBlankStarted(true)
+			ppu.triggerNMI()
+		}
 	}
 
 	// Pre-render line
