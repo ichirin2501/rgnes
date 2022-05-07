@@ -1,440 +1,419 @@
 package cpu
 
-import "github.com/ichirin2501/rgnes/nes/memory"
+import (
+	"github.com/ichirin2501/rgnes/nes/memory"
+)
 
-func lda(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.A = m.Read(addr)
-	r.UpdateZeroFlag(r.A)
-	r.UpdateNegativeFlag(r.A)
+func (cpu *CPU) lda(addr uint16) {
+	a := cpu.m.Read(addr)
+	cpu.A = a
+	cpu.P.SetZN(cpu.A)
 }
 
-func ldx(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.X = m.Read(addr)
-	r.UpdateZeroFlag(r.X)
-	r.UpdateNegativeFlag(r.X)
+func (cpu *CPU) ldx(addr uint16) {
+	a := cpu.m.Read(addr)
+	cpu.X = a
+	cpu.P.SetZN(cpu.X)
 }
 
-func ldy(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.Y = m.Read(addr)
-	r.UpdateZeroFlag(r.Y)
-	r.UpdateNegativeFlag(r.Y)
+func (cpu *CPU) ldy(addr uint16) {
+	a := cpu.m.Read(addr)
+	cpu.Y = a
+	cpu.P.SetZN(cpu.Y)
 }
 
-func sta(r *cpuRegister, m memory.MemoryWriter, addr uint16) {
-	m.Write(addr, r.A)
+func (cpu *CPU) sta(addr uint16) {
+	cpu.m.Write(addr, cpu.A)
 }
 
-func stx(r *cpuRegister, m memory.MemoryWriter, addr uint16) {
-	m.Write(addr, r.X)
+func (cpu *CPU) stx(addr uint16) {
+	cpu.m.Write(addr, cpu.X)
 }
 
-func sty(r *cpuRegister, m memory.MemoryWriter, addr uint16) {
-	m.Write(addr, r.Y)
+func (cpu *CPU) sty(addr uint16) {
+	cpu.m.Write(addr, cpu.Y)
 }
 
-func tax(r *cpuRegister) {
-	r.X = r.A
-	r.UpdateNegativeFlag(r.X)
-	r.UpdateZeroFlag(r.X)
+func (cpu *CPU) tax() {
+	cpu.X = cpu.A
+	cpu.P.SetZN(cpu.X)
 }
 
-func tay(r *cpuRegister) {
-	r.Y = r.A
-	r.UpdateNegativeFlag(r.Y)
-	r.UpdateZeroFlag(r.Y)
+func (cpu *CPU) tay() {
+	cpu.Y = cpu.A
+	cpu.P.SetZN(cpu.Y)
 }
 
-func tsx(r *cpuRegister) {
-	r.X = r.S
-	r.UpdateNegativeFlag(r.X)
-	r.UpdateZeroFlag(r.X)
+func (cpu *CPU) tsx() {
+	cpu.X = cpu.S
+	cpu.P.SetZN(cpu.X)
 }
 
-func txa(r *cpuRegister) {
-	r.A = r.X
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) txa() {
+	cpu.A = cpu.X
+	cpu.P.SetZN(cpu.A)
 }
 
-func txs(r *cpuRegister) {
-	r.S = r.X
+func (cpu *CPU) txs() {
+	cpu.S = cpu.X
 }
 
-func tya(r *cpuRegister) {
-	r.A = r.Y
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) tya() {
+	cpu.A = cpu.Y
+	cpu.P.SetZN(cpu.A)
 }
 
-func adc(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	a := r.A
-	b := m.Read(addr)
+func (cpu *CPU) adc(addr uint16) {
+	a := cpu.A
+	b := cpu.m.Read(addr)
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
 	v := a + b + c
-	r.A = v
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
-	r.SetCarryFlag(uint16(a)+uint16(b)+uint16(c) > 0xFF)
-	r.SetOverflowFlag((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+	cpu.A = v
+	cpu.P.SetZN(v)
+	cpu.P.SetCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	cpu.P.SetOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
 }
 
-func and(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.A &= m.Read(addr)
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) and(addr uint16) {
+	cpu.A &= cpu.m.Read(addr)
+	cpu.P.SetZN(cpu.A)
 }
 
-func aslAcc(r *cpuRegister) {
-	r.SetCarryFlag((r.A & 0x80) == 0x80)
-	r.A <<= 1
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) aslAcc() {
+	cpu.P.SetCarry((cpu.A & 0x80) == 0x80)
+	cpu.A <<= 1
+	cpu.P.SetZN(cpu.A)
 }
 
-func asl(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 0x80) == 0x80)
+func (cpu *CPU) asl(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v <<= 1
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func bit(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	v := m.Read(addr)
-	r.SetOverflowFlag((v & 0x40) == 0x40)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v & r.A)
+func (cpu *CPU) bit(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.P.SetOverflow((v & 0x40) == 0x40)
+	cpu.P.SetNegative(v&0x80 != 0)
+	cpu.P.SetZero((v & cpu.A) == 0x00)
 }
 
-func cmp(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	v := m.Read(addr)
-	compare(r, r.A, v)
+func (cpu *CPU) cmp(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.compare(cpu.A, v)
 }
 
-func cpx(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	v := m.Read(addr)
-	compare(r, r.X, v)
+func (cpu *CPU) cpx(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.compare(cpu.X, v)
 }
 
-func cpy(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	v := m.Read(addr)
-	compare(r, r.Y, v)
+func (cpu *CPU) cpy(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.compare(cpu.Y, v)
 }
 
-func dec(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr) - 1
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+func (cpu *CPU) dec(addr uint16) {
+	v := cpu.m.Read(addr) - 1
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func dex(r *cpuRegister) {
-	r.X--
-	r.UpdateNegativeFlag(r.X)
-	r.UpdateZeroFlag(r.X)
+func (cpu *CPU) dex() {
+	cpu.X--
+	cpu.P.SetZN(cpu.X)
 }
 
-func dey(r *cpuRegister) {
-	r.Y--
-	r.UpdateNegativeFlag(r.Y)
-	r.UpdateZeroFlag(r.Y)
+func (cpu *CPU) dey() {
+	cpu.Y--
+	cpu.P.SetZN(cpu.Y)
 }
 
-func eor(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.A ^= m.Read(addr)
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) eor(addr uint16) {
+	cpu.A ^= cpu.m.Read(addr)
+	cpu.P.SetZN(cpu.A)
 }
 
-func inc(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr) + 1
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+func (cpu *CPU) inc(addr uint16) {
+	v := cpu.m.Read(addr) + 1
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func inx(r *cpuRegister) {
-	r.X++
-	r.UpdateNegativeFlag(r.X)
-	r.UpdateZeroFlag(r.X)
+func (cpu *CPU) inx() {
+	cpu.X++
+	cpu.P.SetZN(cpu.X)
 }
 
-func iny(r *cpuRegister) {
-	r.Y++
-	r.UpdateNegativeFlag(r.Y)
-	r.UpdateZeroFlag(r.Y)
+func (cpu *CPU) iny() {
+	cpu.Y++
+	cpu.P.SetZN(cpu.Y)
 }
 
-func lsrAcc(r *cpuRegister) {
-	r.SetCarryFlag((r.A & 1) == 1)
-	r.A >>= 1
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) lsrAcc() {
+	cpu.P.SetCarry((cpu.A & 1) == 1)
+	cpu.A >>= 1
+	cpu.P.SetZN(cpu.A)
 }
 
-func lsr(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 1) == 1)
+func (cpu *CPU) lsr(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func ora(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	r.A |= m.Read(addr)
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) ora(addr uint16) {
+	cpu.A |= cpu.m.Read(addr)
+	cpu.P.SetZN(cpu.A)
 }
 
-func rolAcc(r *cpuRegister) {
+func (cpu *CPU) rolAcc() {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	r.SetCarryFlag((r.A & 0x80) == 0x80)
-	r.A = (r.A << 1) | c
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+	cpu.P.SetCarry((cpu.A & 0x80) == 0x80)
+	cpu.A = (cpu.A << 1) | c
+	cpu.P.SetZN(cpu.A)
 }
 
-func rol(r *cpuRegister, m memory.Memory, addr uint16) {
+func (cpu *CPU) rol(addr uint16) {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 0x80) == 0x80)
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func rorAcc(r *cpuRegister) {
+func (cpu *CPU) rorAcc() {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	r.SetCarryFlag((r.A & 1) == 1)
-	r.A = (r.A >> 1) | (c << 7)
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+	cpu.P.SetCarry((cpu.A & 1) == 1)
+	cpu.A = (cpu.A >> 1) | (c << 7)
+	cpu.P.SetZN(cpu.A)
 }
 
-func ror(r *cpuRegister, m memory.Memory, addr uint16) {
+func (cpu *CPU) ror(addr uint16) {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 1) == 1)
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 1) == 1)
 	v = (v >> 1) | (c << 7)
-	m.Write(addr, v)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.m.Write(addr, v)
+	cpu.P.SetZN(v)
 }
 
-func sbc(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	a := r.A
-	b := m.Read(addr)
+func (cpu *CPU) sbc(addr uint16) {
+	a := cpu.A
+	b := cpu.m.Read(addr)
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
 	v := a - b - (1 - c)
-	r.A = v
-	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
-	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.A = v
+	cpu.P.SetCarry(int(a)-int(b)-int(1-c) >= 0)
+	cpu.P.SetOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	cpu.P.SetZN(v)
 }
 
-func pha(r *cpuRegister, m memory.MemoryWriter) {
-	push(r, m, r.A)
+func (cpu *CPU) pha() {
+	cpu.push(cpu.A)
 }
 
-func php(r *cpuRegister, m memory.MemoryWriter) {
-	push(r, m, r.P|breakFlagMask)
+func (cpu *CPU) php() {
+	// TODO: 数値やめる
+	cpu.push(cpu.P.Byte() | 0x30)
 }
 
-func pla(r *cpuRegister, m memory.MemoryReader) {
-	r.A = pop(r, m)
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+func (cpu *CPU) pla() {
+	cpu.A = cpu.pop()
+	cpu.P.SetZN(cpu.A)
 }
 
-func plp(r *cpuRegister, m memory.MemoryReader) {
-	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
+func (cpu *CPU) plp() {
+	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
 }
 
-func jmp(r *cpuRegister, addr uint16) {
-	r.PC = addr
+func (cpu *CPU) jmp(addr uint16) {
+	cpu.PC = addr
 }
 
-func jsr(r *cpuRegister, m memory.MemoryWriter, addr uint16) {
-	push16(r, m, r.PC-1)
-	r.PC = addr
+func (cpu *CPU) jsr(addr uint16) {
+	cpu.push16(cpu.PC - 1)
+	cpu.PC = addr
 }
 
-func rts(r *cpuRegister, m memory.MemoryReader) {
-	r.PC = pop16(r, m) + 1
+func (cpu *CPU) rts() {
+	cpu.PC = cpu.pop16() + 1
 }
 
-func rti(r *cpuRegister, m memory.MemoryReader) {
-	r.P = (pop(r, m) & 0xEF) | reservedFlagMask
-	r.PC = pop16(r, m)
+func (cpu *CPU) rti() {
+	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
+	cpu.PC = cpu.pop16()
 }
 
-func bcc(r *cpuRegister, addr uint16) int {
-	if !r.CarryFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bcc(addr uint16) int {
+	if !cpu.P.IsCarry() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bcs(r *cpuRegister, addr uint16) int {
-	if r.CarryFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bcs(addr uint16) int {
+	if cpu.P.IsCarry() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func beq(r *cpuRegister, addr uint16) int {
-	if r.ZeroFlag() {
-		return branch(r, addr)
+func (cpu *CPU) beq(addr uint16) int {
+	if cpu.P.IsZero() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bmi(r *cpuRegister, addr uint16) int {
-	if r.NegativeFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bmi(addr uint16) int {
+	if cpu.P.IsNegative() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bne(r *cpuRegister, addr uint16) int {
-	if !r.ZeroFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bne(addr uint16) int {
+	if !cpu.P.IsZero() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bpl(r *cpuRegister, addr uint16) int {
-	if !r.NegativeFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bpl(addr uint16) int {
+	if !cpu.P.IsNegative() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bvc(r *cpuRegister, addr uint16) int {
-	if !r.OverflowFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bvc(addr uint16) int {
+	if !cpu.P.IsOverflow() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func bvs(r *cpuRegister, addr uint16) int {
-	if r.OverflowFlag() {
-		return branch(r, addr)
+func (cpu *CPU) bvs(addr uint16) int {
+	if cpu.P.IsOverflow() {
+		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func clc(r *cpuRegister) {
-	r.SetCarryFlag(false)
+func (cpu *CPU) clc() {
+	cpu.P.SetCarry(false)
 }
 
-func cld(r *cpuRegister) {
-	r.SetDecimalFlag(false)
+func (cpu *CPU) cld() {
+	cpu.P.SetDecimal(false)
 }
 
-func cli(r *cpuRegister) {
-	r.SetInterruptDisableFlag(false)
+func (cpu *CPU) cli() {
+	cpu.P.SetInterruptDisable(false)
 }
 
-func clv(r *cpuRegister) {
-	r.SetOverflowFlag(false)
+func (cpu *CPU) clv() {
+	cpu.P.SetOverflow(false)
 }
 
-func sec(r *cpuRegister) {
-	r.SetCarryFlag(true)
+func (cpu *CPU) sec() {
+	cpu.P.SetCarry(true)
 }
 
-func sed(r *cpuRegister) {
-	r.SetDecimalFlag(true)
+func (cpu *CPU) sed() {
+	cpu.P.SetDecimal(true)
 }
 
-func sei(r *cpuRegister) {
-	r.SetInterruptDisableFlag(true)
+func (cpu *CPU) sei() {
+	cpu.P.SetInterruptDisable(true)
 }
 
-func brk(r *cpuRegister, m memory.Memory) {
-	push16(r, m, r.PC)
-	push(r, m, r.P)
-	r.SetInterruptDisableFlag(true)
-	r.PC = memory.Read16(m, 0xFFFE)
+func (cpu *CPU) brk() {
+	cpu.push16(cpu.PC + 1)
+	cpu.push(cpu.P.Byte() | 0x30)
+	cpu.P.SetInterruptDisable(true)
+	cpu.PC = memory.Read16(cpu.m, 0xFFFE)
 }
 
-func nmi(r *cpuRegister, m memory.Memory) {
-	r.SetBreakFlag(false)
-	push16(r, m, r.PC)
-	push(r, m, r.P)
-	r.SetInterruptDisableFlag(true)
-	r.PC = memory.Read16(m, 0xFFFA)
+// Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack.
+// In the byte pushed, bit 5 is always set to 1, and bit 4 is 1 if from an instruction (PHP or BRK) or 0 if from an interrupt line being pulled low (/IRQ or /NMI).
+func (cpu *CPU) nmi() {
+	cpu.push16(cpu.PC)
+	cpu.push(cpu.P.Byte() | 0x20)
+	cpu.P.SetInterruptDisable(true)
+	cpu.PC = memory.Read16(cpu.m, 0xFFFA)
 }
 
-func irq(r *cpuRegister, m memory.Memory) {
-	if r.InterruptDisableFlag() {
+func (cpu *CPU) irq() {
+	if cpu.P.IsInterruptDisable() {
 		return
 	}
-	r.SetBreakFlag(false)
-	push16(r, m, r.PC)
-	push(r, m, r.P)
-	r.SetInterruptDisableFlag(true)
-	r.PC = memory.Read16(m, 0xFFFE)
+	cpu.P.SetBreak1(false)
+	cpu.push16(cpu.PC)
+	cpu.push(cpu.P.Byte())
+	cpu.P.SetInterruptDisable(true)
+	cpu.PC = memory.Read16(cpu.m, 0xFFFE)
 }
 
-func compare(r *cpuRegister, a byte, b byte) {
-	r.SetCarryFlag(a >= b)
-	r.UpdateNegativeFlag(a - b)
-	r.UpdateZeroFlag(a - b)
+func (cpu *CPU) compare(a byte, b byte) {
+	cpu.P.SetCarry(a >= b)
+	cpu.P.SetNegative((a-b)&0x80 != 0)
+	cpu.P.SetZero((a - b) == 0x00)
 }
 
-func push(r *cpuRegister, m memory.MemoryWriter, val byte) {
-	m.Write(0x100|uint16(r.S), val)
-	r.S--
+func (cpu *CPU) push(val byte) {
+	cpu.m.Write(0x100|uint16(cpu.S), val)
+	cpu.S--
 }
 
-func pop(r *cpuRegister, m memory.MemoryReader) byte {
-	r.S++
-	return m.Read(0x100 | uint16(r.S))
+func (cpu *CPU) pop() byte {
+	cpu.S++
+	return cpu.m.Read(0x100 | uint16(cpu.S))
 }
 
-func push16(r *cpuRegister, m memory.MemoryWriter, val uint16) {
+func (cpu *CPU) push16(val uint16) {
 	l := byte(val & 0xFF)
 	h := byte(val >> 8)
-	push(r, m, h)
-	push(r, m, l)
+	cpu.push(h)
+	cpu.push(l)
 }
 
-func pop16(r *cpuRegister, m memory.MemoryReader) uint16 {
-	l := pop(r, m)
-	h := pop(r, m)
+func (cpu *CPU) pop16() uint16 {
+	l := cpu.pop()
+	h := cpu.pop()
 	return uint16(h)<<8 | uint16(l)
 }
 
-func branch(r *cpuRegister, addr uint16) int {
+func (cpu *CPU) branch(addr uint16) int {
 	cycle := 1
-	if pagesCross(r.PC, addr) {
+	if pagesCross(cpu.PC, addr) {
 		cycle++
 	}
-	r.PC = addr
+	cpu.PC = addr
 	return cycle
 }
 
@@ -444,121 +423,161 @@ func pagesCross(a uint16, b uint16) bool {
 
 // undocumented opcode
 
-func kil() {}
+func (cpu *CPU) kil() {}
 
-func slo(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 0x80) == 0x80)
+func (cpu *CPU) slo(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v <<= 1
-	m.Write(addr, v)
+	cpu.m.Write(addr, v)
 
-	r.A |= v
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+	cpu.A |= v
+	cpu.P.SetZN(cpu.A)
 }
 
-func anc() {}
+func (cpu *CPU) anc(addr uint16) {
+	a := cpu.m.Read(addr)
+	cpu.A &= a
+	cpu.P.SetZN(cpu.A)
+	cpu.P.SetCarry(cpu.P.IsNegative())
+}
 
-func rla(r *cpuRegister, m memory.Memory, addr uint16) {
+func (cpu *CPU) rla(addr uint16) {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 0x80) == 0x80)
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	m.Write(addr, v)
+	cpu.m.Write(addr, v)
 
-	r.A &= v
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+	cpu.A &= v
+	cpu.P.SetZN(cpu.A)
 }
 
-func sre(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr)
-	r.SetCarryFlag((v & 1) == 1)
+func (cpu *CPU) sre(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
-	m.Write(addr, v)
+	cpu.m.Write(addr, v)
 
-	r.A ^= v
-	r.UpdateNegativeFlag(r.A)
-	r.UpdateZeroFlag(r.A)
+	cpu.A ^= v
+	cpu.P.SetZN(cpu.A)
 }
 
-func alr() {}
+func (cpu *CPU) alr(addr uint16) {
+	// A =(A&#{imm})/2
+	// N, Z, C
+	v := cpu.A & cpu.m.Read(addr)
+	cpu.P.SetCarry((v & 1) == 1)
+	v >>= 1
+	cpu.P.SetZN(v)
+	cpu.A = v
+}
 
-func rra(r *cpuRegister, m memory.Memory, addr uint16) {
+func (cpu *CPU) rra(addr uint16) {
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
-	k := m.Read(addr)
-	r.SetCarryFlag((k & 1) == 1)
+	k := cpu.m.Read(addr)
+	cpu.P.SetCarry((k & 1) == 1)
 	k = (k >> 1) | (c << 7)
-	m.Write(addr, k)
+	cpu.m.Write(addr, k)
 
-	a := r.A
+	a := cpu.A
 	b := k
 	c = byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
 	v := a + b + c
-	r.A = v
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
-	r.SetCarryFlag(uint16(a)+uint16(b)+uint16(c) > 0xFF)
-	r.SetOverflowFlag((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+	cpu.A = v
+	cpu.P.SetZN(v)
+	cpu.P.SetCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	cpu.P.SetOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
 }
 
-func arr() {}
-
-func sax(r *cpuRegister, m memory.MemoryWriter, addr uint16) {
-	m.Write(addr, r.A&r.X)
+func (cpu *CPU) arr(addr uint16) {
+	// A:=(A&#{imm})/2
+	// N V Z C
+	// N and Z are normal, but C is bit 6 and V is bit 6 xor bit 5.
+	c := byte(0)
+	if cpu.P.IsCarry() {
+		c = 0x80
+	}
+	v := ((cpu.A & cpu.m.Read(addr)) >> 1) | c
+	cpu.P.SetZN(v)
+	cpu.P.SetCarry((v & 0x40) == 0x40)
+	cpu.P.SetOverflow(((v & 0x40) ^ ((v & 0x20) << 1)) == 0x40)
+	cpu.A = v
 }
 
-func xaa() {}
-
-func ahx() {}
-
-func tas() {}
-
-func shy() {}
-
-func shx() {}
-
-func lax(r *cpuRegister, m memory.MemoryReader, addr uint16) {
-	v := m.Read(addr)
-	r.X = v
-	r.A = v
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+func (cpu *CPU) sax(addr uint16) {
+	cpu.m.Write(addr, cpu.A&cpu.X)
 }
 
-func las() {}
+func (cpu *CPU) xaa() {}
 
-func dcp(r *cpuRegister, m memory.Memory, addr uint16) {
-	v := m.Read(addr) - 1
-	compare(r, r.A, v)
-	m.Write(addr, v)
+func (cpu *CPU) ahx() {}
+
+func (cpu *CPU) tas() {}
+
+func (cpu *CPU) shy(addr uint16) {
+	if pagesCross(addr, addr-uint16(cpu.X)) {
+		addr &= uint16(cpu.Y) << 8
+	}
+	res := cpu.Y & (byte(addr>>8) + 1)
+	cpu.m.Write(addr, res)
 }
 
-func axs() {}
+func (cpu *CPU) shx(addr uint16) {
+	if pagesCross(addr, addr-uint16(cpu.Y)) {
+		addr &= uint16(cpu.X) << 8
+	}
+	res := cpu.X & (byte(addr>>8) + 1)
+	cpu.m.Write(addr, res)
+}
 
-func isc(r *cpuRegister, m memory.Memory, addr uint16) {
-	k := m.Read(addr) + 1
-	m.Write(addr, k)
+func (cpu *CPU) lax(addr uint16) {
+	v := cpu.m.Read(addr)
+	cpu.X = v
+	cpu.A = v
+	cpu.P.SetZN(v)
+}
 
-	a := r.A
+func (cpu *CPU) las() {}
+
+func (cpu *CPU) dcp(addr uint16) {
+	v := cpu.m.Read(addr) - 1
+	cpu.compare(cpu.A, v)
+	cpu.m.Write(addr, v)
+}
+
+func (cpu *CPU) axs(addr uint16) {
+	// X:=A&X-#{imm}
+	// N, Z, C
+	t := cpu.A & cpu.X
+	v := cpu.m.Read(addr)
+	cpu.X = t - v
+	cpu.P.SetCarry(int(t)-int(v) >= 0)
+	cpu.P.SetZN(cpu.X)
+}
+
+func (cpu *CPU) isb(addr uint16) {
+	k := cpu.m.Read(addr) + 1
+	cpu.m.Write(addr, k)
+
+	a := cpu.A
 	b := k
 	c := byte(0)
-	if r.CarryFlag() {
+	if cpu.P.IsCarry() {
 		c = 1
 	}
 	v := a - b - (1 - c)
-	r.A = v
-	r.SetCarryFlag(int(a)-int(b)-int(1-c) >= 0)
-	r.SetOverflowFlag(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
-	r.UpdateNegativeFlag(v)
-	r.UpdateZeroFlag(v)
+	cpu.A = v
+	cpu.P.SetCarry(int(a)-int(b)-int(1-c) >= 0)
+	cpu.P.SetOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	cpu.P.SetZN(v)
 }

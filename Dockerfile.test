@@ -1,0 +1,10 @@
+FROM golang:1.18-buster
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --no-install-suggests \
+    gcc libgl1-mesa-dev xorg-dev
+
+WORKDIR /work
+COPY . .
+
+RUN go mod download

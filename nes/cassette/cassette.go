@@ -4,13 +4,18 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"os"
 )
+
+type MirroringType int
 
 const (
 	iNESMagicNumber  = 0x1a53454e
 	programROMUnit   = 0x4000
 	characterROMUnit = 0x2000
+
+	MirroringVertical MirroringType = iota
+	MirroringHorizontal
+	MirroringFourScreen
 )
 
 type iNESHeader struct {
@@ -28,40 +33,61 @@ type iNESHeader struct {
 type Cassette struct {
 	PRG    []byte
 	CHR    []byte
+	SRAM   []byte
 	Mapper byte
+	Mirror MirroringType
 }
 
-func NewCassette(path string) (*Cassette, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func NewCassette(r io.Reader) (*Cassette, error) {
 	header := &iNESHeader{}
-	if err := binary.Read(f, binary.LittleEndian, header); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, header); err != nil {
 		return nil, err
 	}
 
 	if header.Magic != iNESMagicNumber {
-		return nil, errors.New("invalid file")
+		return nil, errors.New("invalid ines file")
+	}
+	if ((header.Flags7 >> 2) & 0x02) == 2 {
+		return nil, errors.New("NES2.0 format is not supported yet")
+	}
+
+	var mirroringType MirroringType
+	mirrorFourScreenFlag := false
+	mirrorVerticalFlag := false
+	if (header.Flags6 & 0x08) != 0 {
+		mirrorFourScreenFlag = true
+	}
+	if (header.Flags6 & 0x01) != 0 {
+		mirrorVerticalFlag = true
+	}
+	if mirrorFourScreenFlag {
+		mirroringType = MirroringFourScreen
+	} else if mirrorVerticalFlag {
+		mirroringType = MirroringVertical
+	} else {
+		mirroringType = MirroringHorizontal
 	}
 
 	mapper := (header.Flags7 & 0xF0) | (header.Flags6&0xF0)>>4
 
 	prgRom := make([]byte, int(header.PRGSize)*programROMUnit)
-	if _, err := io.ReadFull(f, prgRom); err != nil {
+	if _, err := io.ReadFull(r, prgRom); err != nil {
 		return nil, err
 	}
 
 	chrRom := make([]byte, int(header.CHRSize)*characterROMUnit)
-	if _, err := io.ReadFull(f, chrRom); err != nil {
+	if _, err := io.ReadFull(r, chrRom); err != nil {
 		return nil, err
+	}
+	if header.CHRSize == 0 {
+		chrRom = make([]byte, 8192)
 	}
 
 	return &Cassette{
 		PRG:    prgRom,
 		CHR:    chrRom,
+		SRAM:   make([]byte, 0x2000),
 		Mapper: mapper,
+		Mirror: mirroringType,
 	}, nil
 }

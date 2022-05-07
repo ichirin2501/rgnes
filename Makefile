@@ -9,10 +9,18 @@ dep:
 build:
 	go build -ldflags='-w -s' -o $(BINNAME) ./cmd/$(BINNAME)/main.go
 
+#.PHONY: test
+#test:
+#	go test -race -v ./...
+
+.PHONY: loop
+loop:
+	@while true; do sleep 1; done
+
 .PHONY: test
 test:
-	go test -race -v ./...
-	go vet ./...
+	docker build -t rgnes -f Dockerfile.test .
+	docker run --rm rgnes:latest go test -race -v ./...
 
 .PHONY: clean
 clean:

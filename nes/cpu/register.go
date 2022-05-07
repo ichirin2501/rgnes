@@ -1,109 +1,77 @@
 package cpu
 
-const (
-	carryFlagMask byte = (1 << iota)
-	zeroFlagMask
-	interruptDisableFlagMask
-	decimalFlagMask
-	breakFlagMask
-	reservedFlagMask
-	overflowFlagMask
-	negativeFlagMask
-)
+type StatusRegister byte
 
-type cpuRegister struct {
-	A  byte   // Accumulator
-	X  byte   // Index
-	Y  byte   // Index
-	PC uint16 // Program Counter
-	S  byte   // Stack Pointer
-	P  byte   // Status Register
-}
-
-func newCPURegister() *cpuRegister {
-	return &cpuRegister{
-		A:  0x00,
-		X:  0x00,
-		Y:  0x00,
-		PC: 0x8000,
-		S:  0xFD,
-		P:  reservedFlagMask | interruptDisableFlagMask,
+func (s *StatusRegister) updateBit(pos byte, val bool) {
+	if val {
+		*s |= (1 << pos)
+	} else {
+		*s &= ^(1 << pos)
 	}
 }
 
-func (r *cpuRegister) CarryFlag() bool {
-	return (r.P & carryFlagMask) == carryFlagMask
+func (s *StatusRegister) Byte() byte {
+	return byte(*s)
 }
-func (r *cpuRegister) SetCarryFlag(cond bool) {
-	if cond {
-		r.P |= carryFlagMask
-	} else {
-		r.P &= ^carryFlagMask
-	}
+
+func (s *StatusRegister) IsCarry() bool {
+	return (byte(*s) & (1 << 0)) == (1 << 0)
 }
-func (r *cpuRegister) ZeroFlag() bool {
-	return (r.P & zeroFlagMask) == zeroFlagMask
+
+func (s *StatusRegister) SetCarry(val bool) {
+	s.updateBit(0, val)
 }
-func (r *cpuRegister) SetZeroFlag(cond bool) {
-	if cond {
-		r.P |= zeroFlagMask
-	} else {
-		r.P &= ^zeroFlagMask
-	}
+
+func (s *StatusRegister) IsZero() bool {
+	return (byte(*s) & (1 << 1)) == (1 << 1)
 }
-func (r *cpuRegister) UpdateZeroFlag(val byte) {
-	r.SetZeroFlag(val == 0x00)
+
+func (s *StatusRegister) SetZero(val bool) {
+	s.updateBit(1, val)
 }
-func (r *cpuRegister) InterruptDisableFlag() bool {
-	return (r.P & interruptDisableFlagMask) == interruptDisableFlagMask
+
+func (s *StatusRegister) IsInterruptDisable() bool {
+	return (byte(*s) & (1 << 2)) == (1 << 2)
 }
-func (r *cpuRegister) SetInterruptDisableFlag(cond bool) {
-	if cond {
-		r.P |= interruptDisableFlagMask
-	} else {
-		r.P &= ^interruptDisableFlagMask
-	}
+
+func (s *StatusRegister) SetInterruptDisable(val bool) {
+	s.updateBit(2, val)
 }
-func (r *cpuRegister) DecimalFlag() bool {
-	return (r.P & decimalFlagMask) == decimalFlagMask
+
+func (s *StatusRegister) IsDecimal() bool {
+	return (byte(*s) & (1 << 3)) == (1 << 3)
 }
-func (r *cpuRegister) SetDecimalFlag(cond bool) {
-	if cond {
-		r.P |= decimalFlagMask
-	} else {
-		r.P &= ^decimalFlagMask
-	}
+
+func (s *StatusRegister) SetDecimal(val bool) {
+	s.updateBit(3, val)
 }
-func (r *cpuRegister) BreakFlag() bool {
-	return (r.P & breakFlagMask) == breakFlagMask
+
+// TODO: break
+func (s *StatusRegister) SetBreak1(val bool) {
+	s.updateBit(4, val)
 }
-func (r *cpuRegister) SetBreakFlag(cond bool) {
-	if cond {
-		r.P |= breakFlagMask
-	} else {
-		r.P &= ^breakFlagMask
-	}
+
+func (s *StatusRegister) SetBreak2(val bool) {
+	s.updateBit(5, val)
 }
-func (r *cpuRegister) OverflowFlag() bool {
-	return (r.P & overflowFlagMask) == overflowFlagMask
+
+func (s *StatusRegister) IsOverflow() bool {
+	return (byte(*s) & (1 << 6)) == (1 << 6)
 }
-func (r *cpuRegister) SetOverflowFlag(cond bool) {
-	if cond {
-		r.P |= overflowFlagMask
-	} else {
-		r.P &= ^overflowFlagMask
-	}
+
+func (s *StatusRegister) SetOverflow(val bool) {
+	s.updateBit(6, val)
 }
-func (r *cpuRegister) NegativeFlag() bool {
-	return (r.P & negativeFlagMask) == negativeFlagMask
+
+func (s *StatusRegister) IsNegative() bool {
+	return (byte(*s) & (1 << 7)) == (1 << 7)
 }
-func (r *cpuRegister) SetNegativeFlag(cond bool) {
-	if cond {
-		r.P |= negativeFlagMask
-	} else {
-		r.P &= ^negativeFlagMask
-	}
+
+func (s *StatusRegister) SetNegative(val bool) {
+	s.updateBit(7, val)
 }
-func (r *cpuRegister) UpdateNegativeFlag(val byte) {
-	r.SetNegativeFlag(val&0x80 != 0)
+
+func (s *StatusRegister) SetZN(val byte) {
+	s.SetZero(val == 0x00)
+	s.SetNegative(val&0x80 != 0)
 }
