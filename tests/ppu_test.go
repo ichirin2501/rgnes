@@ -6,28 +6,32 @@ import (
 
 	"github.com/ichirin2501/rgnes/nes"
 	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/memory"
 	"github.com/ichirin2501/rgnes/nes/ppu"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_OAM_Read(t *testing.T) {
+func Test_PPU_OUT_6000_By_blargg(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		rompath string
 	}{
 		{
-			"oam_read.nes",
+			"oam_read/oam_read.nes",
 			"../roms/oam_read/oam_read.nes",
+		},
+		{
+			"oam_stress/oam_stress.nes",
+			"../roms/oam_stress/oam_stress.nes",
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			f, err := os.Open(tt.rompath)
 			if err != nil {
 				t.Fatal(err)
@@ -38,13 +42,12 @@ func Test_OAM_Read(t *testing.T) {
 				t.Fatal(err)
 			}
 			mapper := cassette.NewMapper(c)
-			ram := memory.NewMemory(0x800)
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
 			ppu := ppu.NewPPU(fake, mapper, c.Mirror, irp, nil)
 			apu := apu.NewAPU()
 			joypad := nes.NewJoypad()
-			cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper, joypad)
+			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.NewCPU(cpuBus, irp, nil)
 			cpu.Reset()
 

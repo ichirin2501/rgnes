@@ -7,6 +7,7 @@ import (
 )
 
 func Test_PaletteRAM_Read(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ram  paletteRAM
@@ -108,6 +109,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := tt.ram.Read(tt.addr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -115,6 +117,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 }
 
 func Test_PaletteRAM_Write(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ram  paletteRAM
@@ -223,6 +226,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.ram.Write(tt.addr, tt.val)
 			assert.Equal(t, tt.want, tt.ram)
 		})
@@ -230,6 +234,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 }
 
 func Test_PaletteAddr_GetAddr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		addr *paletteAddr
@@ -250,6 +255,7 @@ func Test_PaletteAddr_GetAddr(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := tt.addr.GetAddr()
 			assert.Equal(t, tt.want, got)
 		})

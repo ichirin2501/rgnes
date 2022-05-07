@@ -4,9 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/ichirin2501/rgnes/nes/bus"
-	"github.com/ichirin2501/rgnes/nes/memory"
 )
 
 // func TestCPU(t *testing.T) {
@@ -113,6 +110,7 @@ import (
 // }
 
 func Test_AddressingMode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		op              *opcode
@@ -231,11 +229,10 @@ func Test_AddressingMode(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			mem := memory.MemoryType(tt.m)
-
-			cpuBus := bus.NewCPUBus(mem, nil, nil, nil, nil)
+			t.Parallel()
+			bus := &Bus{CPURAM: tt.m}
 			cpu := tt.cpu
-			cpu.m = cpuBus
+			cpu.m = bus
 			gotAddr, gotPageCrossed := cpu.fetchOperand(tt.op)
 			assert.Equal(t, tt.wantAddr, gotAddr)
 			assert.Equal(t, tt.wantPageCrossed, gotPageCrossed)

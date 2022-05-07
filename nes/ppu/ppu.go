@@ -207,11 +207,11 @@ type PPU struct {
 func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
 	po := make([]*sprite, 64)
 	for i := 0; i < 64; i++ {
-		po[i] = &sprite{}
+		po[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
 	}
 	so := make([]*sprite, 8)
 	for i := 0; i < 8; i++ {
-		so[i] = &sprite{}
+		so[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
 	}
 	ppu := &PPU{
 		vram:         newVRAM(mirroring),
@@ -490,13 +490,13 @@ func (ppu *PPU) fetchAttributeTableByte() {
 
 func (ppu *PPU) fetchPatternTableLowByte() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.BackgroundPatternAddr() + uint16(ppu.nameTableByte)*16 + fineY
+	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.patternTableLowByte = ppu.mapper.Read(addr)
 }
 
 func (ppu *PPU) fetchPatternTableHighByte() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.BackgroundPatternAddr() + uint16(ppu.nameTableByte)*16 + fineY
+	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.patternTableHighByte = ppu.mapper.Read(addr + 8)
 }
 
@@ -508,20 +508,43 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 	if s.y == 0xFF {
 		return
 	}
-	// todo: in range処理はたぶんいらない。手前のevalのところでやるため
-	// todo: 代わりに有効なsecondoamをちゃんと見る? <- 上記の s.y == 0xFF で弾いてるから大丈夫説ある
-	// if !(uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+8) {
-	// 	return
-	// }
-	y := uint(ppu.scanLine) - uint(s.y)
-	if s.attributes.FlipSpriteVertically() {
-		y = 7 - y
-	}
-	// 8x8 only yet
-	addr := ppu.ctrl.SpritePatternAddr() + uint16(s.tileIndex)*16 + uint16(y)
-	lo := ppu.mapper.Read(addr)
-	hi := ppu.mapper.Read(addr + 8)
 
+	lo, hi := func() (byte, byte) {
+		if ppu.ctrl.SpriteSize() == 8 {
+			y := uint16(ppu.scanLine) - uint16(s.y)
+			if y > 7 {
+				panic("unexpected sprite(8x8) dy")
+			}
+			if s.attributes.FlipSpriteVertically() {
+				y = 7 - y
+			}
+			addr := ppu.ctrl.SpritePatternAddr() | (uint16(s.tileIndex) << 4) | y
+			lo := ppu.mapper.Read(addr)
+			hi := ppu.mapper.Read(addr + 8)
+			return lo, hi
+		} else {
+			// 8x16
+			// https://www.nesdev.org/wiki/PPU_OAM#Byte_1
+			// > For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number.
+			bankTile := (uint16(s.tileIndex) & 0b1) * 0x1000
+			tileIndex := uint16(s.tileIndex) & 0b11111110
+			y := uint16(ppu.scanLine) - uint16(s.y)
+			if y > 15 {
+				panic("unexpected sprite(8x16) dy")
+			}
+			if s.attributes.FlipSpriteVertically() {
+				y = 15 - y
+			}
+			if y > 7 {
+				tileIndex++
+				y -= 8
+			}
+			addr := bankTile | tileIndex<<4 | y
+			lo := ppu.mapper.Read(addr)
+			hi := ppu.mapper.Read(addr + 8)
+			return lo, hi
+		}
+	}()
 	ppu.spriteSlots[ppu.spriteFounds] = spriteSlot{
 		x:          s.x,
 		attributes: s.attributes,
@@ -731,7 +754,7 @@ func (ppu *PPU) Step() {
 			ppu.evalSpriteForNextScanline()
 		}
 		// sprite fetch
-		if 257 <= ppu.Cycle && ppu.Cycle <= 320 {
+		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanLine()) {
 			// init
 			if ppu.Cycle == 257 {
 				ppu.spriteFounds = 0
@@ -748,7 +771,9 @@ func (ppu *PPU) Step() {
 				// fetch sprite pattern table high byte
 				// this process is included in fetchSpriteForNextScanline
 			case 0:
-				ppu.fetchSpriteForNextScanline()
+				if ppu.visibleScanLine() {
+					ppu.fetchSpriteForNextScanline()
+				}
 			}
 		}
 

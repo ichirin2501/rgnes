@@ -14,10 +14,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"github.com/ichirin2501/rgnes/nes"
 	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/memory"
 	"github.com/ichirin2501/rgnes/nes/ppu"
 )
 
@@ -78,7 +76,6 @@ func realMain() error {
 		return err
 	}
 	mapper := cassette.NewMapper(c)
-	ram := memory.NewMemory(0x800)
 
 	// debug
 	// for i := 0; i < len(c.CHR); i++ {
@@ -95,7 +92,7 @@ func realMain() error {
 
 	joypad := nes.NewJoypad()
 	apu := apu.NewAPU()
-	cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper, joypad)
+	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.NewCPU(cpuBus, irp, trace)
 	cpu.Reset()
@@ -146,6 +143,10 @@ func realMain() error {
 					joypad.SetButtonPressedStatus(nes.ButtonLeft, true)
 				case fyne.KeyRight:
 					joypad.SetButtonPressedStatus(nes.ButtonRight, true)
+				case fyne.KeyA:
+					joypad.SetButtonPressedStatus(nes.ButtonA, true)
+				case fyne.KeyS:
+					joypad.SetButtonPressedStatus(nes.ButtonB, true)
 				}
 			default:
 			}

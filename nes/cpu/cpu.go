@@ -3,7 +3,6 @@ package cpu
 import (
 	"fmt"
 
-	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/memory"
 )
 
@@ -140,11 +139,11 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  StatusRegister
 
-	m *bus.CPUBus
+	m *Bus
 	t *Trace
 }
 
-func NewCPU(mem *bus.CPUBus, i *Interrupter, t *Trace) *CPU {
+func NewCPU(mem *Bus, i *Interrupter, t *Trace) *CPU {
 	return &CPU{
 		Interrupter: i,
 

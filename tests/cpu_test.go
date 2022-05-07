@@ -7,10 +7,8 @@ import (
 
 	"github.com/ichirin2501/rgnes/nes"
 	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/bus"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/memory"
 	"github.com/ichirin2501/rgnes/nes/ppu"
 
 	"github.com/stretchr/testify/assert"
@@ -23,73 +21,74 @@ func (f *fakeRenderer) Render(x, y int, c color.Color) {
 
 }
 
-func Test_InstrTestV5(t *testing.T) {
+func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		rompath string
 	}{
 		{
-			"01-basics.nes",
+			"instr_test-v5/rom_singles/01-basics.nes",
 			"../roms/instr_test-v5/rom_singles/01-basics.nes",
 		},
 		{
-			"02-implied.nes",
+			"instr_test-v5/rom_singles/02-implied.nes",
 			"../roms/instr_test-v5/rom_singles/02-implied.nes",
 		},
 		{
-			"03-immediate.nes",
+			"instr_test-v5/rom_singles/03-immediate.nes",
 			"../roms/instr_test-v5/rom_singles/03-immediate.nes",
 		},
 		{
-			"04-zero_page.nes",
+			"instr_test-v5/rom_singles/04-zero_page.nes",
 			"../roms/instr_test-v5/rom_singles/04-zero_page.nes",
 		},
 		{
-			"05-zp_xy.nes",
+			"instr_test-v5/rom_singles/05-zp_xy.nes",
 			"../roms/instr_test-v5/rom_singles/05-zp_xy.nes",
 		},
 		{
-			"06-absolute.nes",
+			"instr_test-v5/rom_singles/06-absolute.nes",
 			"../roms/instr_test-v5/rom_singles/06-absolute.nes",
 		},
 		{
-			"07-abs_xy.nes",
+			"instr_test-v5/rom_singles/07-abs_xy.nes",
 			"../roms/instr_test-v5/rom_singles/07-abs_xy.nes",
 		},
 		{
-			"08-ind_x.nes",
+			"instr_test-v5/rom_singles/08-ind_x.nes",
 			"../roms/instr_test-v5/rom_singles/08-ind_x.nes",
 		},
 		{
-			"09-ind_y.nes",
+			"instr_test-v5/rom_singles/09-ind_y.nes",
 			"../roms/instr_test-v5/rom_singles/09-ind_y.nes",
 		},
 		{
-			"10-branches.nes",
+			"instr_test-v5/rom_singles/10-branches.nes",
 			"../roms/instr_test-v5/rom_singles/10-branches.nes",
 		},
 		{
-			"11-stack.nes",
+			"instr_test-v5/rom_singles/11-stack.nes",
 			"../roms/instr_test-v5/rom_singles/11-stack.nes",
 		},
 		{
-			"12-jmp_jsr.nes",
+			"instr_test-v5/rom_singles/12-jmp_jsr.nes",
 			"../roms/instr_test-v5/rom_singles/12-jmp_jsr.nes",
 		},
 		{
-			"13-rts.nes",
+			"instr_test-v5/rom_singles/13-rts.nes",
 			"../roms/instr_test-v5/rom_singles/13-rts.nes",
 		},
 		{
-			"14-rti.nes",
+			"instr_test-v5/rom_singles/14-rti.nes",
 			"../roms/instr_test-v5/rom_singles/14-rti.nes",
 		},
 		{
-			"15-brk.nes",
+			"instr_test-v5/rom_singles/15-brk.nes",
 			"../roms/instr_test-v5/rom_singles/15-brk.nes",
 		},
 		{
-			"16-special.nes",
+			"instr_test-v5/rom_singles/16-special.nes",
 			"../roms/instr_test-v5/rom_singles/16-special.nes",
 		},
 	}
@@ -97,6 +96,7 @@ func Test_InstrTestV5(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			f, err := os.Open(tt.rompath)
 			if err != nil {
 				t.Fatal(err)
@@ -107,13 +107,12 @@ func Test_InstrTestV5(t *testing.T) {
 				t.Fatal(err)
 			}
 			mapper := cassette.NewMapper(c)
-			ram := memory.NewMemory(0x8100)
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
 			ppu := ppu.NewPPU(fake, mapper, c.Mirror, irp, nil)
 			apu := apu.NewAPU()
 			joypad := nes.NewJoypad()
-			cpuBus := bus.NewCPUBus(ram, ppu, apu, mapper, joypad)
+			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.NewCPU(cpuBus, irp, nil)
 			cpu.Reset()
 

@@ -10,6 +10,7 @@ import (
 // TODO: `H` の文字のテスト
 
 func Test_PPU_MirrorVRAMAddr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ram  *vram
@@ -69,6 +70,7 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := tt.ram.mirrorAddr(tt.addr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -76,6 +78,7 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 }
 
 func Test_PPU_IncrementY(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ppu  *PPU
@@ -93,6 +96,7 @@ func Test_PPU_IncrementY(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.ppu.incrementY()
 			assert.Equal(t, tt.want, tt.ppu.v)
 		})
@@ -100,6 +104,7 @@ func Test_PPU_IncrementY(t *testing.T) {
 }
 
 func Test_PPU_WriteScroll(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		ppu          *PPU
@@ -126,6 +131,7 @@ func Test_PPU_WriteScroll(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.instructions(tt.ppu)
 			assert.Equal(t, tt.wantt, tt.ppu.t)
 			assert.Equal(t, tt.wantx, tt.ppu.x)
@@ -135,6 +141,7 @@ func Test_PPU_WriteScroll(t *testing.T) {
 }
 
 func Test_PPU_InternalRegisters(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		ppu          *PPU
@@ -179,6 +186,7 @@ func Test_PPU_InternalRegisters(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.instructions(tt.ppu)
 			assert.Equal(t, tt.wantt, tt.ppu.t)
 			assert.Equal(t, tt.wantv, tt.ppu.v)
