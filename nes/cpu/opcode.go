@@ -45,6 +45,8 @@ func (a addressingMode) String() string {
 		return "indirect"
 	case indirectIndexed:
 		return "indirectIndexed"
+	case indirectIndexed_D:
+		return "indirectIndexed"
 	case relative:
 		return "relative"
 	case zeroPage:
