@@ -91,6 +91,22 @@ func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
 			"instr_test-v5/rom_singles/16-special.nes",
 			"../roms/instr_test-v5/rom_singles/16-special.nes",
 		},
+		{
+			"instr_misc/rom_singles/01-abs_x_wrap.nes",
+			"../roms/instr_misc/rom_singles/01-abs_x_wrap.nes",
+		},
+		{
+			"instr_misc/rom_singles/02-branch_wrap.nes",
+			"../roms/instr_misc/rom_singles/02-branch_wrap.nes",
+		},
+		{
+			"instr_misc/rom_singles/03-dummy_reads.nes",
+			"../roms/instr_misc/rom_singles/03-dummy_reads.nes",
+		},
+		// {
+		// 	"instr_misc/rom_singles/04-dummy_reads_apu.nes",
+		// 	"../roms/instr_misc/rom_singles/04-dummy_reads_apu.nes",
+		// },
 	}
 
 	for _, tt := range tests {

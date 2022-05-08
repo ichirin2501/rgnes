@@ -58,7 +58,7 @@ func (bus *Bus) Read(addr uint16) byte {
 		}
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
-		return bus.Read(0x2000 + ((addr - 0x2008) % 0x08))
+		return bus.Read(0x2000 + addr%0x08)
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {
@@ -111,7 +111,7 @@ func (bus *Bus) Write(addr uint16, val byte) {
 		}
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
-		bus.Write(0x2000+((addr-0x2008)%0x08), val)
+		bus.Write(0x2000+addr%0x08, val)
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {

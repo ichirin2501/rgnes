@@ -363,7 +363,7 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		return res
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
-		return ppu.readPPUData(0x3F00 + ((addr - 0x3F20) % 32))
+		return ppu.readPPUData(0x3F00 + addr%0x20)
 	default:
 		panic(fmt.Sprintf("readPPUData invalid addr = 0x%04x", addr))
 	}
@@ -390,7 +390,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 		ppu.paletteTable.Write(parsePaletteAddr(byte(addr-0x3F00)), val)
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
-		ppu.writePPUData(0x3F00+((addr-0x3F20)%32), val)
+		ppu.writePPUData(0x3F00+addr%0x20, val)
 	default:
 		panic("uaaaaaaaaaaaaaaa")
 	}

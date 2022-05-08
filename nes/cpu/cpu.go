@@ -93,18 +93,6 @@ func (t *Trace) NESTestString() string {
 		t.PPUX,
 		t.Cycle,
 	)
-	// return fmt.Sprintf("%04X  %s %4s %-27s A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%3d",
-	// 	t.PC,
-	// 	bc,
-	// 	t.Opcode.Name, // op,
-	// 	"",            //ar,
-	// 	t.A,
-	// 	t.X,
-	// 	t.Y,
-	// 	t.P,
-	// 	t.S,
-	// 	(t.Cycle-21)%341,
-	// )
 }
 
 func (t *Trace) SetCPURegisterA(v byte)            { t.A = v }
@@ -391,140 +379,203 @@ func (cpu *CPU) fetch() byte {
 	return v
 }
 
-func (cpu *CPU) fetchOperand(op *opcode) (addr uint16, pageCrossed bool) {
-	pageCrossed = false
-
+func (cpu *CPU) fetchOperand(op *opcode) (uint16, bool) {
 	switch op.Mode {
 	case absolute:
-		l := cpu.fetch()
-		h := cpu.fetch()
-		addr = uint16(h)<<8 | uint16(l)
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(l)
-			cpu.t.AddCPUByteCode(h)
-			if op.Name == JMP || op.Name == JSR {
-				cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
-			} else {
-				cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.m.ReadForTest(addr)))
-			}
-		}
+		return cpu.AddressingAbsolute(op)
 	case absoluteX:
-		l := cpu.fetch()
-		h := cpu.fetch()
-		a := uint16(h)<<8 | uint16(l)
-		addr = a + uint16(cpu.X)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
-		if pageCrossed {
-			// dummy read
-			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
-			cpu.m.Read(dummyAddr)
-		}
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(l)
-			cpu.t.AddCPUByteCode(h)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingAbsoluteX(op, false)
+	case absoluteX_D:
+		return cpu.AddressingAbsoluteX(op, true)
 	case absoluteY:
-		l := cpu.fetch()
-		h := cpu.fetch()
-		a := uint16(h)<<8 | uint16(l)
-		addr = a + uint16(cpu.Y)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-		if pageCrossed {
-			// dummy read
-			dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
-			cpu.m.Read(dummyAddr)
-		}
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(l)
-			cpu.t.AddCPUByteCode(h)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingAbsoluteY(op, false)
+	case absoluteY_D:
+		return cpu.AddressingAbsoluteY(op, true)
 	case accumulator:
-		addr = 0
-		if cpu.t != nil {
-			cpu.t.SetCPUAddressingResult("A")
-		}
+		return cpu.AddressingAccumulator(op)
 	case immediate:
-		addr = cpu.PC
-		cpu.PC++
-		if cpu.t != nil {
-			a := cpu.m.ReadForTest(addr)
-			cpu.t.AddCPUByteCode(a)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
-		}
+		return cpu.AddressingImmediate(op)
 	case implied:
-		addr = 0
+		return cpu.AddressingImplied(op)
 	case indexedIndirect:
-		k := cpu.fetch()
-		a := uint16(k + cpu.X)
-		b := (a & 0xFF00) | uint16(byte(a)+1)
-		addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(k)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingIndexedIndirect(op)
 	case indirect:
-		l := cpu.fetch()
-		h := cpu.fetch()
-		a := uint16(h)<<8 | uint16(l)
-		b := (a & 0xFF00) | uint16(byte(a)+1)
-		addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(l)
-			cpu.t.AddCPUByteCode(h)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%04X) = %04X", a, addr))
-		}
+		return cpu.AddressingIndirect(op)
 	case indirectIndexed:
-		a := uint16(cpu.fetch())
-		b := (a & 0xFF00) | uint16(byte(a)+1)
-		baseAddr := uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
-		addr = baseAddr + uint16(cpu.Y)
-		pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-		if pageCrossed {
-			// dummy read
-			h := baseAddr & 0xFF00
-			l := baseAddr & 0x00FF
-			dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
-			cpu.m.Read(dummyAddr)
-		}
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(byte(a))
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingIndirectIndexed(op, false)
+	case indirectIndexed_D:
+		return cpu.AddressingIndirectIndexed(op, true)
 	case relative:
-		offset := uint16(cpu.fetch())
-		if offset < 0x80 {
-			addr = cpu.PC + offset
-		} else {
-			addr = cpu.PC + offset - 0x100
-		}
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(byte(offset))
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
-		}
+		return cpu.AddressingRelative(op)
 	case zeroPage:
-		a := cpu.fetch()
-		addr = uint16(a)
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(a)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingZeroPage(op)
 	case zeroPageX:
-		a := cpu.fetch()
-		addr = uint16(a+cpu.X) & 0xFF
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(a)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))
-		}
+		return cpu.AddressingZeroPageX(op)
 	case zeroPageY:
-		a := cpu.fetch()
-		addr = uint16(a+cpu.Y) & 0xFF
-		if cpu.t != nil {
-			cpu.t.AddCPUByteCode(a)
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))
+		return cpu.AddressingZeroPageY(op)
+	default:
+		panic("unknown addressing mode")
+	}
+}
+
+func (cpu *CPU) AddressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
+	l := cpu.fetch()
+	h := cpu.fetch()
+	addr = uint16(h)<<8 | uint16(l)
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(l)
+		cpu.t.AddCPUByteCode(h)
+		if op.Name == JMP || op.Name == JSR {
+			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
+		} else {
+			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.m.ReadForTest(addr)))
 		}
 	}
+	return addr, false
+}
 
+func (cpu *CPU) AddressingAbsoluteX(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+	l := cpu.fetch()
+	h := cpu.fetch()
+	a := uint16(h)<<8 | uint16(l)
+	addr = a + uint16(cpu.X)
+	pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
+	if pageCrossed || dummyRead {
+		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
+		cpu.m.Read(dummyAddr)
+	}
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(l)
+		cpu.t.AddCPUByteCode(h)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.m.ReadForTest(addr)))
+	}
 	return addr, pageCrossed
+}
+
+func (cpu *CPU) AddressingAbsoluteY(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+	l := cpu.fetch()
+	h := cpu.fetch()
+	a := uint16(h)<<8 | uint16(l)
+	addr = a + uint16(cpu.Y)
+	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
+	if pageCrossed || dummyRead {
+		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
+		cpu.m.Read(dummyAddr)
+	}
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(l)
+		cpu.t.AddCPUByteCode(h)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.m.ReadForTest(addr)))
+	}
+	return addr, pageCrossed
+}
+
+func (cpu *CPU) AddressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
+	if cpu.t != nil {
+		cpu.t.SetCPUAddressingResult("A")
+	}
+	return 0, false
+}
+
+func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) {
+	addr = cpu.PC
+	cpu.PC++
+	if cpu.t != nil {
+		a := cpu.m.ReadForTest(addr)
+		cpu.t.AddCPUByteCode(a)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
+	}
+	return addr, false
+}
+
+func (cpu *CPU) AddressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
+	return 0, false
+}
+
+func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+	k := cpu.fetch()
+	a := uint16(k + cpu.X)
+	b := (a & 0xFF00) | uint16(byte(a)+1)
+	addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(k)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.m.ReadForTest(addr)))
+	}
+	return addr, false
+}
+
+func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+	l := cpu.fetch()
+	h := cpu.fetch()
+	a := uint16(h)<<8 | uint16(l)
+	b := (a & 0xFF00) | uint16(byte(a)+1)
+	addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(l)
+		cpu.t.AddCPUByteCode(h)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%04X) = %04X", a, addr))
+	}
+	return addr, false
+
+}
+func (cpu *CPU) AddressingIndirectIndexed(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+	a := uint16(cpu.fetch())
+	b := (a & 0xFF00) | uint16(byte(a)+1)
+	baseAddr := uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	addr = baseAddr + uint16(cpu.Y)
+	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
+	if pageCrossed || dummyRead {
+		h := baseAddr & 0xFF00
+		l := baseAddr & 0x00FF
+		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
+		cpu.m.Read(dummyAddr)
+	}
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(byte(a))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.m.ReadForTest(addr)))
+	}
+	return addr, pageCrossed
+}
+func (cpu *CPU) AddressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
+	offset := uint16(cpu.fetch())
+	if offset < 0x80 {
+		addr = cpu.PC + offset
+	} else {
+		addr = cpu.PC + offset - 0x100
+	}
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(byte(offset))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
+	}
+	return addr, false
+}
+
+func (cpu *CPU) AddressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
+	a := cpu.fetch()
+	addr = uint16(a)
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(a)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.m.ReadForTest(addr)))
+	}
+	return addr, false
+}
+
+func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) {
+	a := cpu.fetch()
+	addr = uint16(a+cpu.X) & 0xFF
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(a)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))
+	}
+	return addr, false
+}
+
+func (cpu *CPU) AddressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) {
+	a := cpu.fetch()
+	addr = uint16(a+cpu.Y) & 0xFF
+	if cpu.t != nil {
+		cpu.t.AddCPUByteCode(a)
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.m.ReadForTest(addr)))
+	}
+	return addr, false
 }

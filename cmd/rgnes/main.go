@@ -120,6 +120,7 @@ func realMain() error {
 			}
 
 			if beforeppuy > trace.PPUY {
+				joypad.SetButtonPressedStatus(0)
 				<-ticker.C
 				//fmt.Println("ticker on: ", time.Now())
 			}
@@ -132,23 +133,24 @@ func realMain() error {
 				case fyne.KeyEscape:
 					win.Close()
 				case fyne.KeySpace:
-					joypad.SetButtonPressedStatus(nes.ButtonSelect, true)
+					joypad.SetButtonPressedStatus(nes.ButtonSelect)
 				case fyne.KeyReturn:
-					joypad.SetButtonPressedStatus(nes.ButtonStart, true)
+					joypad.SetButtonPressedStatus(nes.ButtonStart)
 				case fyne.KeyUp:
-					joypad.SetButtonPressedStatus(nes.ButtonUP, true)
+					joypad.SetButtonPressedStatus(nes.ButtonUP)
 				case fyne.KeyDown:
-					joypad.SetButtonPressedStatus(nes.ButtonDown, true)
+					joypad.SetButtonPressedStatus(nes.ButtonDown)
 				case fyne.KeyLeft:
-					joypad.SetButtonPressedStatus(nes.ButtonLeft, true)
+					joypad.SetButtonPressedStatus(nes.ButtonLeft)
 				case fyne.KeyRight:
-					joypad.SetButtonPressedStatus(nes.ButtonRight, true)
+					joypad.SetButtonPressedStatus(nes.ButtonRight)
 				case fyne.KeyA:
-					joypad.SetButtonPressedStatus(nes.ButtonA, true)
+					joypad.SetButtonPressedStatus(nes.ButtonA)
 				case fyne.KeyS:
-					joypad.SetButtonPressedStatus(nes.ButtonB, true)
+					joypad.SetButtonPressedStatus(nes.ButtonB)
 				}
 			default:
+				//joypad.SetButtonPressedStatus(0)
 			}
 			canvasImg.Refresh()
 			//time.Sleep(10 * time.Microsecond)

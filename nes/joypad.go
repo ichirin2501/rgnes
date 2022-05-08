@@ -1,10 +1,8 @@
 package nes
 
-type ButtonType byte
-
 // https://www.nesdev.org/wiki/Controller_reading_code
 const (
-	ButtonA ButtonType = (1 << iota)
+	ButtonA = (1 << iota)
 	ButtonB
 	ButtonSelect
 	ButtonStart
@@ -17,7 +15,7 @@ const (
 type Joypad struct {
 	Strobe       bool
 	ButtonIndex  byte
-	ButtonStatus ButtonType
+	ButtonStatus byte
 }
 
 func NewJoypad() *Joypad {
@@ -42,10 +40,10 @@ func (j *Joypad) Write(v byte) {
 	}
 }
 
-func (j *Joypad) SetButtonPressedStatus(b ButtonType, pressed bool) {
-	if pressed {
+func (j *Joypad) SetButtonPressedStatus(b byte) {
+	if b != 0 {
 		j.ButtonStatus |= b
 	} else {
-		j.ButtonStatus &= ^b
+		j.ButtonStatus = 0
 	}
 }
