@@ -5,5 +5,10 @@
 
 This NES emulator is implemented for my study
 
+Most of the code in rgnes was based on the following.
+It's great because it's written so simple.
+
+- https://github.com/fogleman/nes
+
 ## License
 rgnes is licensed under the MIT license
