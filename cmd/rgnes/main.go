@@ -90,6 +90,29 @@ func realMain() error {
 
 	ppu := ppu.NewPPU(renderer, mapper, c.Mirror, irp, trace)
 
+	// i := 0
+	// vblankOnClock := 0
+	// for {
+	// 	beforeN := ppu.FetchNMIDelay()
+	// 	beforeV := ppu.FetchVBlankStarted()
+	// 	ppu.Step()
+	// 	i++
+	// 	afterV := ppu.FetchVBlankStarted()
+	// 	afterN := ppu.FetchNMIDelay()
+	// 	if !beforeV && afterV {
+	// 		fmt.Printf("vblank:1\tclock:%d\n", i)
+	// 		vblankOnClock = i
+	// 	} else if beforeV && !afterV {
+	// 		fmt.Printf("vblank:0\tclock:%d\t1->0:%d\t=cpuClock:%d(=%d)\n", i, i-vblankOnClock, (i-vblankOnClock)/3, (i-vblankOnClock)%3)
+	// 		fmt.Println("")
+	// 		return nil
+	// 	} else if beforeN > 0 && afterN == 0 {
+	// 		fmt.Printf("trigger nmi clock: %d\n", i)
+	// 	}
+	// }
+
+	// return nil
+
 	joypad := nes.NewJoypad()
 	apu := apu.NewAPU()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
@@ -97,7 +120,7 @@ func realMain() error {
 	cpu := cpu.NewCPU(cpuBus, irp, trace)
 	cpu.Reset()
 	trace.AddCPUCycle(7)
-	for i := 0; i < 7*3; i++ {
+	for i := 0; i < 15; i++ {
 		ppu.Step()
 	}
 
@@ -108,16 +131,24 @@ func realMain() error {
 
 		for {
 			trace.Reset()
+
+			// ここでppuの状態を記録しておく
+			trace.SetPPUX(uint16(ppu.Cycle))
+			trace.SetPPUY(uint16(ppu.FetchScanline()))
 			cycle := cpu.Step()
 
-			//fmt.Println(trace.NESTestString())
+			// fmt.Println(trace.NESTestString())
+			//fmt.Printf("cpu.clock:%d\tppu.clock:%d\tdiff:%d\n", cpu.FetchCycles(), ppu.Clock, cpu.FetchCycles()*3-ppu.Clock)
+			if cpu.FetchCycles()*3 != ppu.Clock {
+				panic("eeeeeeeeeeeeeeeeee")
+			}
 
 			trace.AddCPUCycle(cycle)
 
 			//beforeI := irp.I
-			for i := 0; i < cycle*3; i++ {
-				ppu.Step()
-			}
+			// for i := 0; i < cycle*3; i++ {
+			// 	ppu.Step()
+			// }
 
 			if beforeppuy > trace.PPUY {
 				joypad.SetButtonPressedStatus(0)

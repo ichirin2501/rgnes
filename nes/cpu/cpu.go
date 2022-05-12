@@ -21,14 +21,22 @@ type Interrupter struct {
 	interrupt InterruptType
 }
 
-func (i *Interrupter) TriggerNMI() {
-	i.interrupt = InterruptNMI
+func (i *Interrupter) SetNMI(v bool) {
+	if v {
+		i.interrupt = InterruptNMI
+	} else {
+		i.interrupt = InterruptNone
+	}
 }
 func (i *Interrupter) SetDelayNMI() {
 	i.delayNMI = true
 }
-func (i *Interrupter) TriggerIRQ() {
-	i.interrupt = InterruptIRQ
+func (i *Interrupter) SetIRQ(v bool) {
+	if v {
+		i.interrupt = InterruptIRQ
+	} else {
+		i.interrupt = InterruptNone
+	}
 }
 func (i *Interrupter) DMASuspend() {
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
@@ -38,6 +46,9 @@ func (i *Interrupter) DMASuspend() {
 	if i.cycles%2 == 1 {
 		i.stall++
 	}
+}
+func (i *Interrupter) FetchCycles() int {
+	return i.cycles
 }
 
 type Trace struct {
@@ -150,11 +161,18 @@ func NewCPU(mem *Bus, i *Interrupter, t *Trace) *CPU {
 func (cpu *CPU) Reset() {
 	cpu.PC = memory.Read16(cpu.m, 0xFFFC)
 	cpu.P = StatusRegister(0x24)
+	cpu.cycles += 7
 }
 
 func (cpu *CPU) Step() int {
+	beforeClock := cpu.m.clock
+
 	if cpu.stall > 0 {
 		cpu.stall--
+		cpu.m.ppu.Step()
+		cpu.m.ppu.Step()
+		cpu.m.ppu.Step()
+		cpu.cycles++
 		return 1
 	}
 
@@ -166,12 +184,18 @@ func (cpu *CPU) Step() int {
 			cpu.nmi()
 			cpu.interrupt = InterruptNone
 			cpu.cycles += 7
+			for i := 0; i < 6; i++ {
+				cpu.m.ppu.Step()
+			}
 			return 7
 		}
 	case InterruptIRQ:
 		cpu.irq()
 		cpu.interrupt = InterruptNone
 		cpu.cycles += 7
+		for i := 0; i < 6; i++ {
+			cpu.m.ppu.Step()
+		}
 		return 7
 	}
 
@@ -200,6 +224,11 @@ func (cpu *CPU) Step() int {
 	addr, pageCrossed := cpu.fetchOperand(opcode)
 	if pageCrossed {
 		additionalCycle += opcode.PageCycle
+		// fetchOperand()内のdummyReadでppu 3step回ってるからここで回す必要はない
+		// cpu.cycles += opcode.PageCycle
+		// for i := 0; i < opcode.PageCycle*3; i++ {
+		// 	cpu.m.ppu.Step()
+		// }
 	}
 
 	switch opcode.Name {
@@ -369,6 +398,24 @@ func (cpu *CPU) Step() int {
 		panic(fmt.Sprintf("Unable to reach: opcode.Name:%s", opcode.Name))
 	}
 
+	afterClock := cpu.m.clock
+	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
+		t := (opcode.Cycle + additionalCycle) - (afterClock - beforeClock)
+		// 適当に差分吸収
+		for i := 0; i < 3*t; i++ {
+			cpu.m.ppu.Step()
+		}
+	}
+	// fmt.Printf("%02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
+	// 	opcodeByte,
+	// 	opcode.Name,
+	// 	opcode.Mode,
+	// 	opcode.Cycle+additionalCycle,
+	// 	afterClock-beforeClock,
+	// 	(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
+	// 	opcode.Unofficial,
+	// )
+
 	cpu.cycles += opcode.Cycle + additionalCycle
 	return opcode.Cycle + additionalCycle
 }
@@ -434,13 +481,13 @@ func (cpu *CPU) AddressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 }
 
-func (cpu *CPU) AddressingAbsoluteX(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) AddressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
 	addr = a + uint16(cpu.X)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
-	if pageCrossed || dummyRead {
+	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
 		cpu.m.Read(dummyAddr)
 	}
@@ -452,13 +499,13 @@ func (cpu *CPU) AddressingAbsoluteX(op *opcode, dummyRead bool) (addr uint16, pa
 	return addr, pageCrossed
 }
 
-func (cpu *CPU) AddressingAbsoluteY(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
 	addr = a + uint16(cpu.Y)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-	if pageCrossed || dummyRead {
+	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
 		cpu.m.Read(dummyAddr)
 	}
@@ -518,13 +565,13 @@ func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 
 }
-func (cpu *CPU) AddressingIndirectIndexed(op *opcode, dummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) AddressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	a := uint16(cpu.fetch())
 	b := (a & 0xFF00) | uint16(byte(a)+1)
 	baseAddr := uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
 	addr = baseAddr + uint16(cpu.Y)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
-	if pageCrossed || dummyRead {
+	if pageCrossed || forceDummyRead {
 		h := baseAddr & 0xFF00
 		l := baseAddr & 0x00FF
 		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)

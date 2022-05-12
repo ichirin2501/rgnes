@@ -14,6 +14,8 @@ type Bus struct {
 	apu    memory.Memory
 	Mapper memory.Memory
 	joypad *nes.Joypad
+
+	clock int
 }
 
 func NewBus(ppu *ppu.PPU, apu memory.Memory, mapper memory.Memory, joypad *nes.Joypad) *Bus {
@@ -27,6 +29,13 @@ func NewBus(ppu *ppu.PPU, apu memory.Memory, mapper memory.Memory, joypad *nes.J
 }
 
 func (bus *Bus) Read(addr uint16) byte {
+	bus.clock++
+	bus.ppu.Step()
+	bus.ppu.Step()
+	bus.ppu.Step()
+	return bus.read(addr)
+}
+func (bus *Bus) read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		// 2KB internal RAM
@@ -58,7 +67,7 @@ func (bus *Bus) Read(addr uint16) byte {
 		}
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
-		return bus.Read(0x2000 + addr%0x08)
+		return bus.read(0x2000 + addr%0x08)
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {
@@ -83,6 +92,13 @@ func (bus *Bus) Read(addr uint16) byte {
 }
 
 func (bus *Bus) Write(addr uint16, val byte) {
+	bus.clock++
+	bus.ppu.Step()
+	bus.ppu.Step()
+	bus.ppu.Step()
+	bus.write(addr, val)
+}
+func (bus *Bus) write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		// 2KB internal RAM
@@ -111,7 +127,7 @@ func (bus *Bus) Write(addr uint16, val byte) {
 		}
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
-		bus.Write(0x2000+addr%0x08, val)
+		bus.write(0x2000+addr%0x08, val)
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {
@@ -139,7 +155,7 @@ func (bus *Bus) Write(addr uint16, val byte) {
 
 func (bus *Bus) ReadForTest(addr uint16) byte {
 	switch {
-	case addr < 0x2000:
+	case 0x0000 <= addr && addr <= 0x1FFF:
 		return bus.CPURAM[addr%0x800]
 	case 0x2000 <= addr && addr <= 0x2007:
 		//fmt.Printf("[warn] read ppu data addr = 0x%04x\n", addr)
@@ -147,18 +163,14 @@ func (bus *Bus) ReadForTest(addr uint16) byte {
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
 		return bus.ReadForTest(0x2000 + ((addr - 0x2008) % 0x08))
-	case addr == 0x4016: // TODO: keypad
-		//panic("unimplemented Bus.Read 0x4016(keypad)")
+	case 0x4000 <= addr && addr <= 0x4017:
+		// todo
 		return 0
-	case addr == 0x4017: // TODO: 2p
-		//panic("unimplemented Bus.Read 0x4017(2p keypad)")
+	case 0x4018 <= addr && addr <= 0x401F:
+		// todo
 		return 0
-	case addr < 0x6000:
-		return 0
-	case addr >= 0x6000:
+	case 0x4020 <= addr && addr <= 0xFFFF:
 		return bus.Mapper.Read(addr)
-	case addr >= 0x4020:
-		return 0
 	default:
 		//return 0
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.ReadForTest", addr))

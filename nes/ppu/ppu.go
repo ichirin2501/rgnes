@@ -18,9 +18,9 @@ type Trace interface {
 }
 
 type CPU interface {
-	TriggerNMI()
 	SetDelayNMI()
 	DMASuspend()
+	SetNMI(val bool)
 }
 
 type vram struct {
@@ -202,6 +202,19 @@ type PPU struct {
 
 	trace Trace
 	cpu   CPU
+
+	nmiDelay int
+	Clock    int
+}
+
+func (ppu *PPU) FetchVBlankStarted() bool {
+	return ppu.status.VBlankStarted()
+}
+func (ppu *PPU) FetchNMIDelay() int {
+	return ppu.nmiDelay
+}
+func (ppu *PPU) FetchScanline() int {
+	return ppu.scanLine
 }
 
 func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
@@ -231,12 +244,17 @@ func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirror
 func (ppu *PPU) WriteController(val byte) {
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ControlRegister(val)
-	// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
-	// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
-	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-	//if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-	if !beforeGeneratedVBlankNMI && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-		ppu.cpu.TriggerNMI()
+	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
+		if ppu.scanLine == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
+			ppu.cpu.SetNMI(false)
+			ppu.nmiDelay = 0
+		}
+	} else if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI && ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
+		// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
+		// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
+		// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
+		// vblank flagがoffになるのは scanline=261,cycle=1 のときだけど、(261,0)でもnmiは発生させないようにする for ppu_vbl_nmi/07-nmi_on_timing.nes
+		ppu.cpu.SetNMI(true)
 		// https://archive.nes.science/nesdev-forums/f3/t10006.xhtml#p111038
 		ppu.cpu.SetDelayNMI()
 	}
@@ -256,11 +274,14 @@ func (ppu *PPU) ReadStatus() byte {
 	ppu.status.SetVBlankStarted(false)
 
 	// https://www.nesdev.org/wiki/NMI#Race_condition
-	if ppu.scanLine == 241 && ppu.Cycle == 1 {
-		if ppu.status.VBlankStarted() {
-			panic("nannde vblank started 1....")
+	// https://www.nesdev.org/wiki/PPU_frame_timing#VBL_Flag_Timing
+	if ppu.scanLine == 241 {
+		if ppu.Cycle == 0 {
+			ppu.suppressVBlankFlag = true
+		} else if ppu.Cycle == 1 || ppu.Cycle == 2 {
+			ppu.cpu.SetNMI(false)
+			ppu.nmiDelay = 0
 		}
-		ppu.suppressVBlankFlag = true
 	}
 
 	// w:                  <- 0
@@ -403,12 +424,6 @@ func (ppu *PPU) WriteOAMDMA(data []byte) {
 		ppu.oamAddr++
 	}
 	ppu.cpu.DMASuspend()
-}
-
-func (ppu *PPU) triggerNMI() {
-	if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-		ppu.cpu.TriggerNMI()
-	}
 }
 
 // // copyX() is `hori(v) = hori(t)` in NTSC PPU Frame Timing
@@ -682,6 +697,15 @@ func (ppu *PPU) renderPixel() {
 }
 
 func (ppu *PPU) tick() {
+	ppu.Clock++
+
+	if ppu.nmiDelay > 0 {
+		ppu.nmiDelay--
+		if ppu.nmiDelay == 0 && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
+			ppu.cpu.SetNMI(true)
+		}
+	}
+
 	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
 		if ppu.f == 1 && ppu.scanLine == 261 && ppu.Cycle == 339 {
 			ppu.Cycle = 0
@@ -705,11 +729,13 @@ func (ppu *PPU) tick() {
 
 // ref: http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
 func (ppu *PPU) Step() {
-	if ppu.trace != nil {
-		ppu.trace.SetPPUX(uint16(ppu.Cycle))
-		ppu.trace.SetPPUY(uint16(ppu.scanLine))
-		ppu.trace.SetPPUVBlankState((ppu.status.Get() & 0x80) == 0x80)
-	}
+	ppu.tick()
+
+	// if ppu.trace != nil {
+	// 	ppu.trace.SetPPUX(uint16(ppu.Cycle))
+	// 	ppu.trace.SetPPUY(uint16(ppu.scanLine))
+	// 	ppu.trace.SetPPUVBlankState((ppu.status.Get() & 0x80) == 0x80)
+	// }
 	rendering := ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 	preLine := ppu.scanLine == 261
 	renderLine := preLine || ppu.visibleScanLine()
@@ -756,9 +782,11 @@ func (ppu *PPU) Step() {
 		// sprite fetch
 		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanLine()) {
 			// init
+			// ppu.oamAddr = 0
 			if ppu.Cycle == 257 {
 				ppu.spriteFounds = 0
 			}
+
 			switch ppu.Cycle % 8 {
 			case 1:
 				// garbage NT byte
@@ -798,7 +826,8 @@ func (ppu *PPU) Step() {
 	if ppu.scanLine == 241 && ppu.Cycle == 1 {
 		if !ppu.suppressVBlankFlag {
 			ppu.status.SetVBlankStarted(true)
-			ppu.triggerNMI()
+			// hack for vbl_nmi_timing/7.nmi_timing.nes and ppu_vbl_nmi/05-nmi_timing.nes
+			ppu.nmiDelay = 2
 		}
 	}
 
@@ -809,5 +838,4 @@ func (ppu *PPU) Step() {
 		ppu.status.SetSpriteOverflow(false)
 	}
 
-	ppu.tick()
 }

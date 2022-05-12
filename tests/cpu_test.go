@@ -131,15 +131,15 @@ func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.NewCPU(cpuBus, irp, nil)
 			cpu.Reset()
+			for i := 0; i < 15; i++ {
+				ppu.Step()
+			}
 
 			ready := false
 			done := false
 			for {
-				cycle := cpu.Step()
-				for i := 0; i < cycle*3; i++ {
-					ppu.Step()
-				}
-				got := cpuBus.Read(0x6000)
+				cpu.Step()
+				got := cpuBus.ReadForTest(0x6000)
 				switch got {
 				case 0x80:
 					ready = true
