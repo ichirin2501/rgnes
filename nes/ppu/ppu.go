@@ -520,16 +520,13 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 	// called cycle: 264, 272, ..., 320
 	sidx := (ppu.Cycle - 264) / 8
 	s := ppu.secondaryOAM.GetSpriteByIndex(byte(sidx))
-	// ignore?
-	if s.y == 0xFF {
-		return
-	}
-
-	lo, hi := func() (byte, byte) {
+	lo, hi, ok := func() (byte, byte, bool) {
 		if ppu.ctrl.SpriteSize() == 8 {
 			y := uint16(ppu.scanLine) - uint16(s.y)
 			if y > 7 {
-				panic("unexpected sprite(8x8) dy")
+				// eval時点で範囲内しか見ない&0xFFで初期化されるが、初期化途中でsprite&bgともにdisableされて前回の状態が残ることがある
+				// eval時点だけでなくこのfetchタイミングでも範囲内か確認して少なくとも場外のspriteは表示させないようにしておく
+				return 0, 0, false
 			}
 			if s.attributes.FlipSpriteVertically() {
 				y = 7 - y
@@ -537,7 +534,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			addr := ppu.ctrl.SpritePatternAddr() | (uint16(s.tileIndex) << 4) | y
 			lo := ppu.mapper.Read(addr)
 			hi := ppu.mapper.Read(addr + 8)
-			return lo, hi
+			return lo, hi, true
 		} else {
 			// 8x16
 			// https://www.nesdev.org/wiki/PPU_OAM#Byte_1
@@ -546,7 +543,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			tileIndex := uint16(s.tileIndex) & 0b11111110
 			y := uint16(ppu.scanLine) - uint16(s.y)
 			if y > 15 {
-				panic("unexpected sprite(8x16) dy")
+				return 0, 0, false
 			}
 			if s.attributes.FlipSpriteVertically() {
 				y = 15 - y
@@ -558,9 +555,12 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			addr := bankTile | tileIndex<<4 | y
 			lo := ppu.mapper.Read(addr)
 			hi := ppu.mapper.Read(addr + 8)
-			return lo, hi
+			return lo, hi, true
 		}
 	}()
+	if !ok {
+		return
+	}
 	ppu.spriteSlots[ppu.spriteFounds] = spriteSlot{
 		x:          s.x,
 		attributes: s.attributes,
@@ -574,12 +574,24 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 	if ppu.scanLine >= 240 {
 		panic("uaaaaaaaaaaaaxxxxxaaaa")
 	}
+
+	// debug
+	// before secondaryOAM
+	// for i := 0; i < 8; i++ {
+	// 	s := ppu.secondaryOAM.GetSpriteByIndex(byte(i))
+	// 	fmt.Printf("evalSpriteForNextScanline: before secondaryOAM[%d] = %v\n", i, *s)
+	// }
+
 	sidx := byte(0)
 	for i := byte(0); i < 64; i++ {
 		s := ppu.primaryOAM.GetSpriteByIndex(i)
 		// in y range
 		d := ppu.ctrl.SpriteSize()
+
 		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
+			// debug
+			//fmt.Printf("in y range: set secondaryOAM[%d] ppu.scanline:%d, s.y:%d\n", sidx, ppu.scanLine, s.y)
+
 			if sidx < 8 {
 				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
 			}
@@ -775,6 +787,19 @@ func (ppu *PPU) Step() {
 				ppu.secondaryOAM.SetByte(byte(addr), 0xFF)
 			}
 		}
+
+		//debug
+		// if ppu.Cycle == 1 {
+		// 	for i := 0; i < 8; i++ {
+		// 		fmt.Printf("secondalyOAM clear when cycle=1 : secondalyOAM[%d] = %v\n", i, ppu.secondaryOAM.GetSpriteByIndex(byte(i)))
+		// 	}
+		// }
+		// if ppu.Cycle == 64 {
+		// 	for i := 0; i < 8; i++ {
+		// 		fmt.Printf("secondalyOAM clear when cycle=64: secondalyOAM[%d] = %v\n", i, ppu.secondaryOAM.GetSpriteByIndex(byte(i)))
+		// 	}
+		// }
+
 		// sprite eval for next scanline
 		// 65 <= ppu.Cycle <= 256
 		if ppu.Cycle == 256 && ppu.visibleScanLine() {

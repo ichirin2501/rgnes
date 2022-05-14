@@ -91,6 +91,7 @@ func (cpu *CPU) aslAcc() {
 func (cpu *CPU) asl(addr uint16) {
 	v := cpu.m.Read(addr)
 	cpu.P.SetCarry((v & 0x80) == 0x80)
+	cpu.m.Write(addr, v) // dummy write
 	v <<= 1
 	cpu.m.Write(addr, v)
 	cpu.P.SetZN(v)
@@ -119,7 +120,9 @@ func (cpu *CPU) cpy(addr uint16) {
 }
 
 func (cpu *CPU) dec(addr uint16) {
-	v := cpu.m.Read(addr) - 1
+	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
+	v--
 	cpu.m.Write(addr, v)
 	cpu.P.SetZN(v)
 }
@@ -140,7 +143,9 @@ func (cpu *CPU) eor(addr uint16) {
 }
 
 func (cpu *CPU) inc(addr uint16) {
-	v := cpu.m.Read(addr) + 1
+	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
+	v++
 	cpu.m.Write(addr, v)
 	cpu.P.SetZN(v)
 }
@@ -163,6 +168,7 @@ func (cpu *CPU) lsrAcc() {
 
 func (cpu *CPU) lsr(addr uint16) {
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
 	cpu.m.Write(addr, v)
@@ -190,6 +196,7 @@ func (cpu *CPU) rol(addr uint16) {
 		c = 1
 	}
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
 	cpu.m.Write(addr, v)
@@ -212,6 +219,7 @@ func (cpu *CPU) ror(addr uint16) {
 		c = 1
 	}
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v = (v >> 1) | (c << 7)
 	cpu.m.Write(addr, v)
@@ -427,6 +435,7 @@ func (cpu *CPU) kil() {}
 
 func (cpu *CPU) slo(addr uint16) {
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v <<= 1
 	cpu.m.Write(addr, v)
@@ -448,6 +457,7 @@ func (cpu *CPU) rla(addr uint16) {
 		c = 1
 	}
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
 	cpu.m.Write(addr, v)
@@ -458,6 +468,7 @@ func (cpu *CPU) rla(addr uint16) {
 
 func (cpu *CPU) sre(addr uint16) {
 	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
 	cpu.m.Write(addr, v)
@@ -482,6 +493,7 @@ func (cpu *CPU) rra(addr uint16) {
 		c = 1
 	}
 	k := cpu.m.Read(addr)
+	cpu.m.Write(addr, k) // dummy write
 	cpu.P.SetCarry((k & 1) == 1)
 	k = (k >> 1) | (c << 7)
 	cpu.m.Write(addr, k)
@@ -550,7 +562,9 @@ func (cpu *CPU) lax(addr uint16) {
 func (cpu *CPU) las() {}
 
 func (cpu *CPU) dcp(addr uint16) {
-	v := cpu.m.Read(addr) - 1
+	v := cpu.m.Read(addr)
+	cpu.m.Write(addr, v) // dummy write
+	v--
 	cpu.compare(cpu.A, v)
 	cpu.m.Write(addr, v)
 }
@@ -566,7 +580,9 @@ func (cpu *CPU) axs(addr uint16) {
 }
 
 func (cpu *CPU) isb(addr uint16) {
-	k := cpu.m.Read(addr) + 1
+	k := cpu.m.Read(addr)
+	cpu.m.Write(addr, k) // dummy write
+	k++
 	cpu.m.Write(addr, k)
 
 	a := cpu.A
