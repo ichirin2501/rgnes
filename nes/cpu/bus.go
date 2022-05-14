@@ -9,7 +9,7 @@ import (
 )
 
 type Bus struct {
-	CPURAM []byte
+	ram    []byte
 	ppu    *ppu.PPU
 	apu    memory.Memory
 	Mapper memory.Memory
@@ -20,7 +20,7 @@ type Bus struct {
 
 func NewBus(ppu *ppu.PPU, apu memory.Memory, mapper memory.Memory, joypad *nes.Joypad) *Bus {
 	return &Bus{
-		CPURAM: make([]byte, 2048),
+		ram:    make([]byte, 2048),
 		ppu:    ppu,
 		apu:    apu,
 		Mapper: mapper,
@@ -39,7 +39,7 @@ func (bus *Bus) read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		// 2KB internal RAM
-		return bus.CPURAM[addr%0x800]
+		return bus.ram[addr%0x800]
 	case 0x2000 <= addr && addr <= 0x2007:
 		// NES PPU registers
 		switch {
@@ -102,7 +102,7 @@ func (bus *Bus) write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		// 2KB internal RAM
-		bus.CPURAM[addr%0x800] = val
+		bus.ram[addr%0x800] = val
 	case 0x2000 <= addr && addr <= 0x2007:
 		// NES PPU registers
 		switch {
@@ -135,7 +135,7 @@ func (bus *Bus) write(addr uint16, val byte) {
 			buf := make([]byte, 256)
 			a := uint16(val) << 8
 			for i := 0; i < 256; i++ {
-				buf[i] = bus.CPURAM[(a+uint16(i))%0x800]
+				buf[i] = bus.ram[(a+uint16(i))%0x800]
 			}
 			bus.ppu.WriteOAMDMA(buf)
 		case addr == 0x4016:
@@ -156,7 +156,7 @@ func (bus *Bus) write(addr uint16, val byte) {
 func (bus *Bus) ReadForTest(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
-		return bus.CPURAM[addr%0x800]
+		return bus.ram[addr%0x800]
 	case 0x2000 <= addr && addr <= 0x2007:
 		//fmt.Printf("[warn] read ppu data addr = 0x%04x\n", addr)
 		return 0

@@ -17,9 +17,8 @@ import (
 type fakeRenderer struct {
 }
 
-func (f *fakeRenderer) Render(x, y int, c color.Color) {
-
-}
+func (f *fakeRenderer) Render(x, y int, c color.Color) {}
+func (f *fakeRenderer) Refresh()                       {}
 
 func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
 	t.Parallel()

@@ -9,6 +9,7 @@ import (
 
 type Renderer interface {
 	Render(x, y int, c color.Color)
+	Refresh()
 }
 
 type Trace interface {
@@ -824,6 +825,7 @@ func (ppu *PPU) Step() {
 
 	// vblank
 	if ppu.scanLine == 241 && ppu.Cycle == 1 {
+		ppu.renderer.Refresh()
 		if !ppu.suppressVBlankFlag {
 			ppu.status.SetVBlankStarted(true)
 			// hack for vbl_nmi_timing/7.nmi_timing.nes and ppu_vbl_nmi/05-nmi_timing.nes

@@ -27,17 +27,27 @@ func main() {
 }
 
 type renderer struct {
-	img *image.RGBA
+	fyne.Window
+	currImg *canvas.Image
+	nextImg *canvas.Image
 }
 
-func newRenderer(img *image.RGBA) *renderer {
+func newRenderer(win fyne.Window, curr, next *canvas.Image) *renderer {
 	return &renderer{
-		img: img,
+		Window:  win,
+		currImg: curr,
+		nextImg: next,
 	}
 }
 
+// todo: fix data race
 func (r *renderer) Render(x, y int, c color.Color) {
-	r.img.Set(x, y, c)
+	r.nextImg.Image.(*image.RGBA).Set(x, y, c)
+}
+func (r *renderer) Refresh() {
+	r.currImg, r.nextImg = r.nextImg, r.currImg // swap
+	r.SetContent(container.NewVBox(r.currImg))
+	r.currImg.Refresh()
 }
 
 func realMain() error {
@@ -49,21 +59,23 @@ func realMain() error {
 
 	myapp := app.New()
 	win := myapp.NewWindow("rgnes")
-	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	img1 := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	img2 := image.NewRGBA(image.Rect(0, 0, 256, 240))
 
-	canvasImg := canvas.NewImageFromImage(img)
+	canvasImg1 := canvas.NewImageFromImage(img1)
+	canvasImg2 := canvas.NewImageFromImage(img2)
 	// TODO: windowを調節したときに比を維持してほしい
-	canvasImg.FillMode = canvas.ImageFillOriginal
+	canvasImg1.FillMode = canvas.ImageFillOriginal
+	canvasImg2.FillMode = canvas.ImageFillOriginal
 	win.SetContent(container.NewVBox(
-		canvasImg,
+		canvasImg1,
 	))
 	keyEvents := make(chan fyne.KeyName, 5)
 	win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
-		fmt.Println("press ", k.Name)
 		keyEvents <- k.Name
 	})
 
-	renderer := newRenderer(img)
+	renderer := newRenderer(win, canvasImg1, canvasImg2)
 
 	f, err := os.Open(rom)
 	if err != nil {
@@ -77,42 +89,10 @@ func realMain() error {
 	}
 	mapper := cassette.NewMapper(c)
 
-	// debug
-	// for i := 0; i < len(c.CHR); i++ {
-	// 	if c.CHR[i] != 0 {
-	// 		fmt.Printf("%04x: %02x\n", i, c.CHR[i])
-	// 	}
-	// }
-	// return nil
-
 	trace := &cpu.Trace{}
 	irp := &cpu.Interrupter{}
 
 	ppu := ppu.NewPPU(renderer, mapper, c.Mirror, irp, trace)
-
-	// i := 0
-	// vblankOnClock := 0
-	// for {
-	// 	beforeN := ppu.FetchNMIDelay()
-	// 	beforeV := ppu.FetchVBlankStarted()
-	// 	ppu.Step()
-	// 	i++
-	// 	afterV := ppu.FetchVBlankStarted()
-	// 	afterN := ppu.FetchNMIDelay()
-	// 	if !beforeV && afterV {
-	// 		fmt.Printf("vblank:1\tclock:%d\n", i)
-	// 		vblankOnClock = i
-	// 	} else if beforeV && !afterV {
-	// 		fmt.Printf("vblank:0\tclock:%d\t1->0:%d\t=cpuClock:%d(=%d)\n", i, i-vblankOnClock, (i-vblankOnClock)/3, (i-vblankOnClock)%3)
-	// 		fmt.Println("")
-	// 		return nil
-	// 	} else if beforeN > 0 && afterN == 0 {
-	// 		fmt.Printf("trigger nmi clock: %d\n", i)
-	// 	}
-	// }
-
-	// return nil
-
 	joypad := nes.NewJoypad()
 	apu := apu.NewAPU()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
@@ -135,61 +115,61 @@ func realMain() error {
 			// ここでppuの状態を記録しておく
 			trace.SetPPUX(uint16(ppu.Cycle))
 			trace.SetPPUY(uint16(ppu.FetchScanline()))
+			beforeScanline := ppu.FetchScanline()
 			cycle := cpu.Step()
 
 			// fmt.Println(trace.NESTestString())
-			//fmt.Printf("cpu.clock:%d\tppu.clock:%d\tdiff:%d\n", cpu.FetchCycles(), ppu.Clock, cpu.FetchCycles()*3-ppu.Clock)
+
 			if cpu.FetchCycles()*3 != ppu.Clock {
 				panic("eeeeeeeeeeeeeeeeee")
 			}
 
 			trace.AddCPUCycle(cycle)
-
-			//beforeI := irp.I
-			// for i := 0; i < cycle*3; i++ {
-			// 	ppu.Step()
-			// }
+			if beforeScanline != 240 && ppu.FetchScanline() == 240 {
+				updateKey(win, keyEvents, joypad)
+			}
 
 			if beforeppuy > trace.PPUY {
-				joypad.SetButtonPressedStatus(0)
 				<-ticker.C
-				//fmt.Println("ticker on: ", time.Now())
 			}
 			beforeppuy = trace.PPUY
-			//afterI := irp.I
-			//fmt.Printf("interrupt type: before:%v after:%v\n", beforeI, afterI)
-			select {
-			case k := <-keyEvents:
-				switch k {
-				case fyne.KeyEscape:
-					win.Close()
-				case fyne.KeySpace:
-					joypad.SetButtonPressedStatus(nes.ButtonSelect)
-				case fyne.KeyReturn:
-					joypad.SetButtonPressedStatus(nes.ButtonStart)
-				case fyne.KeyUp:
-					joypad.SetButtonPressedStatus(nes.ButtonUP)
-				case fyne.KeyDown:
-					joypad.SetButtonPressedStatus(nes.ButtonDown)
-				case fyne.KeyLeft:
-					joypad.SetButtonPressedStatus(nes.ButtonLeft)
-				case fyne.KeyRight:
-					joypad.SetButtonPressedStatus(nes.ButtonRight)
-				case fyne.KeyA:
-					joypad.SetButtonPressedStatus(nes.ButtonA)
-				case fyne.KeyS:
-					joypad.SetButtonPressedStatus(nes.ButtonB)
-				}
-			default:
-				//joypad.SetButtonPressedStatus(0)
-			}
-			canvasImg.Refresh()
-			//time.Sleep(10 * time.Microsecond)
-			//time.Sleep(1 * time.Millisecond)
 		}
 	}()
 
 	win.ShowAndRun()
 
 	return nil
+}
+
+func updateKey(win fyne.Window, keyEvents <-chan fyne.KeyName, j *nes.Joypad) {
+	keySt := byte(0)
+	loop := true
+	for loop {
+		select {
+		case k := <-keyEvents:
+			switch k {
+			case fyne.KeyEscape:
+				win.Close()
+			case fyne.KeySpace:
+				keySt |= nes.ButtonSelect
+			case fyne.KeyReturn:
+				keySt |= nes.ButtonStart
+			case fyne.KeyUp:
+				keySt |= nes.ButtonUP
+			case fyne.KeyDown:
+				keySt |= nes.ButtonDown
+			case fyne.KeyLeft:
+				keySt |= nes.ButtonLeft
+			case fyne.KeyRight:
+				keySt |= nes.ButtonRight
+			case fyne.KeyA:
+				keySt |= nes.ButtonA
+			case fyne.KeyS:
+				keySt |= nes.ButtonB
+			}
+		default:
+			loop = false
+		}
+	}
+	j.SetButtonStatus(keySt)
 }
