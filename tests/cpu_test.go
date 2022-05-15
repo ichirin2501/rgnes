@@ -20,7 +20,7 @@ type fakeRenderer struct {
 func (f *fakeRenderer) Render(x, y int, c color.Color) {}
 func (f *fakeRenderer) Refresh()                       {}
 
-func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
+func Test_CPU_OUT_6000(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -106,6 +106,14 @@ func Test_CPU_OUT_6000_By_blargg(t *testing.T) {
 		// 	"instr_misc/rom_singles/04-dummy_reads_apu.nes",
 		// 	"../roms/instr_misc/rom_singles/04-dummy_reads_apu.nes",
 		// },
+		{
+			"cpu_dummy_writes/cpu_dummy_writes_ppumem.nes",
+			"../roms/cpu_dummy_writes/cpu_dummy_writes_ppumem.nes",
+		},
+		{
+			"cpu_dummy_writes/cpu_dummy_writes_oam.nes",
+			"../roms/cpu_dummy_writes/cpu_dummy_writes_oam.nes",
+		},
 	}
 
 	for _, tt := range tests {

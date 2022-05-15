@@ -180,6 +180,7 @@ type PPU struct {
 	mirroring    cassette.MirroringType
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
+	openbus      byte
 
 	suppressVBlankFlag bool
 
@@ -241,8 +242,14 @@ func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirror
 	return ppu
 }
 
+func (ppu *PPU) ReadController() byte {
+	// note: $2000 write only
+	return ppu.openbus
+}
+
 // $2000: PPUCTRL
 func (ppu *PPU) WriteController(val byte) {
+	ppu.openbus = val
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ControlRegister(val)
 	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
@@ -264,8 +271,14 @@ func (ppu *PPU) WriteController(val byte) {
 	ppu.t = (ppu.t & 0xF3FF) | (uint16(val)&0x03)<<10
 }
 
+func (ppu *PPU) ReadMask() byte {
+	// note: $2001 write only
+	return ppu.openbus
+}
+
 // $2001: PPUMASK
 func (ppu *PPU) WriteMask(val byte) {
+	ppu.openbus = val
 	ppu.mask = MaskRegister(val)
 }
 
@@ -287,11 +300,25 @@ func (ppu *PPU) ReadStatus() byte {
 
 	// w:                  <- 0
 	ppu.w = false
-	return st
+
+	// https://www.nesdev.org/wiki/Open_bus_behavior
+	// > Reading the PPU's status port loads a value onto bits 7-5 of the bus, leaving the rest unchanged.
+	// ????
+	return st | (ppu.openbus & 0x1F)
+}
+func (ppu *PPU) WriteStatus(val byte) {
+	// note: $2002 read only
+	ppu.openbus = val
+}
+
+func (ppu *PPU) ReadOAMAddr() byte {
+	// note: $2003 write only
+	return ppu.openbus
 }
 
 // $2003: OAMADDR
 func (ppu *PPU) WriteOAMAddr(val byte) {
+	ppu.openbus = val
 	ppu.oamAddr = val
 }
 
@@ -305,17 +332,25 @@ func (ppu *PPU) ReadOAMData() byte {
 	if (ppu.oamAddr & 0x03) == 0x02 {
 		res &= 0xE3
 	}
+	ppu.openbus = res
 	return res
 }
 
 // $2004: OAMDATA write
 func (ppu *PPU) WriteOAMData(val byte) {
+	ppu.openbus = val
 	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
 	ppu.oamAddr++
 }
 
+func (ppu *PPU) ReadScroll() byte {
+	// note: $2005 write only
+	return ppu.openbus
+}
+
 // $2005: PPUSCROLL
 func (ppu *PPU) WriteScroll(val byte) {
+	ppu.openbus = val
 	if !ppu.w {
 		// first write
 		// t: ....... ...ABCDE <- d: ABCDE...
@@ -334,8 +369,13 @@ func (ppu *PPU) WriteScroll(val byte) {
 	}
 }
 
+func (ppu *PPU) ReadPPUAddr() byte {
+	return ppu.openbus
+}
+
 // $2006: PPUADDR
 func (ppu *PPU) WritePPUAddr(val byte) {
+	ppu.openbus = val
 	if !ppu.w {
 		// first write
 		// t: .CDEFGH ........ <- d: ..CDEFGH
@@ -359,7 +399,9 @@ func (ppu *PPU) WritePPUAddr(val byte) {
 func (ppu *PPU) ReadPPUData() byte {
 	addr := ppu.v
 	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
-	return ppu.readPPUData(addr)
+	res := ppu.readPPUData(addr)
+	ppu.openbus = res
+	return res
 }
 
 func (ppu *PPU) readPPUData(addr uint16) byte {
@@ -393,6 +435,7 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 
 // $2007: PPUDATA write
 func (ppu *PPU) WritePPUData(val byte) {
+	ppu.openbus = val
 	addr := ppu.v
 	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
 	ppu.writePPUData(addr, val)

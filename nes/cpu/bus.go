@@ -44,22 +44,19 @@ func (bus *Bus) read(addr uint16) byte {
 		// NES PPU registers
 		switch {
 		case addr == 0x2000:
-			// ignore ppu read ctrl
-			return 0
+			return bus.ppu.ReadController()
 		case addr == 0x2001:
-			// ignore ppu read mask
-			return 0
+			return bus.ppu.ReadMask()
 		case addr == 0x2002:
 			return bus.ppu.ReadStatus()
 		case addr == 0x2003:
-			// ignore ppu
-			return 0
+			return bus.ppu.ReadOAMAddr()
 		case addr == 0x2004:
 			return bus.ppu.ReadOAMData()
 		case addr == 0x2005:
-			return 0
+			return bus.ppu.ReadScroll()
 		case addr == 0x2006:
-			return 0
+			return bus.ppu.ReadPPUAddr()
 		case addr == 0x2007:
 			return bus.ppu.ReadPPUData()
 		default:
@@ -111,7 +108,7 @@ func (bus *Bus) write(addr uint16, val byte) {
 		case addr == 0x2001:
 			bus.ppu.WriteMask(val)
 		case addr == 0x2002:
-			// ignore
+			bus.ppu.WriteStatus(val)
 		case addr == 0x2003:
 			bus.ppu.WriteOAMAddr(val)
 		case addr == 0x2004:
