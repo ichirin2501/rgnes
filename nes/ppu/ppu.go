@@ -235,6 +235,8 @@ func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirror
 		primaryOAM:   oam(po),
 		secondaryOAM: oam(so),
 
+		Cycle: -1,
+
 		renderer: renderer,
 		cpu:      c,
 		trace:    trace,
@@ -407,10 +409,19 @@ func (ppu *PPU) WritePPUAddr(val byte) {
 
 // $2007: PPUDATA read
 func (ppu *PPU) ReadPPUData() byte {
-	addr := ppu.v
-	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
-	res := ppu.readPPUData(addr)
+	res := ppu.readPPUData(ppu.v)
 	ppu.openbus = res
+
+	if (ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
+		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
+		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
+		ppu.incrementX()
+		ppu.incrementY()
+	} else {
+		// normal
+		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
+	}
 	return res
 }
 
@@ -446,9 +457,18 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 // $2007: PPUDATA write
 func (ppu *PPU) WritePPUData(val byte) {
 	ppu.openbus = val
-	addr := ppu.v
-	ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
-	ppu.writePPUData(addr, val)
+	ppu.writePPUData(ppu.v, val)
+
+	if (ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
+		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
+		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
+		ppu.incrementX()
+		ppu.incrementY()
+	} else {
+		// normal
+		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
+	}
 }
 
 func (ppu *PPU) writePPUData(addr uint16, val byte) {
