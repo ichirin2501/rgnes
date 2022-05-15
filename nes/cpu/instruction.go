@@ -240,21 +240,38 @@ func (cpu *CPU) sbc(addr uint16) {
 	cpu.P.SetZN(v)
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// PHA, PHP
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away)
+// 3  $0100,S  W  push register on stack, decrement S
+// ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
 func (cpu *CPU) pha() {
+	//cpu.m.Read(cpu.PC) // dummy read
 	cpu.push(cpu.A)
 }
-
 func (cpu *CPU) php() {
-	// TODO: 数値やめる
+	//cpu.m.Read(cpu.PC) // dummy read
 	cpu.push(cpu.P.Byte() | 0x30)
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// PLA, PLP
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away)
+// 3  $0100,S  R  increment S
+// 4  $0100,S  R  pull register from stack
 func (cpu *CPU) pla() {
+	cpu.m.Read(cpu.PC) // dummy read
 	cpu.A = cpu.pop()
 	cpu.P.SetZN(cpu.A)
 }
-
 func (cpu *CPU) plp() {
+	cpu.m.Read(cpu.PC) // dummy read
 	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
 }
 
@@ -267,11 +284,33 @@ func (cpu *CPU) jsr(addr uint16) {
 	cpu.PC = addr
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// RTS
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away)
+// 3  $0100,S  R  increment S
+// 4  $0100,S  R  pull PCL from stack, increment S
+// 5  $0100,S  R  pull PCH from stack
+// 6    PC     R  increment PC
 func (cpu *CPU) rts() {
+	cpu.m.Read(cpu.PC) // dummy read
 	cpu.PC = cpu.pop16() + 1
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// RTI
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away)
+// 3  $0100,S  R  increment S
+// 4  $0100,S  R  pull P from stack, increment S
+// 5  $0100,S  R  pull PCL from stack, increment S
+// 6  $0100,S  R  pull PCH from stack
 func (cpu *CPU) rti() {
+	cpu.m.Read(cpu.PC) // dummy read
 	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
 	cpu.PC = cpu.pop16()
 }
@@ -360,7 +399,20 @@ func (cpu *CPU) sei() {
 	cpu.P.SetInterruptDisable(true)
 }
 
+// BRK
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away),
+// 	       increment PC
+// 3  $0100,S  W  push PCH on stack (with B flag set), decrement S
+// 4  $0100,S  W  push PCL on stack, decrement S
+// 5  $0100,S  W  push P on stack, decrement S
+// 6   $FFFE   R  fetch PCL
+// 7   $FFFF   R  fetch PCH
+// ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
 func (cpu *CPU) brk() {
+	// cpu.m.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC + 1)
 	cpu.push(cpu.P.Byte() | 0x30)
 	cpu.P.SetInterruptDisable(true)

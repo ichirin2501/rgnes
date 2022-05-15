@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_PPU_OUT_6000_By_blargg(t *testing.T) {
+func Test_PPU_OUT_6000(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string

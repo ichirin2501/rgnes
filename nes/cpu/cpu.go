@@ -406,15 +406,30 @@ func (cpu *CPU) Step() int {
 			cpu.m.ppu.Step()
 		}
 	}
-	// fmt.Printf("%02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
-	// 	opcodeByte,
-	// 	opcode.Name,
-	// 	opcode.Mode,
-	// 	opcode.Cycle+additionalCycle,
-	// 	afterClock-beforeClock,
-	// 	(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
-	// 	opcode.Unofficial,
-	// )
+
+	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
+	// 	fmt.Printf("panic: %02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
+	// 		opcodeByte,
+	// 		opcode.Name,
+	// 		opcode.Mode,
+	// 		opcode.Cycle+additionalCycle,
+	// 		afterClock-beforeClock,
+	// 		(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
+	// 		opcode.Unofficial,
+	// 	)
+	// 	panic("adfaffffffffffffffffffffffffffff")
+	// }
+	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
+	// 	fmt.Printf("%02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
+	// 		opcodeByte,
+	// 		opcode.Name,
+	// 		opcode.Mode,
+	// 		opcode.Cycle+additionalCycle,
+	// 		afterClock-beforeClock,
+	// 		(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
+	// 		opcode.Unofficial,
+	// 	)
+	// }
 
 	cpu.cycles += opcode.Cycle + additionalCycle
 	return opcode.Cycle + additionalCycle
@@ -517,10 +532,22 @@ func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 	return addr, pageCrossed
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// Accumulator or implied addressing
+//
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  read next instruction byte (and throw it away)
 func (cpu *CPU) AddressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
+	cpu.m.Read(cpu.PC) // dummy read
 	if cpu.t != nil {
 		cpu.t.SetCPUAddressingResult("A")
 	}
+	return 0, false
+}
+func (cpu *CPU) AddressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
+	cpu.m.Read(cpu.PC) // dummy read
 	return 0, false
 }
 
@@ -533,10 +560,6 @@ func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) 
 		cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
 	}
 	return addr, false
-}
-
-func (cpu *CPU) AddressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
-	return 0, false
 }
 
 func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {

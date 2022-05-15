@@ -114,6 +114,14 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			"cpu_dummy_writes/cpu_dummy_writes_oam.nes",
 			"../roms/cpu_dummy_writes/cpu_dummy_writes_oam.nes",
 		},
+		{
+			"cpu_exec_space/test_cpu_exec_space_ppuio.nes",
+			"../roms/cpu_exec_space/test_cpu_exec_space_ppuio.nes",
+		},
+		// {
+		// 	"cpu_exec_space/test_cpu_exec_space_apu.nes",
+		// 	"../roms/cpu_exec_space/test_cpu_exec_space_apu.nes",
+		// },
 	}
 
 	for _, tt := range tests {
