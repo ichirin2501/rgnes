@@ -324,14 +324,7 @@ func (ppu *PPU) WriteOAMAddr(val byte) {
 
 // $2004: OAMDATA read
 func (ppu *PPU) ReadOAMData() byte {
-	// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
-	// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
-	// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
-	// > Bits that have decayed also read back as 0 through OAMDATA.
 	res := ppu.primaryOAM.GetByte(ppu.oamAddr)
-	if (ppu.oamAddr & 0x03) == 0x02 {
-		res &= 0xE3
-	}
 	ppu.openbus = res
 	return res
 }
@@ -339,8 +332,25 @@ func (ppu *PPU) ReadOAMData() byte {
 // $2004: OAMDATA write
 func (ppu *PPU) WriteOAMData(val byte) {
 	ppu.openbus = val
-	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
-	ppu.oamAddr++
+
+	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
+	// > Writes to OAMDATA during rendering (on the pre-render line and the visible lines 0-239, provided either sprite or background rendering is enabled) do not modify values in OAM
+	if !((ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites())) {
+		// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
+		// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
+		// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
+		if (ppu.oamAddr & 0x03) == 0x02 {
+			val &= 0xE3
+		}
+		ppu.primaryOAM.SetByte(ppu.oamAddr, val)
+		ppu.oamAddr++
+	} else {
+		// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
+		// > but do perform a glitchy increment of OAMADDR, bumping only the high 6 bits (i.e., it bumps the [n] value in PPU sprite evaluation
+		// https://forums.nesdev.org/viewtopic.php?t=14140
+		// 今はeval spriteの処理をまとめてやってるのでこれは影響ないはず
+		ppu.oamAddr += 4
+	}
 }
 
 func (ppu *PPU) ReadScroll() byte {
@@ -752,7 +762,8 @@ func (ppu *PPU) renderPixel() {
 	ppu.renderer.Render(x, y, c)
 }
 
-func (ppu *PPU) tick() {
+// ref: http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
+func (ppu *PPU) Step() {
 	ppu.Clock++
 
 	if ppu.nmiDelay > 0 {
@@ -764,13 +775,11 @@ func (ppu *PPU) tick() {
 
 	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
 		if ppu.f == 1 && ppu.scanLine == 261 && ppu.Cycle == 339 {
-			ppu.Cycle = 0
-			ppu.scanLine = 0
-			ppu.suppressVBlankFlag = false
-			ppu.f ^= 1
-			return
+			// skip 1 cycle
+			ppu.Cycle = 340
 		}
 	}
+
 	ppu.Cycle++
 	if ppu.Cycle > 340 {
 		ppu.Cycle = 0
@@ -781,17 +790,7 @@ func (ppu *PPU) tick() {
 			ppu.f ^= 1
 		}
 	}
-}
 
-// ref: http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
-func (ppu *PPU) Step() {
-	ppu.tick()
-
-	// if ppu.trace != nil {
-	// 	ppu.trace.SetPPUX(uint16(ppu.Cycle))
-	// 	ppu.trace.SetPPUY(uint16(ppu.scanLine))
-	// 	ppu.trace.SetPPUVBlankState((ppu.status.Get() & 0x80) == 0x80)
-	// }
 	rendering := ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 	preLine := ppu.scanLine == 261
 	renderLine := preLine || ppu.visibleScanLine()
@@ -831,18 +830,6 @@ func (ppu *PPU) Step() {
 			}
 		}
 
-		//debug
-		// if ppu.Cycle == 1 {
-		// 	for i := 0; i < 8; i++ {
-		// 		fmt.Printf("secondalyOAM clear when cycle=1 : secondalyOAM[%d] = %v\n", i, ppu.secondaryOAM.GetSpriteByIndex(byte(i)))
-		// 	}
-		// }
-		// if ppu.Cycle == 64 {
-		// 	for i := 0; i < 8; i++ {
-		// 		fmt.Printf("secondalyOAM clear when cycle=64: secondalyOAM[%d] = %v\n", i, ppu.secondaryOAM.GetSpriteByIndex(byte(i)))
-		// 	}
-		// }
-
 		// sprite eval for next scanline
 		// 65 <= ppu.Cycle <= 256
 		if ppu.Cycle == 256 && ppu.visibleScanLine() {
@@ -850,8 +837,11 @@ func (ppu *PPU) Step() {
 		}
 		// sprite fetch
 		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanLine()) {
-			// init
-			// ppu.oamAddr = 0
+			// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
+			// > Values during rendering
+			// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible scanlines.
+			ppu.oamAddr = 0
+
 			if ppu.Cycle == 257 {
 				ppu.spriteFounds = 0
 			}
