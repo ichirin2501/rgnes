@@ -819,15 +819,24 @@ func (ppu *PPU) Step() {
 	fetchCycle := preFetchCycle || visibleCycle
 
 	if rendering {
-		if ppu.visibleScanLine() && visibleCycle {
-			ppu.renderPixel()
-		}
-		if renderLine && fetchCycle {
+		// https://www.nesdev.org/wiki/File:Ntsc_timing.png
+		// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
+		if renderLine && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
 			// shift
 			ppu.patternAttributeHighBit <<= 1
 			ppu.patternAttributeLowBit <<= 1
 			ppu.patternTableHighBit <<= 1
 			ppu.patternTableLowBit <<= 1
+		}
+		// https://www.nesdev.org/wiki/File:Ntsc_timing.png
+		// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
+		if renderLine && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
+			ppu.loadNextPixelData()
+		}
+		if ppu.visibleScanLine() && visibleCycle {
+			ppu.renderPixel()
+		}
+		if renderLine && fetchCycle {
 			switch ppu.Cycle % 8 {
 			case 1:
 				ppu.fetchNameTableByte()
@@ -837,8 +846,6 @@ func (ppu *PPU) Step() {
 				ppu.fetchPatternTableLowByte()
 			case 7:
 				ppu.fetchPatternTableHighByte()
-			case 0:
-				ppu.loadNextPixelData()
 			}
 		}
 
