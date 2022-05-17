@@ -160,6 +160,7 @@ type spriteSlot struct {
 	x          byte
 	lo         byte // pattern table low bit
 	hi         byte // pattern table high bit
+	idx        byte
 }
 
 type PPU struct {
@@ -185,10 +186,11 @@ type PPU struct {
 	suppressVBlankFlag bool
 
 	// sprites temp variables
-	primaryOAM   oam
-	secondaryOAM oam
-	spriteSlots  [8]spriteSlot
-	spriteFounds int
+	primaryOAM        oam
+	secondaryOAM      oam
+	secondaryOAMIndex [8]byte
+	spriteSlots       [8]spriteSlot
+	spriteFounds      int
 
 	// background temp variables
 	nameTableByte        byte
@@ -639,6 +641,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 		attributes: s.attributes,
 		lo:         lo,
 		hi:         hi,
+		idx:        ppu.secondaryOAMIndex[byte(sidx)],
 	}
 	ppu.spriteFounds++
 }
@@ -648,13 +651,6 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 		panic("uaaaaaaaaaaaaxxxxxaaaa")
 	}
 
-	// debug
-	// before secondaryOAM
-	// for i := 0; i < 8; i++ {
-	// 	s := ppu.secondaryOAM.GetSpriteByIndex(byte(i))
-	// 	fmt.Printf("evalSpriteForNextScanline: before secondaryOAM[%d] = %v\n", i, *s)
-	// }
-
 	sidx := byte(0)
 	for i := byte(0); i < 64; i++ {
 		s := ppu.primaryOAM.GetSpriteByIndex(i)
@@ -662,11 +658,9 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 		d := ppu.ctrl.SpriteSize()
 
 		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
-			// debug
-			//fmt.Printf("in y range: set secondaryOAM[%d] ppu.scanline:%d, s.y:%d\n", sidx, ppu.scanLine, s.y)
-
 			if sidx < 8 {
 				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
+				ppu.secondaryOAMIndex[sidx] = i
 			}
 			sidx++
 		}
@@ -762,7 +756,7 @@ func (ppu *PPU) multiplexPixelPaletteAddr() *paletteAddr {
 		s := ppu.spriteSlots[slotIdx]
 		x := ppu.Cycle - 1
 
-		if x < 255 && slotIdx == 0 {
+		if x < 255 && s.idx == 0 {
 			ppu.status.SetSprite0Hit(true)
 		}
 		if s.attributes.BehindBackground() {
