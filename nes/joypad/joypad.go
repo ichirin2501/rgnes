@@ -1,4 +1,4 @@
-package nes
+package joypad
 
 import "sync"
 
@@ -21,7 +21,7 @@ type Joypad struct {
 	mu           *sync.RWMutex
 }
 
-func NewJoypad() *Joypad {
+func New() *Joypad {
 	return &Joypad{
 		mu: &sync.RWMutex{},
 	}

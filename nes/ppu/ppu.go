@@ -221,7 +221,7 @@ func (ppu *PPU) FetchScanline() int {
 	return ppu.scanLine
 }
 
-func NewPPU(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
+func New(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
 	po := make([]*sprite, 64)
 	for i := 0; i < 64; i++ {
 		po[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}

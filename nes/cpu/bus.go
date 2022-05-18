@@ -2,23 +2,54 @@ package cpu
 
 import (
 	"fmt"
-
-	"github.com/ichirin2501/rgnes/nes"
-	"github.com/ichirin2501/rgnes/nes/memory"
-	"github.com/ichirin2501/rgnes/nes/ppu"
 )
+
+type APU interface {
+	// todo
+}
+
+type Joypad interface {
+	Read() byte
+	Write(byte)
+}
+
+type Mapper interface {
+	Read(uint16) byte
+	Write(uint16, byte)
+}
+
+type PPU interface {
+	Step()
+	ReadController() byte
+	ReadMask() byte
+	ReadStatus() byte
+	ReadOAMAddr() byte
+	ReadOAMData() byte
+	ReadScroll() byte
+	ReadPPUAddr() byte
+	ReadPPUData() byte
+	WriteController(byte)
+	WriteMask(byte)
+	WriteStatus(byte)
+	WriteOAMAddr(byte)
+	WriteOAMData(byte)
+	WriteScroll(byte)
+	WritePPUAddr(byte)
+	WritePPUData(byte)
+	WriteOAMDMA([]byte)
+}
 
 type Bus struct {
 	ram    []byte
-	ppu    *ppu.PPU
-	apu    memory.Memory
-	Mapper memory.Memory
-	joypad *nes.Joypad
+	ppu    PPU
+	apu    APU
+	Mapper Mapper
+	joypad Joypad
 
 	clock int
 }
 
-func NewBus(ppu *ppu.PPU, apu memory.Memory, mapper memory.Memory, joypad *nes.Joypad) *Bus {
+func NewBus(ppu PPU, apu APU, mapper Mapper, joypad Joypad) *Bus {
 	return &Bus{
 		ram:    make([]byte, 2048),
 		ppu:    ppu,

@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ichirin2501/rgnes/nes"
 	"github.com/ichirin2501/rgnes/nes/apu"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
+	"github.com/ichirin2501/rgnes/nes/joypad"
 	"github.com/ichirin2501/rgnes/nes/ppu"
 
 	"github.com/stretchr/testify/assert"
@@ -133,16 +133,16 @@ func Test_CPU_OUT_6000(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer f.Close()
-			c, err := cassette.NewCassette(f)
+			c, err := cassette.New(f)
 			if err != nil {
 				t.Fatal(err)
 			}
 			mapper := cassette.NewMapper(c)
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
-			ppu := ppu.NewPPU(fake, mapper, c.Mirror, irp, nil)
-			apu := apu.NewAPU()
-			joypad := nes.NewJoypad()
+			ppu := ppu.New(fake, mapper, c.Mirror, irp, nil)
+			apu := apu.New()
+			joypad := joypad.New()
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.NewCPU(cpuBus, irp, nil)
 			cpu.Reset()

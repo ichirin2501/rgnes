@@ -3,7 +3,7 @@ package apu
 type APU struct {
 }
 
-func NewAPU() *APU {
+func New() *APU {
 	return &APU{}
 }
 

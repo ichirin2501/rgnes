@@ -38,7 +38,7 @@ type Cassette struct {
 	Mirror MirroringType
 }
 
-func NewCassette(r io.Reader) (*Cassette, error) {
+func New(r io.Reader) (*Cassette, error) {
 	header := &iNESHeader{}
 	if err := binary.Read(r, binary.LittleEndian, header); err != nil {
 		return nil, err

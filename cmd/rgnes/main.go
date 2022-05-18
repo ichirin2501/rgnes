@@ -12,10 +12,10 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"github.com/ichirin2501/rgnes/nes"
 	"github.com/ichirin2501/rgnes/nes/apu"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
+	"github.com/ichirin2501/rgnes/nes/joypad"
 	"github.com/ichirin2501/rgnes/nes/ppu"
 )
 
@@ -83,7 +83,7 @@ func realMain() error {
 	}
 	defer f.Close()
 
-	c, err := cassette.NewCassette(f)
+	c, err := cassette.New(f)
 	if err != nil {
 		return err
 	}
@@ -92,9 +92,9 @@ func realMain() error {
 	trace := &cpu.Trace{}
 	irp := &cpu.Interrupter{}
 
-	ppu := ppu.NewPPU(renderer, mapper, c.Mirror, irp, trace)
-	joypad := nes.NewJoypad()
-	apu := apu.NewAPU()
+	ppu := ppu.New(renderer, mapper, c.Mirror, irp, trace)
+	joypad := joypad.New()
+	apu := apu.New()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.NewCPU(cpuBus, irp, trace)
@@ -142,7 +142,7 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, keyEvents <-chan fyne.KeyName, j *nes.Joypad) {
+func updateKey(win fyne.Window, keyEvents <-chan fyne.KeyName, j *joypad.Joypad) {
 	keySt := byte(0)
 	loop := true
 	for loop {
@@ -152,21 +152,21 @@ func updateKey(win fyne.Window, keyEvents <-chan fyne.KeyName, j *nes.Joypad) {
 			case fyne.KeyEscape:
 				win.Close()
 			case fyne.KeySpace:
-				keySt |= nes.ButtonSelect
+				keySt |= joypad.ButtonSelect
 			case fyne.KeyReturn:
-				keySt |= nes.ButtonStart
+				keySt |= joypad.ButtonStart
 			case fyne.KeyUp:
-				keySt |= nes.ButtonUP
+				keySt |= joypad.ButtonUP
 			case fyne.KeyDown:
-				keySt |= nes.ButtonDown
+				keySt |= joypad.ButtonDown
 			case fyne.KeyLeft:
-				keySt |= nes.ButtonLeft
+				keySt |= joypad.ButtonLeft
 			case fyne.KeyRight:
-				keySt |= nes.ButtonRight
+				keySt |= joypad.ButtonRight
 			case fyne.KeyA:
-				keySt |= nes.ButtonA
+				keySt |= joypad.ButtonA
 			case fyne.KeyS:
-				keySt |= nes.ButtonB
+				keySt |= joypad.ButtonB
 			}
 		default:
 			loop = false
