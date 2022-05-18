@@ -83,16 +83,16 @@ func realMain() error {
 	}
 	defer f.Close()
 
-	c, err := cassette.New(f)
+	mapper, err := cassette.NewMapper(f)
 	if err != nil {
 		return err
 	}
-	mapper := cassette.NewMapper(c)
 
 	trace := &cpu.Trace{}
 	irp := &cpu.Interrupter{}
 
-	ppu := ppu.New(renderer, mapper, c.Mirror, irp, trace)
+	m := mapper.MirroingType()
+	ppu := ppu.New(renderer, mapper, &m, irp, trace)
 	joypad := joypad.New()
 	apu := apu.New()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)

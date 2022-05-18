@@ -3,9 +3,18 @@ package ppu
 import (
 	"fmt"
 	"image/color"
-
-	"github.com/ichirin2501/rgnes/nes/cassette"
 )
+
+type MirroringType interface {
+	IsVertical() bool
+	IsHorizontal() bool
+	IsFourScreen() bool
+}
+
+type Mapper interface {
+	Read(addr uint16) byte
+	Write(addr uint16, val byte)
+}
 
 type Renderer interface {
 	Render(x, y int, c color.Color)
@@ -26,10 +35,10 @@ type CPU interface {
 
 type vram struct {
 	ram       [2048]byte
-	mirroring cassette.MirroringType
+	mirroring MirroringType
 }
 
-func newVRAM(m cassette.MirroringType) *vram {
+func newVRAM(m MirroringType) *vram {
 	return &vram{mirroring: m}
 }
 
@@ -38,7 +47,7 @@ func (m *vram) mirrorAddr(addr uint16) uint16 {
 		panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
 	}
 	nameIdx := (addr - 0x2000) / 0x400
-	if m.mirroring == cassette.MirroringHorizontal {
+	if m.mirroring.IsHorizontal() {
 		// [0x2000 .. 0x2400) and [0x2400 .. 0x2800) => the first 1 KiB of VRAM
 		// [0x2800 .. 0x2C00) and [0x2C00 .. 0x3000) => the second 1 KiB of VRAM
 		switch nameIdx {
@@ -55,7 +64,7 @@ func (m *vram) mirrorAddr(addr uint16) uint16 {
 		default:
 			panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
 		}
-	} else if m.mirroring == cassette.MirroringVertical {
+	} else if m.mirroring.IsVertical() {
 		// [0x2000 .. 0x2400) and [0x2800 .. 0x2C00) => the first 1 KiB of VRAM
 		// [0x2400 .. 0x2800) and [0x2C00 .. 0x3000) => the second 1 KiB of VRAM
 		switch nameIdx {
@@ -164,7 +173,7 @@ type spriteSlot struct {
 }
 
 type PPU struct {
-	mapper       cassette.Mapper
+	mapper       Mapper
 	vram         *vram // include nametable and attribute
 	paletteTable paletteRAM
 	ctrl         ControlRegister
@@ -178,7 +187,6 @@ type PPU struct {
 	w            bool   // First or second write toggle (1 bit)
 	scanLine     int
 	Cycle        int
-	mirroring    cassette.MirroringType
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
 	openbus      byte
@@ -221,7 +229,7 @@ func (ppu *PPU) FetchScanline() int {
 	return ppu.scanLine
 }
 
-func New(renderer Renderer, mapper cassette.Mapper, mirroring cassette.MirroringType, c CPU, trace Trace) *PPU {
+func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU, trace Trace) *PPU {
 	po := make([]*sprite, 64)
 	for i := 0; i < 64; i++ {
 		po[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
@@ -231,9 +239,8 @@ func New(renderer Renderer, mapper cassette.Mapper, mirroring cassette.Mirroring
 		so[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
 	}
 	ppu := &PPU{
-		vram:         newVRAM(mirroring),
+		vram:         newVRAM(mirror),
 		mapper:       mapper,
-		mirroring:    mirroring,
 		primaryOAM:   oam(po),
 		secondaryOAM: oam(so),
 

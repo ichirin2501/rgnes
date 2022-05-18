@@ -77,14 +77,14 @@ func Test_PPU_OUT_6000(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer f.Close()
-			c, err := cassette.New(f)
+			mapper, err := cassette.NewMapper(f)
 			if err != nil {
 				t.Fatal(err)
 			}
-			mapper := cassette.NewMapper(c)
+			m := mapper.MirroingType()
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
-			ppu := ppu.New(fake, mapper, c.Mirror, irp, nil)
+			ppu := ppu.New(fake, mapper, &m, irp, nil)
 			apu := apu.New()
 			joypad := joypad.New()
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)

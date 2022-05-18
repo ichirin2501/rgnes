@@ -18,6 +18,16 @@ const (
 	MirroringFourScreen
 )
 
+func (m *MirroringType) IsVertical() bool {
+	return *m == MirroringVertical
+}
+func (m *MirroringType) IsHorizontal() bool {
+	return *m == MirroringHorizontal
+}
+func (m *MirroringType) IsFourScreen() bool {
+	return *m == MirroringFourScreen
+}
+
 type iNESHeader struct {
 	Magic   uint32
 	PRGSize byte
@@ -90,4 +100,8 @@ func New(r io.Reader) (*Cassette, error) {
 		Mapper: mapper,
 		Mirror: mirroringType,
 	}, nil
+}
+
+func (c *Cassette) MirroingType() MirroringType {
+	return c.Mirror
 }

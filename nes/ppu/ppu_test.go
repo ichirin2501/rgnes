@@ -3,11 +3,41 @@ package ppu
 import (
 	"testing"
 
-	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/stretchr/testify/assert"
 )
 
 // TODO: `H` の文字のテスト
+
+type fakeMirroringType int
+
+const (
+	fakeMirroringVertical fakeMirroringType = iota
+	fakeMirroringHorizontal
+	fakeMirroringFourScreen
+)
+
+func (f *fakeMirroringType) IsVertical() bool {
+	return *f == fakeMirroringVertical
+}
+func (f *fakeMirroringType) IsHorizontal() bool {
+	return *f == fakeMirroringHorizontal
+}
+func (f *fakeMirroringType) IsFourScreen() bool {
+	return *f == fakeMirroringFourScreen
+}
+
+func getFakeMirroringVertical() *fakeMirroringType {
+	m := fakeMirroringVertical
+	return &m
+}
+func getFakeMirroringHorizontal() *fakeMirroringType {
+	m := fakeMirroringHorizontal
+	return &m
+}
+func getFakeMirroringFourScreen() *fakeMirroringType {
+	m := fakeMirroringFourScreen
+	return &m
+}
 
 func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	t.Parallel()
@@ -19,49 +49,49 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	}{
 		{
 			"1",
-			newVRAM(cassette.MirroringHorizontal),
+			newVRAM(getFakeMirroringHorizontal()),
 			0x2003,
 			0x0003,
 		},
 		{
 			"2",
-			newVRAM(cassette.MirroringHorizontal),
+			newVRAM(getFakeMirroringHorizontal()),
 			0x2403,
 			0x0003,
 		},
 		{
 			"3",
-			newVRAM(cassette.MirroringHorizontal),
+			newVRAM(getFakeMirroringHorizontal()),
 			0x2800,
 			0x0400,
 		},
 		{
 			"4",
-			newVRAM(cassette.MirroringHorizontal),
+			newVRAM(getFakeMirroringHorizontal()),
 			0x2C00,
 			0x0400,
 		},
 		{
 			"5",
-			newVRAM(cassette.MirroringVertical),
+			newVRAM(getFakeMirroringVertical()),
 			0x2000,
 			0x0000,
 		},
 		{
 			"6",
-			newVRAM(cassette.MirroringVertical),
+			newVRAM(getFakeMirroringVertical()),
 			0x2801,
 			0x0001,
 		},
 		{
 			"7",
-			newVRAM(cassette.MirroringVertical),
+			newVRAM(getFakeMirroringVertical()),
 			0x2400,
 			0x0400,
 		},
 		{
 			"8",
-			newVRAM(cassette.MirroringVertical),
+			newVRAM(getFakeMirroringVertical()),
 			0x2C01,
 			0x0401,
 		},
