@@ -228,6 +228,12 @@ func (ppu *PPU) FetchNMIDelay() int {
 func (ppu *PPU) FetchScanline() int {
 	return ppu.scanLine
 }
+func (ppu *PPU) FetchV() uint16 {
+	return ppu.v
+}
+func (ppu *PPU) FetchBuffer() byte {
+	return ppu.buf
+}
 
 func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU, trace Trace) *PPU {
 	po := make([]*sprite, 64)
@@ -482,10 +488,7 @@ func (ppu *PPU) PeekPPUData() byte {
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
 		return ppu.buf
-	case 0x3F00 <= addr && addr <= 0x3F1F:
-		return ppu.paletteTable.Read(parsePaletteAddr(byte(addr - 0x3F00)))
-	case 0x3F20 <= addr && addr <= 0x3FFF:
-		// Mirrors of $3F00-$3F1F
+	case 0x3F00 <= addr && addr <= 0x3FFF:
 		return ppu.paletteTable.Read(parsePaletteAddr(byte(addr % 0x20)))
 	default:
 		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
@@ -509,13 +512,11 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
 		return ppu.readPPUData(addr - 0x1000)
-	case 0x3F00 <= addr && addr <= 0x3F1F:
-		res := ppu.paletteTable.Read(parsePaletteAddr(byte(addr - 0x3F00)))
+	case 0x3F00 <= addr && addr <= 0x3FFF:
+		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
+		res := ppu.paletteTable.Read(parsePaletteAddr(byte(addr % 0x20)))
 		ppu.buf = ppu.vram.Read(addr - 0x1000)
 		return res
-	case 0x3F20 <= addr && addr <= 0x3FFF:
-		// Mirrors of $3F00-$3F1F
-		return ppu.readPPUData(0x3F00 + (addr % 0x20))
 	default:
 		panic(fmt.Sprintf("readPPUData invalid addr = 0x%04x", addr))
 	}

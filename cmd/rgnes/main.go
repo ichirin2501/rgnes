@@ -115,10 +115,13 @@ func realMain() error {
 			// ここでppuの状態を記録しておく
 			trace.SetPPUX(uint16(ppu.Cycle))
 			trace.SetPPUY(uint16(ppu.FetchScanline()))
+			// v := ppu.FetchV()
+			// mp0 := mapper.Read(0)
+			// ppuBuf := ppu.FetchBuffer()
 			beforeScanline := ppu.FetchScanline()
 			cycle := cpu.Step()
 
-			fmt.Println(trace.NESTestString())
+			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
 
 			if cpu.FetchCycles()*3 != ppu.Clock {
