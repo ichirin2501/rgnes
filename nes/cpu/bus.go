@@ -172,8 +172,8 @@ func (bus *Bus) write(addr uint16, val byte) {
 		case addr == 0x4014:
 			buf := make([]byte, 256)
 			a := uint16(val) << 8
-			for i := 0; i < 256; i++ {
-				buf[i] = bus.ram[(a+uint16(i))%0x800]
+			for i := uint16(0); i < 256; i++ {
+				buf[i] = bus.read(a + i)
 			}
 			bus.ppu.WriteOAMDMA(buf)
 		case addr == 0x4016:
