@@ -118,7 +118,7 @@ func realMain() error {
 			beforeScanline := ppu.FetchScanline()
 			cycle := cpu.Step()
 
-			//fmt.Println(trace.NESTestString())
+			fmt.Println(trace.NESTestString())
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
 
 			if cpu.FetchCycles()*3 != ppu.Clock {

@@ -28,6 +28,16 @@ type PPU interface {
 	ReadScroll() byte
 	ReadPPUAddr() byte
 	ReadPPUData() byte
+
+	PeekController() byte
+	PeekMask() byte
+	PeekStatus() byte
+	PeekOAMAddr() byte
+	PeekOAMData() byte
+	PeekScroll() byte
+	PeekPPUAddr() byte
+	PeekPPUData() byte
+
 	WriteController(byte)
 	WriteMask(byte)
 	WriteStatus(byte)
@@ -181,16 +191,37 @@ func (bus *Bus) write(addr uint16, val byte) {
 	}
 }
 
-func (bus *Bus) ReadForTest(addr uint16) byte {
+// Peek is used for debugging
+func (bus *Bus) Peek(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		return bus.ram[addr%0x800]
 	case 0x2000 <= addr && addr <= 0x2007:
-		//fmt.Printf("[warn] read ppu data addr = 0x%04x\n", addr)
-		return 0
+		// NES PPU registers
+		switch {
+		case addr == 0x2000:
+			return bus.ppu.PeekController()
+		case addr == 0x2001:
+			return bus.ppu.PeekMask()
+		case addr == 0x2002:
+			return bus.ppu.PeekStatus()
+		case addr == 0x2003:
+			return bus.ppu.PeekOAMAddr()
+		case addr == 0x2004:
+			return bus.ppu.PeekOAMData()
+		case addr == 0x2005:
+			return bus.ppu.PeekScroll()
+		case addr == 0x2006:
+			return bus.ppu.PeekPPUAddr()
+		case addr == 0x2007:
+			return bus.ppu.PeekPPUData()
+		default:
+			panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Peek", addr))
+		}
+
 	case 0x2008 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
-		return bus.ReadForTest(0x2000 + ((addr - 0x2008) % 0x08))
+		return bus.Peek(0x2000 + addr%0x08)
 	case 0x4000 <= addr && addr <= 0x4017:
 		// todo
 		return 0
@@ -201,7 +232,7 @@ func (bus *Bus) ReadForTest(addr uint16) byte {
 		return bus.Mapper.Read(addr)
 	default:
 		//return 0
-		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.ReadForTest", addr))
+		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Peek", addr))
 	}
 
 }

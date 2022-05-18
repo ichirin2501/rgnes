@@ -98,7 +98,7 @@ func Test_PPU_OUT_6000(t *testing.T) {
 			done := false
 			for {
 				cpu.Step()
-				got := cpuBus.ReadForTest(0x6000)
+				got := cpuBus.Peek(0x6000)
 				switch got {
 				case 0x80:
 					ready = true

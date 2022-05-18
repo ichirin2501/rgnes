@@ -440,9 +440,8 @@ func (cpu *CPU) irq() {
 }
 
 func (cpu *CPU) compare(a byte, b byte) {
+	cpu.P.SetZN(a - b)
 	cpu.P.SetCarry(a >= b)
-	cpu.P.SetNegative((a-b)&0x80 != 0)
-	cpu.P.SetZero((a - b) == 0x00)
 }
 
 func (cpu *CPU) push(val byte) {

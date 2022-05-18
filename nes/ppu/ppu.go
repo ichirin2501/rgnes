@@ -258,6 +258,11 @@ func (ppu *PPU) ReadController() byte {
 	return ppu.openbus
 }
 
+// PeekController is used for debugging
+func (ppu *PPU) PeekController() byte {
+	return ppu.openbus
+}
+
 // $2000: PPUCTRL
 func (ppu *PPU) WriteController(val byte) {
 	ppu.openbus = val
@@ -284,6 +289,11 @@ func (ppu *PPU) WriteController(val byte) {
 
 func (ppu *PPU) ReadMask() byte {
 	// note: $2001 write only
+	return ppu.openbus
+}
+
+// PeekMask is used for debugging
+func (ppu *PPU) PeekMask() byte {
 	return ppu.openbus
 }
 
@@ -317,6 +327,12 @@ func (ppu *PPU) ReadStatus() byte {
 	// ????
 	return st | (ppu.openbus & 0x1F)
 }
+
+// PeekStatus is used for debugging
+func (ppu *PPU) PeekStatus() byte {
+	return ppu.status.Get()
+}
+
 func (ppu *PPU) WriteStatus(val byte) {
 	// note: $2002 read only
 	ppu.openbus = val
@@ -324,6 +340,11 @@ func (ppu *PPU) WriteStatus(val byte) {
 
 func (ppu *PPU) ReadOAMAddr() byte {
 	// note: $2003 write only
+	return ppu.openbus
+}
+
+// PeekOAMAddr is used for debugging
+func (ppu *PPU) PeekOAMAddr() byte {
 	return ppu.openbus
 }
 
@@ -338,6 +359,11 @@ func (ppu *PPU) ReadOAMData() byte {
 	res := ppu.primaryOAM.GetByte(ppu.oamAddr)
 	ppu.openbus = res
 	return res
+}
+
+// PeekOAMData is used for debuggin
+func (ppu *PPU) PeekOAMData() byte {
+	return ppu.primaryOAM.GetByte(ppu.oamAddr)
 }
 
 // $2004: OAMDATA write
@@ -369,6 +395,11 @@ func (ppu *PPU) ReadScroll() byte {
 	return ppu.openbus
 }
 
+// ReadScroll is used for debugging
+func (ppu *PPU) PeekScroll() byte {
+	return ppu.openbus
+}
+
 // $2005: PPUSCROLL
 func (ppu *PPU) WriteScroll(val byte) {
 	ppu.openbus = val
@@ -391,6 +422,11 @@ func (ppu *PPU) WriteScroll(val byte) {
 }
 
 func (ppu *PPU) ReadPPUAddr() byte {
+	return ppu.openbus
+}
+
+// ReadPPUAddr is used for debugging
+func (ppu *PPU) PeekPPUAddr() byte {
 	return ppu.openbus
 }
 
@@ -434,6 +470,28 @@ func (ppu *PPU) ReadPPUData() byte {
 	return res
 }
 
+// PeekPPUData is used for debugging
+func (ppu *PPU) PeekPPUData() byte {
+	addr := ppu.v
+	addr &= 0x3FFF
+	switch {
+	case 0x0000 <= addr && addr <= 0x1FFF:
+		return ppu.buf
+	case 0x2000 <= addr && addr <= 0x2FFF:
+		return ppu.buf
+	case 0x3000 <= addr && addr <= 0x3EFF:
+		// Mirrors of $2000-$2EFF
+		return ppu.buf
+	case 0x3F00 <= addr && addr <= 0x3F1F:
+		return ppu.paletteTable.Read(parsePaletteAddr(byte(addr - 0x3F00)))
+	case 0x3F20 <= addr && addr <= 0x3FFF:
+		// Mirrors of $3F00-$3F1F
+		return ppu.paletteTable.Read(parsePaletteAddr(byte(addr % 0x20)))
+	default:
+		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
+	}
+}
+
 func (ppu *PPU) readPPUData(addr uint16) byte {
 	// https://www.nesdev.org/wiki/PPU_scrolling#PPU_internal_registers
 	// > Note that while the v register has 15 bits, the PPU memory space is only 14 bits wide.
@@ -457,7 +515,7 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		return res
 	case 0x3F20 <= addr && addr <= 0x3FFF:
 		// Mirrors of $3F00-$3F1F
-		return ppu.readPPUData(0x3F00 + addr%0x20)
+		return ppu.readPPUData(0x3F00 + (addr % 0x20))
 	default:
 		panic(fmt.Sprintf("readPPUData invalid addr = 0x%04x", addr))
 	}
@@ -483,7 +541,7 @@ func (ppu *PPU) WritePPUData(val byte) {
 func (ppu *PPU) writePPUData(addr uint16, val byte) {
 	addr &= 0x3FFF
 	switch {
-	case 0x000 <= addr && addr <= 0x1FFF:
+	case 0x0000 <= addr && addr <= 0x1FFF:
 		ppu.mapper.Write(addr, val)
 	case 0x2000 <= addr && addr <= 0x2FFF:
 		ppu.vram.Write(addr, val)
