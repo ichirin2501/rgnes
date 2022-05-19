@@ -2,8 +2,6 @@ package cpu
 
 import (
 	"fmt"
-
-	"github.com/ichirin2501/rgnes/nes/memory"
 )
 
 type InterruptType byte
@@ -159,7 +157,7 @@ func NewCPU(mem *Bus, i *Interrupter, t *Trace) *CPU {
 
 // TODO: after reset
 func (cpu *CPU) Reset() {
-	cpu.PC = memory.Read16(cpu.m, 0xFFFC)
+	cpu.PC = cpu.read16(0xFFFC)
 	cpu.P = StatusRegister(0x24)
 	cpu.cycles += 7
 }
@@ -439,6 +437,12 @@ func (cpu *CPU) fetch() byte {
 	v := cpu.m.Read(cpu.PC)
 	cpu.PC++
 	return v
+}
+
+func (cpu *CPU) read16(addr uint16) uint16 {
+	l := cpu.m.Read(addr)
+	h := cpu.m.Read(addr + 1)
+	return (uint16(h) << 8) | uint16(l)
 }
 
 func (cpu *CPU) fetchOperand(op *opcode) (uint16, bool) {

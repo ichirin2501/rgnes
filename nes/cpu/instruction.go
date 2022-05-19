@@ -1,9 +1,5 @@
 package cpu
 
-import (
-	"github.com/ichirin2501/rgnes/nes/memory"
-)
-
 func (cpu *CPU) lda(addr uint16) {
 	a := cpu.m.Read(addr)
 	cpu.A = a
@@ -416,7 +412,7 @@ func (cpu *CPU) brk() {
 	cpu.push16(cpu.PC + 1)
 	cpu.push(cpu.P.Byte() | 0x30)
 	cpu.P.SetInterruptDisable(true)
-	cpu.PC = memory.Read16(cpu.m, 0xFFFE)
+	cpu.PC = cpu.read16(0xFFFE)
 }
 
 // Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack.
@@ -425,7 +421,7 @@ func (cpu *CPU) nmi() {
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte() | 0x20)
 	cpu.P.SetInterruptDisable(true)
-	cpu.PC = memory.Read16(cpu.m, 0xFFFA)
+	cpu.PC = cpu.read16(0xFFFA)
 }
 
 func (cpu *CPU) irq() {
@@ -436,7 +432,7 @@ func (cpu *CPU) irq() {
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte())
 	cpu.P.SetInterruptDisable(true)
-	cpu.PC = memory.Read16(cpu.m, 0xFFFE)
+	cpu.PC = cpu.read16(0xFFFE)
 }
 
 func (cpu *CPU) compare(a byte, b byte) {
