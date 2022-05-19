@@ -52,6 +52,10 @@ func (p *paletteRAM) Write(addr paletteForm, val byte) {
 // +---- - Background/Sprite select
 type paletteForm byte
 
+const (
+	universalBGColorPalette = paletteForm(0)
+)
+
 func (p *paletteForm) Pixel() byte {
 	return byte(*p) & 0b11
 }

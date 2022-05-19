@@ -481,12 +481,8 @@ func (ppu *PPU) PeekPPUData() byte {
 	addr := ppu.v
 	addr &= 0x3FFF
 	switch {
-	case 0x0000 <= addr && addr <= 0x1FFF:
-		return ppu.buf
-	case 0x2000 <= addr && addr <= 0x2FFF:
-		return ppu.buf
-	case 0x3000 <= addr && addr <= 0x3EFF:
-		// Mirrors of $2000-$2EFF
+	case 0x0000 <= addr && addr <= 0x3EFF:
+		// include mirrors of $2000-$2EFF
 		return ppu.buf
 	case 0x3F00 <= addr && addr <= 0x3FFF:
 		return ppu.paletteTable.Read(paletteForm(addr % 0x20))
@@ -511,7 +507,9 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		return res
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
-		return ppu.readPPUData(addr - 0x1000)
+		res := ppu.buf
+		ppu.buf = ppu.vram.Read(addr - 0x1000)
+		return res
 	case 0x3F00 <= addr && addr <= 0x3FFF:
 		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
 		res := ppu.paletteTable.Read(paletteForm(addr % 0x20))
@@ -548,12 +546,10 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 		ppu.vram.Write(addr, val)
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
-		ppu.writePPUData(addr-0x1000, val)
-	case 0x3F00 <= addr && addr <= 0x3F1F:
-		ppu.paletteTable.Write(paletteForm(addr-0x3F00), val)
-	case 0x3F20 <= addr && addr <= 0x3FFF:
-		// Mirrors of $3F00-$3F1F
-		ppu.writePPUData(0x3F00+addr%0x20, val)
+		ppu.vram.Write(addr-0x1000, val)
+	case 0x3F00 <= addr && addr <= 0x3FFF:
+		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
+		ppu.paletteTable.Write(paletteForm(addr%0x20), val)
 	default:
 		panic("uaaaaaaaaaaaaaaa")
 	}
@@ -758,11 +754,11 @@ func (ppu *PPU) loadNextPixelData() {
 
 func (ppu *PPU) backgroundPixelPaletteAddr() paletteForm {
 	if !ppu.mask.ShowBackground() {
-		return newPaletteForm(false, 0, 0)
+		return universalBGColorPalette
 	}
 	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
-		return newPaletteForm(false, 0, 0)
+		return universalBGColorPalette
 	}
 
 	talo := byte((ppu.patternAttributeLowBit >> (15 - ppu.x)) & 0b1)
@@ -776,11 +772,11 @@ func (ppu *PPU) backgroundPixelPaletteAddr() paletteForm {
 
 func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (paletteForm, int) {
 	if !ppu.mask.ShowSprites() {
-		return newPaletteForm(true, 0, 0), -1
+		return universalBGColorPalette, -1
 	}
 	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowSpritesLeftMost8pxlScreen() {
-		return newPaletteForm(true, 0, 0), -1
+		return universalBGColorPalette, -1
 	}
 	for i := 0; i < ppu.spriteFounds; i++ {
 		s := ppu.spriteSlots[i]
@@ -803,7 +799,7 @@ func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (paletteForm, int) {
 			return newPaletteForm(true, s.attributes.Palette(), p), i
 		}
 	}
-	return newPaletteForm(true, 0, 0), -1
+	return universalBGColorPalette, -1
 }
 
 func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
@@ -812,7 +808,7 @@ func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
 
 	if bp.Pixel() == 0 && sp.Pixel() == 0 {
 		// 0x3F00, universal background color
-		return paletteForm(0)
+		return universalBGColorPalette
 	} else if bp.Pixel() == 0 && sp.Pixel() != 0 {
 		return sp
 	} else if bp.Pixel() != 0 && sp.Pixel() == 0 {
