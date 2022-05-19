@@ -27,22 +27,20 @@ func init() {
 
 type paletteRAM [32]byte
 
-func (p *paletteRAM) Read(addr *paletteAddr) byte {
+func (p *paletteRAM) Read(addr paletteForm) byte {
 	// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
-	a := addr.GetAddr()
-	if a == 0x10 || a == 0x14 || a == 0x18 || a == 0x1C {
-		return p[a-0x10]
+	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
+		return p[addr-0x10]
 	} else {
-		return p[a]
+		return p[addr]
 	}
 }
 
-func (p *paletteRAM) Write(addr *paletteAddr, val byte) {
-	a := addr.GetAddr()
-	if a == 0x10 || a == 0x14 || a == 0x18 || a == 0x1C {
-		p[a-0x10] = val
+func (p *paletteRAM) Write(addr paletteForm, val byte) {
+	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
+		p[addr-0x10] = val
 	} else {
-		p[a] = val
+		p[addr] = val
 	}
 }
 
@@ -52,38 +50,28 @@ func (p *paletteRAM) Write(addr *paletteAddr, val byte) {
 // |||++ - Pixel value from tile data
 // |++-- - Palette number from attribute table or OAM
 // +---- - Background/Sprite select
-type paletteAddr struct {
-	pixel         byte
-	paletteNumber byte
-	isSprite      bool
+type paletteForm byte
+
+func (p *paletteForm) Pixel() byte {
+	return byte(*p) & 0b11
+}
+func (p *paletteForm) PaletteNumber() byte {
+	return (byte(*p) >> 2) & 0b11
+}
+func (p *paletteForm) IsSprite() bool {
+	return (byte(*p) & 0b10000) == 0b10000
 }
 
-func newPaletteAddr(isSprite bool, paletteNumber byte, pixel byte) *paletteAddr {
+func newPaletteForm(isSprite bool, paletteNumber byte, pixel byte) paletteForm {
 	if paletteNumber > 0b11 {
 		panic("palette number must be within 2 bits")
 	}
 	if pixel > 0b11 {
 		panic("pixel value must be within 2 bits")
 	}
-	return &paletteAddr{
-		isSprite:      isSprite,
-		paletteNumber: paletteNumber,
-		pixel:         pixel,
-	}
-}
-
-func parsePaletteAddr(addr byte) *paletteAddr {
-	return &paletteAddr{
-		pixel:         addr & 0b11,
-		paletteNumber: (addr >> 2) & 0b11,
-		isSprite:      (addr & 0b10000) == 0b10000,
-	}
-}
-
-func (p *paletteAddr) GetAddr() byte {
-	if p.isSprite {
-		return 0x10 | (p.paletteNumber << 2) | p.pixel
+	if isSprite {
+		return paletteForm(0b10000 | (paletteNumber << 2) | pixel)
 	} else {
-		return (p.paletteNumber << 2) | p.pixel
+		return paletteForm((paletteNumber << 2) | pixel)
 	}
 }
