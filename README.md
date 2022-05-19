@@ -104,5 +104,13 @@ https://www.nesdev.org/wiki/Emulator_tests#PPU_Tests
 scanline.nes (This test ROM was created by Quietust)  
 ![scanline.nes](/images/scanline.gif)  
 
+## References
+
+- https://www.nesdev.org/wiki/NES_reference_guide
+- https://github.com/fogleman/nes
+- [ファミコンエミュレータの創り方　- Hello, World!編 -](https://qiita.com/bokuweb/items/1575337bef44ae82f4d3)
+- [Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook/chapter_1.html)
+- [ｷﾞｺ猫でもわかるファミコンプログラミング](http://gikofami.fc2web.com/index.html)
+
 ## License
 rgnes is licensed under the MIT license
