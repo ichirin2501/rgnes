@@ -49,6 +49,8 @@ func (m *Mapper0) Read(addr uint16) byte {
 func (m *Mapper0) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
+		// https://www.nesdev.org/wiki/NROM
+		// > CHR capacity: 8 KiB ROM (DIP-28 standard pinout) but most emulators support RAM
 		m.CHR[addr] = val
 	case 0x6000 <= addr && addr < 0x8000:
 		m.SRAM[addr-0x6000] = val

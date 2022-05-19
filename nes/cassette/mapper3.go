@@ -49,8 +49,7 @@ func (m *Mapper3) Read(addr uint16) byte {
 func (m *Mapper3) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		index := m.chrBank*0x2000 + int(addr)
-		m.CHR[index] = val
+		// read only (for ppu_read_buffer test)
 	case 0x6000 <= addr && addr < 0x8000:
 		m.SRAM[addr-0x6000] = val
 	case 0x8000 <= addr:

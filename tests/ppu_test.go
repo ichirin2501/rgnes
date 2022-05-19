@@ -66,6 +66,10 @@ func Test_PPU_OUT_6000(t *testing.T) {
 		// 	"ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
 		// 	"../roms/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
 		// },
+		{
+			"ppu_read_buffer/test_ppu_read_buffer.nes",
+			"../roms/ppu_read_buffer/test_ppu_read_buffer.nes",
+		},
 	}
 
 	for _, tt := range tests {
