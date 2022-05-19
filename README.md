@@ -56,6 +56,7 @@ It's great because it's written so simple.
 | instr_test-v5 | 14-rti.nes | OK |
 | instr_test-v5 | 15-brk.nes | OK |
 | instr_test-v5 | 16-special.nes | OK |
+| nestest | nestest.nes | OK |
 | oam_read | oam_read.nes | OK |
 | oam_stress | oam_stress.nes | OK |
 | ppu_open_bus | ppu_open_bus.nes | Failed |

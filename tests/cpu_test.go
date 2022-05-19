@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"testing"
@@ -170,4 +171,43 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_NESTest(t *testing.T) {
+	// https://www.qmtpro.com/~nes/misc/nestest.txt
+	// > This test program, when run on "automation", (i.e. set your program counter
+	// > to 0c000h) will perform all tests in sequence and shove the results of
+	// > the tests into locations 02h and 03h.
+	f, err := os.Open("../roms/nestest/nestest.nes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	mapper, err := cassette.NewMapper(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := mapper.MirroingType()
+	irp := &cpu.Interrupter{}
+	fake := &fakeRenderer{}
+	ppu := ppu.New(fake, mapper, &m, irp, nil)
+	apu := apu.New()
+	joypad := joypad.New()
+	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
+	cpu := cpu.NewCPU(cpuBus, irp, nil)
+
+	cpu.PC = 0xC000
+	assert.Equal(t, byte(0), cpuBus.Peek(0x02))
+	assert.Equal(t, byte(0), cpuBus.Peek(0x03))
+	for i := 0; i < 8991; i++ {
+		cpu.Step()
+		if cpuBus.Peek(0x02) != 0 {
+			t.Fatal(fmt.Sprintf("0x02 is not 0 (0x%02x)", cpuBus.Peek(0x02)))
+		}
+		if cpuBus.Peek(0x03) != 0 {
+			t.Fatal(fmt.Sprintf("0x03 is not 0 (0x%02x)", cpuBus.Peek(0x03)))
+		}
+	}
+	assert.Equal(t, byte(0), cpuBus.Peek(0x02))
+	assert.Equal(t, byte(0), cpuBus.Peek(0x03))
 }
