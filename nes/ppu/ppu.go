@@ -336,7 +336,7 @@ func (ppu *PPU) ReadStatus() byte {
 
 // PeekStatus is used for debugging
 func (ppu *PPU) PeekStatus() byte {
-	return ppu.status.Get()
+	return ppu.status.Get() | (ppu.openbus & 0x1F)
 }
 
 func (ppu *PPU) WriteStatus(val byte) {

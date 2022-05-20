@@ -8,6 +8,12 @@ import (
 
 // TODO: `H` の文字のテスト
 
+type fakeCPU struct{}
+
+func (f *fakeCPU) SetDelayNMI()    {}
+func (f *fakeCPU) DMASuspend()     {}
+func (f *fakeCPU) SetNMI(val bool) {}
+
 type fakeMirroringType int
 
 const (
@@ -222,6 +228,223 @@ func Test_PPU_InternalRegisters(t *testing.T) {
 			assert.Equal(t, tt.wantv, tt.ppu.v)
 			assert.Equal(t, tt.wantx, tt.ppu.x)
 			assert.Equal(t, tt.wantw, tt.ppu.w)
+		})
+	}
+}
+
+func Test_PeekWriteOnlyRegister(t *testing.T) {
+	t.Parallel()
+	ppu := &PPU{
+		openbus: 0x30,
+	}
+	got := ppu.PeekController()
+	want := ppu.ReadController()
+	assert.Equal(t, want, got)
+
+	got = ppu.PeekMask()
+	want = ppu.ReadMask()
+	assert.Equal(t, want, got)
+
+	got = ppu.PeekOAMAddr()
+	want = ppu.ReadOAMAddr()
+	assert.Equal(t, want, got)
+
+	got = ppu.PeekScroll()
+	want = ppu.ReadScroll()
+	assert.Equal(t, want, got)
+
+	got = ppu.PeekPPUAddr()
+	want = ppu.ReadPPUAddr()
+	assert.Equal(t, want, got)
+}
+
+// todo
+// func Test_ReadPPUData(t *testing.T) {
+// 	t.Parallel()
+// 	tests := []struct {
+// 		name        string
+// 		ppu         *PPU
+// 		want        byte
+// 		wantv       uint16
+// 		wantOpenbus byte
+// 	}{
+// 		{
+// 			"1",
+// 			&PPU{
+// 				ctrl:    ControlRegister(0),
+// 				buf:     0x10,
+// 				openbus: 0x00,
+// 				v:       0x0000,
+// 			},
+// 			0x10,
+// 			0x10,
+// 			0x10,
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		tt := tt
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			t.Parallel()
+
+// 			peek := tt.ppu.PeekPPUData()
+// 			got := tt.ppu.ReadPPUData()
+
+// 			assert.Equal(t, peek, got)
+// 			assert.Equal(t, tt.want, got)
+// 			assert.Equal(t, tt.wantv, tt.ppu.v)
+// 			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus)
+// 		})
+// 	}
+
+// }
+
+func Test_ReadOAMData(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		ppu         *PPU
+		want        byte
+		wantOpenbus byte
+	}{
+		{
+			"1",
+			&PPU{
+				primaryOAM: oam{&sprite{y: 0x10}},
+				oamAddr:    0x00,
+			},
+			0x10,
+			0x10,
+		},
+		{
+			"2",
+			&PPU{
+				primaryOAM: oam{&sprite{y: 0x10}, &sprite{y: 0x20}},
+				oamAddr:    0x04,
+			},
+			0x20,
+			0x20,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			peek := tt.ppu.PeekOAMData()
+			got := tt.ppu.ReadOAMData()
+
+			assert.Equal(t, peek, got)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus)
+		})
+	}
+
+}
+
+func Test_ReadStatus(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                   string
+		ppu                    *PPU
+		want                   byte
+		wantw                  bool
+		wantSuppressVBlankFlag bool
+		wantNMIDelay           int
+		wantOpenbus            byte
+	}{
+		{
+			"1",
+			&PPU{
+				status:  StatusRegister(0x88),
+				openbus: 0x31,
+				cpu:     &fakeCPU{},
+				w:       true,
+			},
+			0x99,
+			false,
+			false,
+			0,
+			0x31,
+		},
+		{
+			"2",
+			&PPU{
+				status:   StatusRegister(0x00),
+				openbus:  0x01,
+				cpu:      &fakeCPU{},
+				scanLine: 241,
+				Cycle:    0,
+				nmiDelay: 3,
+			},
+			0x01,
+			false,
+			true,
+			3,
+			0x01,
+		},
+		{
+			"3",
+			&PPU{
+				status:   StatusRegister(0x00),
+				openbus:  0x01,
+				cpu:      &fakeCPU{},
+				scanLine: 241,
+				Cycle:    1,
+				nmiDelay: 3,
+			},
+			0x01,
+			false,
+			false,
+			0,
+			0x01,
+		},
+		{
+			"4",
+			&PPU{
+				status:   StatusRegister(0x00),
+				openbus:  0x01,
+				cpu:      &fakeCPU{},
+				scanLine: 241,
+				Cycle:    2,
+				nmiDelay: 3,
+			},
+			0x01,
+			false,
+			false,
+			0,
+			0x01,
+		},
+		{
+			"5",
+			&PPU{
+				status:   StatusRegister(0x00),
+				openbus:  0x01,
+				cpu:      &fakeCPU{},
+				scanLine: 241,
+				Cycle:    3,
+				nmiDelay: 3,
+			},
+			0x01,
+			false,
+			false,
+			3,
+			0x01,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			peek := tt.ppu.PeekStatus()
+			got := tt.ppu.ReadStatus()
+
+			assert.Equal(t, peek, got)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantw, tt.ppu.w)
+			assert.Equal(t, tt.wantSuppressVBlankFlag, tt.ppu.suppressVBlankFlag)
+			assert.Equal(t, tt.wantNMIDelay, tt.ppu.nmiDelay)
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus)
 		})
 	}
 }
