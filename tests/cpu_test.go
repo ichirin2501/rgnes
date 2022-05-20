@@ -147,9 +147,6 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.NewCPU(cpuBus, irp, nil)
 			cpu.Reset()
-			for i := 0; i < 15; i++ {
-				ppu.Step()
-			}
 
 			ready := false
 			done := false

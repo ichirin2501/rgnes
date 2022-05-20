@@ -46,7 +46,7 @@ type PPU interface {
 	WriteScroll(byte)
 	WritePPUAddr(byte)
 	WritePPUData(byte)
-	WriteOAMDMA([]byte)
+	WriteOAMDMAByte(byte)
 }
 
 type Bus struct {
@@ -70,10 +70,7 @@ func NewBus(ppu PPU, apu APU, mapper Mapper, joypad Joypad) *Bus {
 }
 
 func (bus *Bus) Read(addr uint16) byte {
-	bus.clock++
-	bus.ppu.Step()
-	bus.ppu.Step()
-	bus.ppu.Step()
+	bus.tick(1)
 	return bus.read(addr)
 }
 func (bus *Bus) read(addr uint16) byte {
@@ -130,10 +127,7 @@ func (bus *Bus) read(addr uint16) byte {
 }
 
 func (bus *Bus) Write(addr uint16, val byte) {
-	bus.clock++
-	bus.ppu.Step()
-	bus.ppu.Step()
-	bus.ppu.Step()
+	bus.tick(1)
 	bus.write(addr, val)
 }
 func (bus *Bus) write(addr uint16, val byte) {
@@ -170,12 +164,15 @@ func (bus *Bus) write(addr uint16, val byte) {
 		// NES APU and I/O registers
 		switch {
 		case addr == 0x4014:
-			buf := make([]byte, 256)
 			a := uint16(val) << 8
 			for i := uint16(0); i < 256; i++ {
-				buf[i] = bus.read(a + i)
+				bus.ppu.WriteOAMDMAByte(bus.read(a + i))
 			}
-			bus.ppu.WriteOAMDMA(buf)
+			if bus.clock%2 == 0 {
+				bus.tick(513)
+			} else {
+				bus.tick(514)
+			}
 		case addr == 0x4016:
 			bus.joypad.Write(val)
 		default:
@@ -188,6 +185,13 @@ func (bus *Bus) write(addr uint16, val byte) {
 		bus.Mapper.Write(addr, val)
 	default:
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Write", addr))
+	}
+}
+
+func (bus *Bus) tick(cpuCycle int) {
+	bus.clock += cpuCycle
+	for i := 0; i < 3*cpuCycle; i++ {
+		bus.ppu.Step()
 	}
 }
 

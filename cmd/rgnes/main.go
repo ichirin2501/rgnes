@@ -100,9 +100,6 @@ func realMain() error {
 	cpu := cpu.NewCPU(cpuBus, irp, trace)
 	cpu.Reset()
 	trace.AddCPUCycle(7)
-	for i := 0; i < 15; i++ {
-		ppu.Step()
-	}
 
 	go func() {
 		ticker := time.NewTicker(16 * time.Millisecond)
@@ -121,6 +118,7 @@ func realMain() error {
 			beforeScanline := ppu.Scanline
 			cycle := cpu.Step()
 
+			//fmt.Printf("%s\n", trace.NESTestString())
 			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
 

@@ -11,7 +11,6 @@ import (
 type fakeCPU struct{}
 
 func (f *fakeCPU) SetDelayNMI()    {}
-func (f *fakeCPU) DMASuspend()     {}
 func (f *fakeCPU) SetNMI(val bool) {}
 
 type fakeMirroringType int

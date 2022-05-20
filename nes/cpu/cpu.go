@@ -13,8 +13,6 @@ const (
 )
 
 type Interrupter struct {
-	stall     int
-	cycles    int
 	delayNMI  bool
 	interrupt InterruptType
 }
@@ -35,18 +33,6 @@ func (i *Interrupter) SetIRQ(v bool) {
 	} else {
 		i.interrupt = InterruptNone
 	}
-}
-func (i *Interrupter) DMASuspend() {
-	// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
-	// > The CPU is suspended during the transfer, which will take 513 or 514 cycles after the $4014 write tick.
-	// > (1 wait state cycle while waiting for writes to complete, +1 if on an odd CPU cycle, then 256 alternating read/write cycles.)
-	i.stall += 513
-	if i.cycles%2 == 1 {
-		i.stall++
-	}
-}
-func (i *Interrupter) FetchCycles() int {
-	return i.cycles
 }
 
 type Trace struct {
@@ -155,24 +141,21 @@ func NewCPU(mem *Bus, i *Interrupter, t *Trace) *CPU {
 	}
 }
 
+// debug
+func (cpu *CPU) FetchCycles() int {
+	return cpu.m.clock
+}
+
 // TODO: after reset
 func (cpu *CPU) Reset() {
 	cpu.PC = cpu.read16(0xFFFC)
 	cpu.P = StatusRegister(0x24)
-	cpu.cycles += 7
+	// adjust
+	cpu.m.tick(5)
 }
 
 func (cpu *CPU) Step() int {
 	beforeClock := cpu.m.clock
-
-	if cpu.stall > 0 {
-		cpu.stall--
-		cpu.m.ppu.Step()
-		cpu.m.ppu.Step()
-		cpu.m.ppu.Step()
-		cpu.cycles++
-		return 1
-	}
 
 	additionalCycle := 0
 
@@ -181,19 +164,15 @@ func (cpu *CPU) Step() int {
 		if !cpu.delayNMI {
 			cpu.nmi()
 			cpu.interrupt = InterruptNone
-			cpu.cycles += 7
-			for i := 0; i < 6; i++ {
-				cpu.m.ppu.Step()
-			}
+			// adjust
+			cpu.m.tick(2)
 			return 7
 		}
 	case InterruptIRQ:
 		cpu.irq()
 		cpu.interrupt = InterruptNone
-		cpu.cycles += 7
-		for i := 0; i < 6; i++ {
-			cpu.m.ppu.Step()
-		}
+		// adjust
+		cpu.m.tick(2)
 		return 7
 	}
 
@@ -399,10 +378,7 @@ func (cpu *CPU) Step() int {
 	afterClock := cpu.m.clock
 	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
 		t := (opcode.Cycle + additionalCycle) - (afterClock - beforeClock)
-		// 適当に差分吸収
-		for i := 0; i < 3*t; i++ {
-			cpu.m.ppu.Step()
-		}
+		cpu.m.tick(t)
 	}
 
 	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
@@ -429,7 +405,6 @@ func (cpu *CPU) Step() int {
 	// 	)
 	// }
 
-	cpu.cycles += opcode.Cycle + additionalCycle
 	return opcode.Cycle + additionalCycle
 }
 

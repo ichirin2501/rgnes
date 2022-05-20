@@ -23,7 +23,6 @@ type Renderer interface {
 
 type CPU interface {
 	SetDelayNMI()
-	DMASuspend()
 	SetNMI(val bool)
 }
 
@@ -544,13 +543,11 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 	}
 }
 
-// $4014: OAMDMA write
-func (ppu *PPU) WriteOAMDMA(data []byte) {
-	for i := 0; i < len(data); i++ {
-		ppu.primaryOAM.SetByte(ppu.oamAddr, data[i])
-		ppu.oamAddr++
-	}
-	ppu.cpu.DMASuspend()
+// WriteOAMDMAByte is used $4014 from cpubus.
+// control cpu clock on cpubus side
+func (ppu *PPU) WriteOAMDMAByte(val byte) {
+	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
+	ppu.oamAddr++
 }
 
 // // copyX() is `hori(v) = hori(t)` in NTSC PPU Frame Timing
