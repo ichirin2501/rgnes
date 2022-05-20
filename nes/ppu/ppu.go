@@ -21,12 +21,6 @@ type Renderer interface {
 	Refresh()
 }
 
-type Trace interface {
-	SetPPUX(uint16)
-	SetPPUY(uint16)
-	SetPPUVBlankState(bool)
-}
-
 type CPU interface {
 	SetDelayNMI()
 	DMASuspend()
@@ -185,7 +179,7 @@ type PPU struct {
 	t            uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
 	x            byte   // Fine X scroll (3 bits)
 	w            bool   // First or second write toggle (1 bit)
-	scanLine     int
+	Scanline     int
 	Cycle        int
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
@@ -212,8 +206,7 @@ type PPU struct {
 	patternAttributeLowBit  uint16
 	patternAttributeHighBit uint16
 
-	trace Trace
-	cpu   CPU
+	cpu CPU
 
 	nmiDelay int
 	Clock    int
@@ -225,9 +218,6 @@ func (ppu *PPU) FetchVBlankStarted() bool {
 func (ppu *PPU) FetchNMIDelay() int {
 	return ppu.nmiDelay
 }
-func (ppu *PPU) FetchScanline() int {
-	return ppu.scanLine
-}
 func (ppu *PPU) FetchV() uint16 {
 	return ppu.v
 }
@@ -235,7 +225,7 @@ func (ppu *PPU) FetchBuffer() byte {
 	return ppu.buf
 }
 
-func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU, trace Trace) *PPU {
+func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU) *PPU {
 	po := make([]*sprite, 64)
 	for i := 0; i < 64; i++ {
 		po[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
@@ -254,7 +244,6 @@ func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU, trace Tr
 
 		renderer: renderer,
 		cpu:      c,
-		trace:    trace,
 	}
 	return ppu
 }
@@ -275,15 +264,15 @@ func (ppu *PPU) WriteController(val byte) {
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ControlRegister(val)
 	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
-		if ppu.scanLine == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
+		if ppu.Scanline == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
 			ppu.cpu.SetNMI(false)
 			ppu.nmiDelay = 0
 		}
-	} else if 241 <= ppu.scanLine && ppu.scanLine <= 260 && !beforeGeneratedVBlankNMI && ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
+	} else if 241 <= ppu.Scanline && ppu.Scanline <= 260 && !beforeGeneratedVBlankNMI && ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
 		// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
 		// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
 		// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-		// vblank flagがoffになるのは scanline=261,cycle=1 のときだけど、(261,0)でもnmiは発生させないようにする for ppu_vbl_nmi/07-nmi_on_timing.nes
+		// vblank flagがoffになるのは Scanline=261,cycle=1 のときだけど、(261,0)でもnmiは発生させないようにする for ppu_vbl_nmi/07-nmi_on_timing.nes
 		ppu.cpu.SetNMI(true)
 		// https://archive.nes.science/nesdev-forums/f3/t10006.xhtml#p111038
 		ppu.cpu.SetDelayNMI()
@@ -316,7 +305,7 @@ func (ppu *PPU) ReadStatus() byte {
 
 	// https://www.nesdev.org/wiki/NMI#Race_condition
 	// https://www.nesdev.org/wiki/PPU_frame_timing#VBL_Flag_Timing
-	if ppu.scanLine == 241 {
+	if ppu.Scanline == 241 {
 		if ppu.Cycle == 0 {
 			ppu.suppressVBlankFlag = true
 		} else if ppu.Cycle == 1 || ppu.Cycle == 2 {
@@ -378,7 +367,7 @@ func (ppu *PPU) WriteOAMData(val byte) {
 
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
 	// > Writes to OAMDATA during rendering (on the pre-render line and the visible lines 0-239, provided either sprite or background rendering is enabled) do not modify values in OAM
-	if !((ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites())) {
+	if !((ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites())) {
 		// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
 		// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
 		// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
@@ -463,7 +452,7 @@ func (ppu *PPU) ReadPPUData() byte {
 	res := ppu.readPPUData(ppu.v)
 	ppu.openbus = res
 
-	if (ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
@@ -525,7 +514,7 @@ func (ppu *PPU) WritePPUData(val byte) {
 	ppu.openbus = val
 	ppu.writePPUData(ppu.v, val)
 
-	if (ppu.scanLine < 240 || ppu.scanLine == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
@@ -659,7 +648,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 	s := ppu.secondaryOAM.GetSpriteByIndex(byte(sidx))
 	lo, hi, ok := func() (byte, byte, bool) {
 		if ppu.ctrl.SpriteSize() == 8 {
-			y := uint16(ppu.scanLine) - uint16(s.y)
+			y := uint16(ppu.Scanline) - uint16(s.y)
 			if y > 7 {
 				// eval時点で範囲内しか見ない&0xFFで初期化されるが、初期化途中でsprite&bgともにdisableされて前回の状態が残ることがある
 				// eval時点だけでなくこのfetchタイミングでも範囲内か確認して少なくとも場外のspriteは表示させないようにしておく
@@ -678,7 +667,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			// > For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number.
 			bankTile := (uint16(s.tileIndex) & 0b1) * 0x1000
 			tileIndex := uint16(s.tileIndex) & 0b11111110
-			y := uint16(ppu.scanLine) - uint16(s.y)
+			y := uint16(ppu.Scanline) - uint16(s.y)
 			if y > 15 {
 				return 0, 0, false
 			}
@@ -709,7 +698,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 }
 
 func (ppu *PPU) evalSpriteForNextScanline() {
-	if ppu.scanLine >= 240 {
+	if ppu.Scanline >= 240 {
 		panic("uaaaaaaaaaaaaxxxxxaaaa")
 	}
 
@@ -719,7 +708,7 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 		// in y range
 		d := ppu.ctrl.SpriteSize()
 
-		if uint(s.y) <= uint(ppu.scanLine) && uint(ppu.scanLine) < uint(s.y)+uint(d) {
+		if uint(s.y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(s.y)+uint(d) {
 			if sidx < 8 {
 				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
 				ppu.secondaryOAMIndex[sidx] = i
@@ -734,11 +723,11 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 }
 
 func (ppu *PPU) visibleFrame() bool {
-	return ppu.scanLine == 261 || ppu.scanLine < 240
+	return ppu.Scanline == 261 || ppu.Scanline < 240
 }
 
-func (ppu *PPU) visibleScanLine() bool {
-	return ppu.scanLine < 240
+func (ppu *PPU) visibleScanline() bool {
+	return ppu.Scanline < 240
 }
 
 func (ppu *PPU) loadNextPixelData() {
@@ -831,7 +820,7 @@ func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
 
 func (ppu *PPU) renderPixel() {
 	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
-	y := ppu.scanLine
+	y := ppu.Scanline
 
 	addr := ppu.multiplexPixelPaletteAddr()
 	c := Palette[ppu.paletteTable.Read(addr)%64]
@@ -850,7 +839,7 @@ func (ppu *PPU) Step() {
 	}
 
 	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
-		if ppu.f == 1 && ppu.scanLine == 261 && ppu.Cycle == 339 {
+		if ppu.f == 1 && ppu.Scanline == 261 && ppu.Cycle == 339 {
 			// skip 1 cycle
 			ppu.Cycle = 340
 		}
@@ -859,17 +848,17 @@ func (ppu *PPU) Step() {
 	ppu.Cycle++
 	if ppu.Cycle > 340 {
 		ppu.Cycle = 0
-		ppu.scanLine++
-		if ppu.scanLine > 261 {
-			ppu.scanLine = 0
+		ppu.Scanline++
+		if ppu.Scanline > 261 {
+			ppu.Scanline = 0
 			ppu.suppressVBlankFlag = false
 			ppu.f ^= 1
 		}
 	}
 
 	rendering := ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
-	preLine := ppu.scanLine == 261
-	renderLine := preLine || ppu.visibleScanLine()
+	preLine := ppu.Scanline == 261
+	renderLine := preLine || ppu.visibleScanline()
 	visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	preFetchCycle := ppu.Cycle >= 321 && ppu.Cycle <= 336
 	fetchCycle := preFetchCycle || visibleCycle
@@ -889,7 +878,7 @@ func (ppu *PPU) Step() {
 		if renderLine && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
 			ppu.loadNextPixelData()
 		}
-		if ppu.visibleScanLine() && visibleCycle {
+		if ppu.visibleScanline() && visibleCycle {
 			ppu.renderPixel()
 		}
 		if renderLine && fetchCycle {
@@ -906,23 +895,23 @@ func (ppu *PPU) Step() {
 		}
 
 		// secondary OAM clear
-		if 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.visibleScanLine() {
+		if 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.visibleScanline() {
 			if ppu.Cycle%2 == 1 {
 				addr := ppu.Cycle / 2
 				ppu.secondaryOAM.SetByte(byte(addr), 0xFF)
 			}
 		}
 
-		// sprite eval for next scanline
+		// sprite eval for next Scanline
 		// 65 <= ppu.Cycle <= 256
-		if ppu.Cycle == 256 && ppu.visibleScanLine() {
+		if ppu.Cycle == 256 && ppu.visibleScanline() {
 			ppu.evalSpriteForNextScanline()
 		}
 		// sprite fetch
-		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanLine()) {
+		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanline()) {
 			// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
 			// > Values during rendering
-			// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible scanlines.
+			// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
 			ppu.oamAddr = 0
 
 			if ppu.Cycle == 257 {
@@ -941,7 +930,7 @@ func (ppu *PPU) Step() {
 				// fetch sprite pattern table high byte
 				// this process is included in fetchSpriteForNextScanline
 			case 0:
-				if ppu.visibleScanLine() {
+				if ppu.visibleScanline() {
 					ppu.fetchSpriteForNextScanline()
 				}
 			}
@@ -965,7 +954,7 @@ func (ppu *PPU) Step() {
 	}
 
 	// vblank
-	if ppu.scanLine == 241 && ppu.Cycle == 1 {
+	if ppu.Scanline == 241 && ppu.Cycle == 1 {
 		ppu.renderer.Refresh()
 		if !ppu.suppressVBlankFlag {
 			ppu.status.SetVBlankStarted(true)

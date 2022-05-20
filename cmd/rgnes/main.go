@@ -92,7 +92,7 @@ func realMain() error {
 	irp := &cpu.Interrupter{}
 
 	m := mapper.MirroingType()
-	ppu := ppu.New(renderer, mapper, &m, irp, trace)
+	ppu := ppu.New(renderer, mapper, &m, irp)
 	joypad := joypad.New()
 	apu := apu.New()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
@@ -114,11 +114,11 @@ func realMain() error {
 
 			// ここでppuの状態を記録しておく
 			trace.SetPPUX(uint16(ppu.Cycle))
-			trace.SetPPUY(uint16(ppu.FetchScanline()))
+			trace.SetPPUY(uint16(ppu.Scanline))
 			// v := ppu.FetchV()
 			// mp0 := mapper.Read(0)
 			// ppuBuf := ppu.FetchBuffer()
-			beforeScanline := ppu.FetchScanline()
+			beforeScanline := ppu.Scanline
 			cycle := cpu.Step()
 
 			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
@@ -129,7 +129,7 @@ func realMain() error {
 			}
 
 			trace.AddCPUCycle(cycle)
-			if beforeScanline != 240 && ppu.FetchScanline() == 240 {
+			if beforeScanline != 240 && ppu.Scanline == 240 {
 				updateKey(win, keyEvents, joypad)
 			}
 
