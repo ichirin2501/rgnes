@@ -97,7 +97,7 @@ func realMain() error {
 	apu := apu.New()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
-	cpu := cpu.NewCPU(cpuBus, irp, trace)
+	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
 	cpu.Reset()
 	trace.AddCPUCycle(7)
 

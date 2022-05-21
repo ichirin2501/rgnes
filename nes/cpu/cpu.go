@@ -4,117 +4,9 @@ import (
 	"fmt"
 )
 
-type InterruptType byte
-
-const (
-	InterruptNone InterruptType = iota
-	InterruptNMI
-	InterruptIRQ
-)
-
-type Interrupter struct {
-	delayNMI  bool
-	interrupt InterruptType
-}
-
-func (i *Interrupter) SetNMI(v bool) {
-	if v {
-		i.interrupt = InterruptNMI
-	} else {
-		i.interrupt = InterruptNone
-	}
-}
-func (i *Interrupter) SetDelayNMI() {
-	i.delayNMI = true
-}
-func (i *Interrupter) SetIRQ(v bool) {
-	if v {
-		i.interrupt = InterruptIRQ
-	} else {
-		i.interrupt = InterruptNone
-	}
-}
-
-type Trace struct {
-	A                   byte
-	X                   byte
-	Y                   byte
-	PC                  uint16
-	S                   byte
-	P                   byte
-	ByteCode            []byte
-	Opcode              opcode
-	AddressingResult    string
-	InstructionReadByte *byte
-	Cycle               int
-	PPUX                uint16
-	PPUY                uint16
-	PPUVBlankState      bool
-}
-
-func (t *Trace) NESTestString() string {
-	bc := ""
-	switch len(t.ByteCode) {
-	case 1:
-		bc = fmt.Sprintf("%02X      ", t.ByteCode[0])
-	case 2:
-		bc = fmt.Sprintf("%02X %02X   ", t.ByteCode[0], t.ByteCode[1])
-	case 3:
-		bc = fmt.Sprintf("%02X %02X %02X", t.ByteCode[0], t.ByteCode[1], t.ByteCode[2])
-	}
-	ar := ""
-	if t.InstructionReadByte == nil {
-		ar = t.AddressingResult
-	} else {
-		ar = fmt.Sprintf("%s = %02X", t.AddressingResult, *t.InstructionReadByte)
-	}
-	op := t.Opcode.Name.String()
-	if t.Opcode.Unofficial {
-		op = "*" + t.Opcode.Name.String()
-	}
-
-	// C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 45 CYC:15
-	return fmt.Sprintf("%04X  %s %4s %-27s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d",
-		t.PC,
-		bc,
-		op,
-		ar,
-		t.A,
-		t.X,
-		t.Y,
-		t.P,
-		t.S,
-		t.PPUY,
-		t.PPUX,
-		t.Cycle,
-	)
-}
-
-func (t *Trace) SetCPURegisterA(v byte)            { t.A = v }
-func (t *Trace) SetCPURegisterX(v byte)            { t.X = v }
-func (t *Trace) SetCPURegisterY(v byte)            { t.Y = v }
-func (t *Trace) SetCPURegisterPC(v uint16)         { t.PC = v }
-func (t *Trace) SetCPURegisterS(v byte)            { t.S = v }
-func (t *Trace) SetCPURegisterP(v byte)            { t.P = v }
-func (t *Trace) SetCPUOpcode(v opcode)             { t.Opcode = v }
-func (t *Trace) SetCPUAddressingResult(v string)   { t.AddressingResult = v }
-func (t *Trace) SetCPUInstructionReadByte(v *byte) { t.InstructionReadByte = v }
-func (t *Trace) SetPPUX(v uint16)                  { t.PPUX = v }
-func (t *Trace) SetPPUY(v uint16)                  { t.PPUY = v }
-func (t *Trace) SetPPUVBlankState(v bool)          { t.PPUVBlankState = v }
-func (t *Trace) AddCPUCycle(v int)                 { t.Cycle += v }
-func (t *Trace) AddCPUByteCode(v byte) {
-	t.ByteCode = append(t.ByteCode, v)
-}
-func (t *Trace) Reset() {
-	t.AddressingResult = ""
-	t.InstructionReadByte = nil
-	t.ByteCode = t.ByteCode[:0]
-}
+type Option func(*CPU)
 
 type CPU struct {
-	*Interrupter
-
 	A  byte   // Accumulator
 	X  byte   // Index
 	Y  byte   // Index
@@ -122,28 +14,39 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  StatusRegister
 
-	m *Bus
-	t *Trace
+	I   *Interrupter
+	bus *Bus
+	t   *Trace
 }
 
-func NewCPU(mem *Bus, i *Interrupter, t *Trace) *CPU {
-	return &CPU{
-		Interrupter: i,
-
+func New(bus *Bus, i *Interrupter, opts ...Option) *CPU {
+	cpu := &CPU{
 		A:  0x00,
 		X:  0x00,
 		Y:  0x00,
 		PC: 0x8000,
 		S:  0xFD,
 		P:  StatusRegister(0x24),
-		m:  mem,
-		t:  t,
+
+		I:   i,
+		bus: bus,
+		t:   nil,
+	}
+	for _, opt := range opts {
+		opt(cpu)
+	}
+	return cpu
+}
+
+func WithTracer(tracer *Trace) Option {
+	return func(cpu *CPU) {
+		cpu.t = tracer
 	}
 }
 
 // debug
 func (cpu *CPU) FetchCycles() int {
-	return cpu.m.clock
+	return cpu.bus.clock
 }
 
 // TODO: after reset
@@ -151,32 +54,32 @@ func (cpu *CPU) Reset() {
 	cpu.PC = cpu.read16(0xFFFC)
 	cpu.P = StatusRegister(0x24)
 	// adjust
-	cpu.m.tick(5)
+	cpu.bus.tick(5)
 }
 
 func (cpu *CPU) Step() {
-	beforeClock := cpu.m.clock
+	beforeClock := cpu.bus.clock
 
 	additionalCycle := 0
 
-	switch cpu.interrupt {
+	switch cpu.I.interrupt {
 	case InterruptNMI:
-		if !cpu.delayNMI {
+		if !cpu.I.delayNMI {
 			cpu.nmi()
-			cpu.interrupt = InterruptNone
+			cpu.I.interrupt = InterruptNone
 			// adjust
-			cpu.m.tick(2)
+			cpu.bus.tick(2)
 			return
 		}
 	case InterruptIRQ:
 		cpu.irq()
-		cpu.interrupt = InterruptNone
+		cpu.I.interrupt = InterruptNone
 		// adjust
-		cpu.m.tick(2)
+		cpu.bus.tick(2)
 		return
 	}
 
-	cpu.delayNMI = false
+	cpu.I.delayNMI = false
 
 	if cpu.t != nil {
 		cpu.t.SetCPURegisterA(cpu.A)
@@ -205,7 +108,7 @@ func (cpu *CPU) Step() {
 		// fetchOperand()内のdummyReadでppu 3step回ってるからここで回す必要はない
 		// cpu.cycles += opcode.PageCycle
 		// for i := 0; i < opcode.PageCycle*3; i++ {
-		// 	cpu.m.ppu.Step()
+		// 	cpu.bus.ppu.Step()
 		// }
 	}
 
@@ -376,10 +279,10 @@ func (cpu *CPU) Step() {
 		panic(fmt.Sprintf("Unable to reach: opcode.Name:%s", opcode.Name))
 	}
 
-	afterClock := cpu.m.clock
+	afterClock := cpu.bus.clock
 	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
 		t := (opcode.Cycle + additionalCycle) - (afterClock - beforeClock)
-		cpu.m.tick(t)
+		cpu.bus.tick(t)
 	}
 
 	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
@@ -408,14 +311,14 @@ func (cpu *CPU) Step() {
 }
 
 func (cpu *CPU) fetch() byte {
-	v := cpu.m.Read(cpu.PC)
+	v := cpu.bus.Read(cpu.PC)
 	cpu.PC++
 	return v
 }
 
 func (cpu *CPU) read16(addr uint16) uint16 {
-	l := cpu.m.Read(addr)
-	h := cpu.m.Read(addr + 1)
+	l := cpu.bus.Read(addr)
+	h := cpu.bus.Read(addr + 1)
 	return (uint16(h) << 8) | uint16(l)
 }
 
@@ -468,7 +371,7 @@ func (cpu *CPU) AddressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 		if op.Name == JMP || op.Name == JSR {
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
 		} else {
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.m.Peek(addr)))
+			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.bus.Peek(addr)))
 		}
 	}
 	return addr, false
@@ -482,12 +385,12 @@ func (cpu *CPU) AddressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
-		cpu.m.Read(dummyAddr)
+		cpu.bus.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.bus.Peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -500,12 +403,12 @@ func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
-		cpu.m.Read(dummyAddr)
+		cpu.bus.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.bus.Peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -518,14 +421,14 @@ func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 // 1    PC     R  fetch opcode, increment PC
 // 2    PC     R  read next instruction byte (and throw it away)
 func (cpu *CPU) AddressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.m.Read(cpu.PC) // dummy read
+	cpu.bus.Read(cpu.PC) // dummy read
 	if cpu.t != nil {
 		cpu.t.SetCPUAddressingResult("A")
 	}
 	return 0, false
 }
 func (cpu *CPU) AddressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.m.Read(cpu.PC) // dummy read
+	cpu.bus.Read(cpu.PC) // dummy read
 	return 0, false
 }
 
@@ -533,7 +436,7 @@ func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) 
 	addr = cpu.PC
 	cpu.PC++
 	if cpu.t != nil {
-		a := cpu.m.Peek(addr)
+		a := cpu.bus.Peek(addr)
 		cpu.t.AddCPUByteCode(a)
 		cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
 	}
@@ -544,10 +447,10 @@ func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed 
 	k := cpu.fetch()
 	a := uint16(k + cpu.X)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	addr = uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(k)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.Peek(addr)))
 	}
 	return addr, false
 }
@@ -557,7 +460,7 @@ func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	addr = uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
@@ -569,18 +472,18 @@ func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 func (cpu *CPU) AddressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	a := uint16(cpu.fetch())
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	baseAddr := uint16(cpu.m.Read(b))<<8 | uint16(cpu.m.Read(a))
+	baseAddr := uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
 	addr = baseAddr + uint16(cpu.Y)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		h := baseAddr & 0xFF00
 		l := baseAddr & 0x00FF
 		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
-		cpu.m.Read(dummyAddr)
+		cpu.bus.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(byte(a))
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.bus.Peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -603,7 +506,7 @@ func (cpu *CPU) AddressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
 	addr = uint16(a)
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.bus.Peek(addr)))
 	}
 	return addr, false
 }
@@ -613,7 +516,7 @@ func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) 
 	addr = uint16(a+cpu.X) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.bus.Peek(addr)))
 	}
 	return addr, false
 }
@@ -623,7 +526,7 @@ func (cpu *CPU) AddressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) 
 	addr = uint16(a+cpu.Y) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.m.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.bus.Peek(addr)))
 	}
 	return addr, false
 }

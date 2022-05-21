@@ -35,7 +35,7 @@ func Test_DMACycle(t *testing.T) {
 	bus := NewBus(ppu, apu, mapper, joypad)
 
 	it := &Interrupter{}
-	cpu := NewCPU(bus, it, nil)
+	cpu := New(bus, it)
 	cpu.X = 0x02
 	cpu.PC = 0x0000
 	// 03      SLO     indexedIndirect cycle:8 clock:7 diff:1  unoff:true
