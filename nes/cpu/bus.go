@@ -53,10 +53,13 @@ type Bus struct {
 	ram    []byte
 	ppu    PPU
 	apu    APU
-	Mapper Mapper
+	mapper Mapper
 	joypad Joypad
 
+	// This clock is used to adjust the clock difference for each instruction,
+	// so keep the state separate from the $4014 dma stall.
 	clock int
+	stall int
 }
 
 func NewBus(ppu PPU, apu APU, mapper Mapper, joypad Joypad) *Bus {
@@ -64,7 +67,7 @@ func NewBus(ppu PPU, apu APU, mapper Mapper, joypad Joypad) *Bus {
 		ram:    make([]byte, 2048),
 		ppu:    ppu,
 		apu:    apu,
-		Mapper: mapper,
+		mapper: mapper,
 		joypad: joypad,
 	}
 }
@@ -120,7 +123,7 @@ func (bus *Bus) read(addr uint16) byte {
 		return 0
 	case 0x4020 <= addr && addr <= 0xFFFF:
 		// Cartridge space
-		return bus.Mapper.Read(addr)
+		return bus.mapper.Read(addr)
 	default:
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Read", addr))
 	}
@@ -168,11 +171,7 @@ func (bus *Bus) write(addr uint16, val byte) {
 			for i := uint16(0); i < 256; i++ {
 				bus.ppu.WriteOAMDMAByte(bus.read(a + i))
 			}
-			if bus.clock%2 == 0 {
-				bus.tick(513)
-			} else {
-				bus.tick(514)
-			}
+			bus.tickStall(513 + bus.realClock()%2)
 		case addr == 0x4016:
 			bus.joypad.Write(val)
 		default:
@@ -182,14 +181,25 @@ func (bus *Bus) write(addr uint16, val byte) {
 		// APU and I/O functionality that is normally disabled.
 	case 0x4020 <= addr && addr <= 0xFFFF:
 		// Cartridge space
-		bus.Mapper.Write(addr, val)
+		bus.mapper.Write(addr, val)
 	default:
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Write", addr))
 	}
 }
 
+func (bus *Bus) realClock() int {
+	return bus.clock + bus.stall
+}
+
 func (bus *Bus) tick(cpuCycle int) {
 	bus.clock += cpuCycle
+	for i := 0; i < 3*cpuCycle; i++ {
+		bus.ppu.Step()
+	}
+}
+
+func (bus *Bus) tickStall(cpuCycle int) {
+	bus.stall += cpuCycle
 	for i := 0; i < 3*cpuCycle; i++ {
 		bus.ppu.Step()
 	}
@@ -233,7 +243,7 @@ func (bus *Bus) Peek(addr uint16) byte {
 		// todo
 		return 0
 	case 0x4020 <= addr && addr <= 0xFFFF:
-		return bus.Mapper.Read(addr)
+		return bus.mapper.Read(addr)
 	default:
 		//return 0
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Peek", addr))

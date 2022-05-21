@@ -1,5 +1,58 @@
 package cpu
 
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+type fakePPU struct {
+	PPU
+}
+
+func (p *fakePPU) WriteOAMDMAByte(val byte) {
+}
+func (p *fakePPU) Step() {}
+
+type fakeAPU struct {
+	APU
+}
+type fakeMapper struct {
+	Mapper
+}
+type fakeJoypad struct {
+	Joypad
+}
+
+// エミュレーションとして正しいかどうかわからないけど、自分が期待する実装としてのテスト
+func Test_DMACycle(t *testing.T) {
+	t.Parallel()
+
+	ppu := &fakePPU{}
+	apu := &fakeAPU{}
+	mapper := &fakeMapper{}
+	joypad := &fakeJoypad{}
+	bus := NewBus(ppu, apu, mapper, joypad)
+
+	it := &Interrupter{}
+	cpu := NewCPU(bus, it, nil)
+	cpu.X = 0x02
+	cpu.PC = 0x0000
+	// 03      SLO     indexedIndirect cycle:8 clock:7 diff:1  unoff:true
+	bus.ram[0] = 0x03
+	bus.ram[1] = 0x00
+	bus.ram[2] = 0x14
+	bus.ram[3] = 0x40
+	cpu.Step()
+
+	// 実装的には6,7clock目にwriteが走るので、
+	// 6 clock目 = +513
+	// 7 clock目は6+513+1で偶数なのでまた +513
+	// 最後に1clock分足りないので+1clockの調整が入る想定
+	// = 520+513+1 = cpu clock 1034 が期待値
+	assert.Equal(t, 1034, bus.realClock())
+}
+
 // func Test_AddressingMode(t *testing.T) {
 // 	t.Parallel()
 // 	tests := []struct {

@@ -116,17 +116,17 @@ func realMain() error {
 			// mp0 := mapper.Read(0)
 			// ppuBuf := ppu.FetchBuffer()
 			beforeScanline := ppu.Scanline
-			cycle := cpu.Step()
+			cpu.Step()
 
 			//fmt.Printf("%s\n", trace.NESTestString())
 			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
 
-			if cpu.FetchCycles()*3 != ppu.Clock {
-				panic("eeeeeeeeeeeeeeeeee")
-			}
+			// if cpu.FetchCycles()*3 != ppu.Clock {
+			// 	panic("eeeeeeeeeeeeeeeeee")
+			// }
 
-			trace.AddCPUCycle(cycle)
+			//trace.AddCPUCycle(cycle)
 			if beforeScanline != 240 && ppu.Scanline == 240 {
 				updateKey(win, keyEvents, joypad)
 			}

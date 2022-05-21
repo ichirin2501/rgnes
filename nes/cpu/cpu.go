@@ -154,7 +154,7 @@ func (cpu *CPU) Reset() {
 	cpu.m.tick(5)
 }
 
-func (cpu *CPU) Step() int {
+func (cpu *CPU) Step() {
 	beforeClock := cpu.m.clock
 
 	additionalCycle := 0
@@ -166,14 +166,14 @@ func (cpu *CPU) Step() int {
 			cpu.interrupt = InterruptNone
 			// adjust
 			cpu.m.tick(2)
-			return 7
+			return
 		}
 	case InterruptIRQ:
 		cpu.irq()
 		cpu.interrupt = InterruptNone
 		// adjust
 		cpu.m.tick(2)
-		return 7
+		return
 	}
 
 	cpu.delayNMI = false
@@ -193,6 +193,7 @@ func (cpu *CPU) Step() int {
 	opcode := opcodeMap[opcodeByte]
 
 	//fmt.Printf("[debug] after fetch(): %s\n", cpu.t.NESTestString())
+	//fmt.Println(opcode)
 
 	if cpu.t != nil {
 		cpu.t.SetCPUOpcode(*opcode)
@@ -403,9 +404,7 @@ func (cpu *CPU) Step() int {
 	// 		(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
 	// 		opcode.Unofficial,
 	// 	)
-	// }
-
-	return opcode.Cycle + additionalCycle
+	//}
 }
 
 func (cpu *CPU) fetch() byte {
