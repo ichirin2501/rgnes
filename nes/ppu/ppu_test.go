@@ -308,7 +308,7 @@ func Test_ReadOAMData(t *testing.T) {
 		{
 			"1",
 			&PPU{
-				primaryOAM: oam{&sprite{y: 0x10}},
+				primaryOAM: [256]byte{0x10},
 				oamAddr:    0x00,
 			},
 			0x10,
@@ -317,7 +317,7 @@ func Test_ReadOAMData(t *testing.T) {
 		{
 			"2",
 			&PPU{
-				primaryOAM: oam{&sprite{y: 0x10}, &sprite{y: 0x20}},
+				primaryOAM: [256]byte{0x10, 0, 0, 0, 0x20},
 				oamAddr:    0x04,
 			},
 			0x20,

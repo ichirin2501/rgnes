@@ -85,86 +85,6 @@ func (m *vram) Write(addr uint16, val byte) {
 	m.ram[m.mirrorAddr(addr)] = val
 }
 
-// 76543210
-// ||||||||
-// ||||||++ - Palette (4 to 7) of sprite
-// |||+++-- - Unimplemented (read 0)
-// ||+----- - Priority (0: in front of background; 1: behind background)
-// |+------ - Flip sprite horizontally
-// +------- - Flip sprite vertically
-type spriteAttribute byte
-
-func (s *spriteAttribute) Palette() byte {
-	return byte(*s) & 0x3
-}
-func (s *spriteAttribute) BehindBackground() bool {
-	return (byte(*s) & 0x20) == 0x20
-}
-func (s *spriteAttribute) FlipSpriteHorizontally() bool {
-	return (byte(*s) & 0x40) == 0x40
-}
-func (s *spriteAttribute) FlipSpriteVertically() bool {
-	return (byte(*s) & 0x80) == 0x80
-}
-func (s *spriteAttribute) Byte() byte {
-	return byte(*s)
-}
-
-// https://www.nesdev.org/wiki/PPU_OAM
-type sprite struct {
-	y          byte            // Byte 0
-	tileIndex  byte            // Byte 1
-	attributes spriteAttribute // Byte 2
-	x          byte            // Byte 3
-}
-
-type oam []*sprite
-
-func (o oam) GetSpriteByAddr(addr byte) *sprite {
-	return o[addr/4]
-}
-func (o oam) GetSpriteByIndex(idx byte) *sprite {
-	return o[idx]
-}
-func (o oam) SetSpriteByIndex(idx byte, src sprite) {
-	o[idx] = &src
-}
-func (o oam) GetByte(addr byte) byte {
-	e := o[addr/4]
-	switch addr % 4 {
-	case 0:
-		return e.y
-	case 1:
-		return e.tileIndex
-	case 2:
-		return e.attributes.Byte()
-	case 3:
-		return e.x
-	}
-	panic("aaaaaaaaaaaaaaa")
-}
-func (o oam) SetByte(addr byte, val byte) {
-	e := o[addr/4]
-	switch addr % 4 {
-	case 0:
-		e.y = val
-	case 1:
-		e.tileIndex = val
-	case 2:
-		e.attributes = spriteAttribute(val)
-	case 3:
-		e.x = val
-	}
-}
-
-type spriteSlot struct {
-	attributes spriteAttribute
-	x          byte
-	lo         byte // pattern table low bit
-	hi         byte // pattern table high bit
-	idx        byte
-}
-
 type PPU struct {
 	mapper       Mapper
 	vram         *vram // include nametable and attribute
@@ -187,8 +107,8 @@ type PPU struct {
 	suppressVBlankFlag bool
 
 	// sprites temp variables
-	primaryOAM        oam
-	secondaryOAM      oam
+	primaryOAM        [256]byte
+	secondaryOAM      [32]byte
 	secondaryOAMIndex [8]byte
 	spriteSlots       [8]spriteSlot
 	spriteFounds      int
@@ -225,24 +145,19 @@ func (ppu *PPU) FetchBuffer() byte {
 }
 
 func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU) *PPU {
-	po := make([]*sprite, 64)
-	for i := 0; i < 64; i++ {
-		po[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
-	}
-	so := make([]*sprite, 8)
-	for i := 0; i < 8; i++ {
-		so[i] = &sprite{0xFF, 0xFF, 0xFF, 0xFF}
-	}
 	ppu := &PPU{
-		vram:         newVRAM(mirror),
-		mapper:       mapper,
-		primaryOAM:   oam(po),
-		secondaryOAM: oam(so),
-
-		Cycle: -1,
-
+		vram:     newVRAM(mirror),
+		mapper:   mapper,
+		Cycle:    -1,
 		renderer: renderer,
 		cpu:      c,
+	}
+	// init
+	for i := 0; i < len(ppu.primaryOAM); i++ {
+		ppu.primaryOAM[i] = 0xFF
+	}
+	for i := 0; i < len(ppu.secondaryOAM); i++ {
+		ppu.secondaryOAM[i] = 0xFF
 	}
 	return ppu
 }
@@ -350,14 +265,14 @@ func (ppu *PPU) WriteOAMAddr(val byte) {
 
 // $2004: OAMDATA read
 func (ppu *PPU) ReadOAMData() byte {
-	res := ppu.primaryOAM.GetByte(ppu.oamAddr)
+	res := ppu.primaryOAM[ppu.oamAddr]
 	ppu.openbus = res
 	return res
 }
 
 // PeekOAMData is used for debuggin
 func (ppu *PPU) PeekOAMData() byte {
-	return ppu.primaryOAM.GetByte(ppu.oamAddr)
+	return ppu.primaryOAM[ppu.oamAddr]
 }
 
 // $2004: OAMDATA write
@@ -373,7 +288,7 @@ func (ppu *PPU) WriteOAMData(val byte) {
 		if (ppu.oamAddr & 0x03) == 0x02 {
 			val &= 0xE3
 		}
-		ppu.primaryOAM.SetByte(ppu.oamAddr, val)
+		ppu.primaryOAM[ppu.oamAddr] = val
 		ppu.oamAddr++
 	} else {
 		// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
@@ -546,7 +461,7 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 // WriteOAMDMAByte is used $4014 from cpubus.
 // control cpu clock on cpubus side
 func (ppu *PPU) WriteOAMDMAByte(val byte) {
-	ppu.primaryOAM.SetByte(ppu.oamAddr, val)
+	ppu.primaryOAM[ppu.oamAddr] = val
 	ppu.oamAddr++
 }
 
@@ -642,19 +557,19 @@ func (ppu *PPU) fetchPatternTableHighByte() {
 func (ppu *PPU) fetchSpriteForNextScanline() {
 	// called cycle: 264, 272, ..., 320
 	sidx := (ppu.Cycle - 264) / 8
-	s := ppu.secondaryOAM.GetSpriteByIndex(byte(sidx))
+	sy, stile, sattr, sx := getSpriteFromOAM(ppu.secondaryOAM[:], byte(sidx))
 	lo, hi, ok := func() (byte, byte, bool) {
 		if ppu.ctrl.SpriteSize() == 8 {
-			y := uint16(ppu.Scanline) - uint16(s.y)
+			y := uint16(ppu.Scanline) - uint16(sy)
 			if y > 7 {
 				// eval時点で範囲内しか見ない&0xFFで初期化されるが、初期化途中でsprite&bgともにdisableされて前回の状態が残ることがある
 				// eval時点だけでなくこのfetchタイミングでも範囲内か確認して少なくとも場外のspriteは表示させないようにしておく
 				return 0, 0, false
 			}
-			if s.attributes.FlipSpriteVertically() {
+			if sattr.FlipSpriteVertically() {
 				y = 7 - y
 			}
-			addr := ppu.ctrl.SpritePatternAddr() | (uint16(s.tileIndex) << 4) | y
+			addr := ppu.ctrl.SpritePatternAddr() | (uint16(stile) << 4) | y
 			lo := ppu.mapper.Read(addr)
 			hi := ppu.mapper.Read(addr + 8)
 			return lo, hi, true
@@ -662,13 +577,13 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			// 8x16
 			// https://www.nesdev.org/wiki/PPU_OAM#Byte_1
 			// > For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number.
-			bankTile := (uint16(s.tileIndex) & 0b1) * 0x1000
-			tileIndex := uint16(s.tileIndex) & 0b11111110
-			y := uint16(ppu.Scanline) - uint16(s.y)
+			bankTile := (uint16(stile) & 0b1) * 0x1000
+			tileIndex := uint16(stile) & 0b11111110
+			y := uint16(ppu.Scanline) - uint16(sy)
 			if y > 15 {
 				return 0, 0, false
 			}
-			if s.attributes.FlipSpriteVertically() {
+			if sattr.FlipSpriteVertically() {
 				y = 15 - y
 			}
 			if y > 7 {
@@ -685,11 +600,11 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 		return
 	}
 	ppu.spriteSlots[ppu.spriteFounds] = spriteSlot{
-		x:          s.x,
-		attributes: s.attributes,
-		lo:         lo,
-		hi:         hi,
-		idx:        ppu.secondaryOAMIndex[byte(sidx)],
+		x:    sx,
+		attr: sattr,
+		lo:   lo,
+		hi:   hi,
+		idx:  ppu.secondaryOAMIndex[byte(sidx)],
 	}
 	ppu.spriteFounds++
 }
@@ -701,13 +616,15 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 
 	sidx := byte(0)
 	for i := byte(0); i < 64; i++ {
-		s := ppu.primaryOAM.GetSpriteByIndex(i)
+		y, tile, attr, x := getSpriteFromOAM(ppu.primaryOAM[:], i)
 		// in y range
 		d := ppu.ctrl.SpriteSize()
-
-		if uint(s.y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(s.y)+uint(d) {
+		if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {
 			if sidx < 8 {
-				ppu.secondaryOAM.SetSpriteByIndex(sidx, *s)
+				ppu.secondaryOAM[4*sidx+0] = y
+				ppu.secondaryOAM[4*sidx+1] = tile
+				ppu.secondaryOAM[4*sidx+2] = byte(attr)
+				ppu.secondaryOAM[4*sidx+3] = x
 				ppu.secondaryOAMIndex[sidx] = i
 			}
 			sidx++
@@ -766,23 +683,16 @@ func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (paletteForm, int) {
 	}
 	for i := 0; i < ppu.spriteFounds; i++ {
 		s := ppu.spriteSlots[i]
-		if int(s.x) <= x && x < int(s.x)+8 {
-			// in range
-			dx := x - int(s.x)
-			if s.attributes.FlipSpriteHorizontally() {
-				dx = 7 - dx
-			}
-			hb := (s.hi & (1 << (7 - dx))) >> (7 - dx)
-			lb := (s.lo & (1 << (7 - dx))) >> (7 - dx)
-			p := (hb << 1) | lb
-			if p == 0 {
+		if s.InRange(x) {
+			p := s.PixelPalette(x)
+			if p.Pixel() == 0 {
 				// transparent pixel
 				// https://www.nesdev.org/wiki/PPU_rendering#Preface
 				// > The current pixel for each "active" sprite is checked (from highest to lowest priority),
 				// > and the first non-transparent pixel moves on to a multiplexer, where it joins the BG pixel.
 				continue
 			}
-			return newPaletteForm(true, s.attributes.Palette(), p), i
+			return p, i
 		}
 	}
 	return universalBGColorPalette, -1
@@ -807,7 +717,7 @@ func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
 		if x < 255 && s.idx == 0 {
 			ppu.status.SetSprite0Hit(true)
 		}
-		if s.attributes.BehindBackground() {
+		if s.attr.BehindBackground() {
 			return bp
 		} else {
 			return sp
@@ -895,7 +805,7 @@ func (ppu *PPU) Step() {
 		if 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.visibleScanline() {
 			if ppu.Cycle%2 == 1 {
 				addr := ppu.Cycle / 2
-				ppu.secondaryOAM.SetByte(byte(addr), 0xFF)
+				ppu.secondaryOAM[addr] = 0xFF
 			}
 		}
 
