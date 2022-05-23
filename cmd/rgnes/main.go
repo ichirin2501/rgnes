@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/ichirin2501/rgnes/nes/apu"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
@@ -70,11 +71,6 @@ func realMain() error {
 	win.SetContent(container.NewVBox(
 		canvasImg1,
 	))
-	keyEvents := make(chan fyne.KeyName, 5)
-	win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
-		keyEvents <- k.Name
-	})
-
 	renderer := newRenderer(win, canvasImg1, canvasImg2)
 
 	f, err := os.Open(rom)
@@ -101,6 +97,15 @@ func realMain() error {
 	cpu.Reset()
 	trace.AddCPUCycle(7)
 
+	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
+		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
+			updateKey(win, joypad, k.Name, true)
+		})
+		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
+			updateKey(win, joypad, k.Name, false)
+		})
+	}
+
 	go func() {
 		ticker := time.NewTicker(16 * time.Millisecond)
 		defer ticker.Stop()
@@ -115,7 +120,7 @@ func realMain() error {
 			// v := ppu.FetchV()
 			// mp0 := mapper.Read(0)
 			// ppuBuf := ppu.FetchBuffer()
-			beforeScanline := ppu.Scanline
+			//beforeScanline := ppu.Scanline
 			cpu.Step()
 
 			//fmt.Printf("%s\n", trace.NESTestString())
@@ -127,9 +132,9 @@ func realMain() error {
 			// }
 
 			//trace.AddCPUCycle(cycle)
-			if beforeScanline != 240 && ppu.Scanline == 240 {
-				updateKey(win, keyEvents, joypad)
-			}
+			// if beforeScanline != 240 && ppu.Scanline == 240 {
+			// 	updateKey(win, keyEvents, joypad)
+			// }
 
 			if beforeppuy > trace.PPUY {
 				<-ticker.C
@@ -143,35 +148,25 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, keyEvents <-chan fyne.KeyName, j *joypad.Joypad) {
-	keySt := byte(0)
-	loop := true
-	for loop {
-		select {
-		case k := <-keyEvents:
-			switch k {
-			case fyne.KeyEscape:
-				win.Close()
-			case fyne.KeySpace:
-				keySt |= joypad.ButtonSelect
-			case fyne.KeyReturn:
-				keySt |= joypad.ButtonStart
-			case fyne.KeyUp:
-				keySt |= joypad.ButtonUP
-			case fyne.KeyDown:
-				keySt |= joypad.ButtonDown
-			case fyne.KeyLeft:
-				keySt |= joypad.ButtonLeft
-			case fyne.KeyRight:
-				keySt |= joypad.ButtonRight
-			case fyne.KeyA:
-				keySt |= joypad.ButtonA
-			case fyne.KeyS:
-				keySt |= joypad.ButtonB
-			}
-		default:
-			loop = false
-		}
+func updateKey(win fyne.Window, j *joypad.Joypad, k fyne.KeyName, pressed bool) {
+	switch k {
+	case fyne.KeyEscape:
+		win.Close()
+	case fyne.KeySpace:
+		j.SetButtonStatus(joypad.ButtonSelect, pressed)
+	case fyne.KeyReturn:
+		j.SetButtonStatus(joypad.ButtonStart, pressed)
+	case fyne.KeyUp:
+		j.SetButtonStatus(joypad.ButtonUP, pressed)
+	case fyne.KeyDown:
+		j.SetButtonStatus(joypad.ButtonDown, pressed)
+	case fyne.KeyLeft:
+		j.SetButtonStatus(joypad.ButtonLeft, pressed)
+	case fyne.KeyRight:
+		j.SetButtonStatus(joypad.ButtonRight, pressed)
+	case fyne.KeyA:
+		j.SetButtonStatus(joypad.ButtonA, pressed)
+	case fyne.KeyS:
+		j.SetButtonStatus(joypad.ButtonB, pressed)
 	}
-	j.SetButtonStatus(keySt)
 }

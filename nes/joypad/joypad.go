@@ -47,8 +47,12 @@ func (j *Joypad) Write(v byte) {
 	}
 }
 
-func (j *Joypad) SetButtonStatus(b byte) {
+func (j *Joypad) SetButtonStatus(b byte, pressed bool) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	j.ButtonStatus = b
+	if pressed {
+		j.ButtonStatus |= b
+	} else {
+		j.ButtonStatus &= ^b
+	}
 }
