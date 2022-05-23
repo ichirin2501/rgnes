@@ -33,6 +33,7 @@ type renderer struct {
 	nextImg *canvas.Image
 }
 
+// todo: fix data race
 func newRenderer(win fyne.Window, curr, next *canvas.Image) *renderer {
 	return &renderer{
 		Window:  win,
@@ -41,13 +42,12 @@ func newRenderer(win fyne.Window, curr, next *canvas.Image) *renderer {
 	}
 }
 
-// todo: fix data race
 func (r *renderer) Render(x, y int, c color.Color) {
 	r.nextImg.Image.(*image.RGBA).Set(x, y, c)
 }
 func (r *renderer) Refresh() {
 	r.currImg, r.nextImg = r.nextImg, r.currImg // swap
-	r.SetContent(container.NewVBox(r.currImg))
+	r.SetContent(container.NewMax(r.currImg))
 	r.currImg.Refresh()
 }
 
@@ -65,10 +65,12 @@ func realMain() error {
 
 	canvasImg1 := canvas.NewImageFromImage(img1)
 	canvasImg2 := canvas.NewImageFromImage(img2)
-	// TODO: windowを調節したときに比を維持してほしい
-	canvasImg1.FillMode = canvas.ImageFillOriginal
-	canvasImg2.FillMode = canvas.ImageFillOriginal
-	win.SetContent(container.NewVBox(
+	canvasImg1.SetMinSize(fyne.NewSize(256, 240))
+	canvasImg2.SetMinSize(fyne.NewSize(256, 240))
+	canvasImg1.ScaleMode = canvas.ImageScalePixels
+	canvasImg2.ScaleMode = canvas.ImageScalePixels
+
+	win.SetContent(container.NewMax(
 		canvasImg1,
 	))
 	renderer := newRenderer(win, canvasImg1, canvasImg2)
