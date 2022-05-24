@@ -31,6 +31,7 @@ type renderer struct {
 	fyne.Window
 	currImg *canvas.Image
 	nextImg *canvas.Image
+	ticker  *time.Ticker
 }
 
 // todo: fix data race
@@ -39,6 +40,7 @@ func newRenderer(win fyne.Window, curr, next *canvas.Image) *renderer {
 		Window:  win,
 		currImg: curr,
 		nextImg: next,
+		ticker:  time.NewTicker(16 * time.Millisecond),
 	}
 }
 
@@ -46,6 +48,7 @@ func (r *renderer) Render(x, y int, c color.Color) {
 	r.nextImg.Image.(*image.RGBA).Set(x, y, c)
 }
 func (r *renderer) Refresh() {
+	<-r.ticker.C
 	r.currImg, r.nextImg = r.nextImg, r.currImg // swap
 	r.SetContent(container.NewMax(r.currImg))
 	r.currImg.Refresh()
@@ -109,10 +112,6 @@ func realMain() error {
 	}
 
 	go func() {
-		ticker := time.NewTicker(16 * time.Millisecond)
-		defer ticker.Stop()
-		beforeppuy := uint16(0)
-
 		for {
 			trace.Reset()
 
@@ -132,16 +131,6 @@ func realMain() error {
 			// if cpu.FetchCycles()*3 != ppu.Clock {
 			// 	panic("eeeeeeeeeeeeeeeeee")
 			// }
-
-			//trace.AddCPUCycle(cycle)
-			// if beforeScanline != 240 && ppu.Scanline == 240 {
-			// 	updateKey(win, keyEvents, joypad)
-			// }
-
-			if beforeppuy > trace.PPUY {
-				<-ticker.C
-			}
-			beforeppuy = trace.PPUY
 		}
 	}()
 
