@@ -275,8 +275,21 @@ func (cpu *CPU) jmp(addr uint16) {
 	cpu.PC = addr
 }
 
+// https://www.nesdev.org/6502_cpu.txt
+// JSR
+// #  address R/W description
+// --- ------- --- -------------------------------------------------
+// 1    PC     R  fetch opcode, increment PC
+// 2    PC     R  fetch low address byte, increment PC
+// 3  $0100,S  R  internal operation (predecrement S?)
+// 4  $0100,S  W  push PCH on stack, decrement S
+// 5  $0100,S  W  push PCL on stack, decrement S
+// 6    PC     R  copy low address byte to PCL, fetch high address
+// 	       byte to PCH
 func (cpu *CPU) jsr(addr uint16) {
 	cpu.push16(cpu.PC - 1)
+	// dummy read
+	cpu.bus.Read(cpu.PC)
 	cpu.PC = addr
 }
 
@@ -471,9 +484,9 @@ func (cpu *CPU) pop16() uint16 {
 
 func (cpu *CPU) branch(addr uint16) int {
 	cycle := 1
-	cpu.bus.tick(1)
+	cpu.bus.Read(cpu.PC) // dummy read
 	if pagesCross(cpu.PC, addr) {
-		cpu.bus.tick(1)
+		cpu.bus.Read(cpu.PC) // dummy read
 		cycle++
 	}
 	cpu.PC = addr

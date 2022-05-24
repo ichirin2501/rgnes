@@ -285,18 +285,18 @@ func (cpu *CPU) Step() {
 		cpu.bus.tick(t)
 	}
 
-	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
-	// 	fmt.Printf("panic: %02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
-	// 		opcodeByte,
-	// 		opcode.Name,
-	// 		opcode.Mode,
-	// 		opcode.Cycle+additionalCycle,
-	// 		afterClock-beforeClock,
-	// 		(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
-	// 		opcode.Unofficial,
-	// 	)
-	// 	panic("adfaffffffffffffffffffffffffffff")
-	// }
+	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
+		fmt.Printf("panic: %02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
+			opcodeByte,
+			opcode.Name,
+			opcode.Mode,
+			opcode.Cycle+additionalCycle,
+			afterClock-beforeClock,
+			(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
+			opcode.Unofficial,
+		)
+		panic("wryyyyyyyyyyyyyy")
+	}
 	// if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
 	// 	fmt.Printf("%02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
 	// 		opcodeByte,
