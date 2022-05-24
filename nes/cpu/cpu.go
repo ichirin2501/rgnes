@@ -307,7 +307,7 @@ func (cpu *CPU) Step() {
 	// 		(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
 	// 		opcode.Unofficial,
 	// 	)
-	//}
+	// }
 }
 
 func (cpu *CPU) fetch() byte {
@@ -445,6 +445,10 @@ func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) 
 
 func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	k := cpu.fetch()
+	// https://www.nesdev.org/6502_cpu.txt
+	// > pointer    R  read from the address, add X to it
+	cpu.bus.Read(uint16(k)) // dummy read
+
 	a := uint16(k + cpu.X)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
 	addr = uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
@@ -513,6 +517,10 @@ func (cpu *CPU) AddressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
 
 func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
+	// https://www.nesdev.org/6502_cpu.txt
+	// > address   R  read from address, add index register to it
+	cpu.bus.Read(uint16(a)) // dummy read
+
 	addr = uint16(a+cpu.X) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
@@ -523,6 +531,10 @@ func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) 
 
 func (cpu *CPU) AddressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
+	// https://www.nesdev.org/6502_cpu.txt
+	// > address   R  read from address, add index register to it
+	cpu.bus.Read(uint16(a)) // dummy read
+
 	addr = uint16(a+cpu.Y) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)

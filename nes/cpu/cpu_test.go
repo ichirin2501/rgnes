@@ -38,19 +38,18 @@ func Test_DMACycle(t *testing.T) {
 	cpu := New(bus, it)
 	cpu.X = 0x02
 	cpu.PC = 0x0000
-	// 03      SLO     indexedIndirect cycle:8 clock:7 diff:1  unoff:true
+	// 03      SLO     indexedIndirect cycle:8
 	bus.ram[0] = 0x03
 	bus.ram[1] = 0x00
 	bus.ram[2] = 0x14
 	bus.ram[3] = 0x40
 	cpu.Step()
 
-	// 実装的には6,7clock目にwriteが走るので、
-	// 6 clock目 = +513
-	// 7 clock目は6+513+1で偶数なのでまた +513
-	// 最後に1clock分足りないので+1clockの調整が入る想定
-	// = 520+513+1 = cpu clock 1034 が期待値
-	assert.Equal(t, 1034, bus.realClock())
+	// 実装的には7,8clock目にwriteが走るので、
+	// 7 clock目 = +513+1
+	// 8 clock目は7+513+1で奇数なのでまた +513+1
+	// = 521+513+1 = cpu clock 1035 が期待値
+	assert.Equal(t, 1035, bus.realClock())
 }
 
 // func Test_AddressingMode(t *testing.T) {

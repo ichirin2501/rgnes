@@ -291,8 +291,14 @@ func (cpu *CPU) jsr(addr uint16) {
 // 5  $0100,S  R  pull PCH from stack
 // 6    PC     R  increment PC
 func (cpu *CPU) rts() {
+	// 3  $0100,S  R  increment S
+	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
+
+	cpu.PC = cpu.pop16()
+	// 6    PC     R  increment PC
 	cpu.bus.Read(cpu.PC) // dummy read
-	cpu.PC = cpu.pop16() + 1
+
+	cpu.PC++
 }
 
 // https://www.nesdev.org/6502_cpu.txt
@@ -465,7 +471,9 @@ func (cpu *CPU) pop16() uint16 {
 
 func (cpu *CPU) branch(addr uint16) int {
 	cycle := 1
+	cpu.bus.tick(1)
 	if pagesCross(cpu.PC, addr) {
+		cpu.bus.tick(1)
 		cycle++
 	}
 	cpu.PC = addr
