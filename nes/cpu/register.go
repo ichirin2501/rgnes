@@ -1,5 +1,16 @@
 package cpu
 
+// 7  bit  0
+// ---- ----
+// NVss DIZC
+// |||| ||||
+// |||| |||+ - Carry
+// |||| ||+- - Zero
+// |||| |+-- - Interrupt Disable
+// |||| +--- - Decimal
+// ||++----- - No CPU effect, see: the B flag
+// |+------- - Overflow
+// +-------- - Negative
 type StatusRegister byte
 
 func (s *StatusRegister) updateBit(pos byte, val bool) {

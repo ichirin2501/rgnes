@@ -93,7 +93,7 @@ func Test_PPU_OUT_6000(t *testing.T) {
 			joypad := joypad.New()
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.New(cpuBus, irp)
-			cpu.Reset()
+			cpu.PowerUp()
 
 			ready := false
 			done := false

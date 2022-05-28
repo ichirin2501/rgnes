@@ -99,15 +99,14 @@ func realMain() error {
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
-	cpu.Reset()
-	trace.AddCPUCycle(7)
+	cpu.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
 		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
-			updateKey(win, joypad, k.Name, true)
+			updateKey(win, cpu, joypad, k.Name, true)
 		})
 		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
-			updateKey(win, joypad, k.Name, false)
+			updateKey(win, cpu, joypad, k.Name, false)
 		})
 	}
 
@@ -139,10 +138,12 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, j *joypad.Joypad, k fyne.KeyName, pressed bool) {
+func updateKey(win fyne.Window, cpu *cpu.CPU, j *joypad.Joypad, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
 		win.Close()
+	case fyne.KeyR:
+		cpu.Reset()
 	case fyne.KeySpace:
 		j.SetButtonStatus(joypad.ButtonSelect, pressed)
 	case fyne.KeyReturn:

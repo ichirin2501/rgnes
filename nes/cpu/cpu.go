@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"fmt"
+	"sync"
 )
 
 type Option func(*CPU)
@@ -17,20 +18,15 @@ type CPU struct {
 	I   *Interrupter
 	bus *Bus
 	t   *Trace
+	mu  *sync.Mutex
 }
 
 func New(bus *Bus, i *Interrupter, opts ...Option) *CPU {
 	cpu := &CPU{
-		A:  0x00,
-		X:  0x00,
-		Y:  0x00,
-		PC: 0x8000,
-		S:  0xFD,
-		P:  StatusRegister(0x24),
-
 		I:   i,
 		bus: bus,
 		t:   nil,
+		mu:  &sync.Mutex{},
 	}
 	for _, opt := range opts {
 		opt(cpu)
@@ -49,15 +45,32 @@ func (cpu *CPU) FetchCycles() int {
 	return cpu.bus.clock
 }
 
-// TODO: after reset
-func (cpu *CPU) Reset() {
+func (cpu *CPU) PowerUp() {
+	cpu.A = 0x00
+	cpu.X = 0x00
+	cpu.Y = 0x00
+	cpu.P = StatusRegister(0x34)
+	cpu.S = 0xFD
 	cpu.PC = cpu.read16(0xFFFC)
-	cpu.P = StatusRegister(0x24)
+	// adjust
+	cpu.bus.tick(5)
+}
+
+func (cpu *CPU) Reset() {
+	// とりあえず今はlock取っておく
+	cpu.mu.Lock()
+	defer cpu.mu.Unlock()
+	cpu.PC = cpu.read16(0xFFFC)
+	cpu.P.SetInterruptDisable(true)
+	cpu.S -= 3
 	// adjust
 	cpu.bus.tick(5)
 }
 
 func (cpu *CPU) Step() {
+	cpu.mu.Lock()
+	defer cpu.mu.Unlock()
+
 	beforeClock := cpu.bus.clock
 
 	additionalCycle := 0
