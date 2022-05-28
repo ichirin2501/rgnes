@@ -70,6 +70,10 @@ func Test_PPU_OUT_6000(t *testing.T) {
 			"ppu_read_buffer/test_ppu_read_buffer.nes",
 			"../roms/ppu_read_buffer/test_ppu_read_buffer.nes",
 		},
+		{
+			"ppu_open_bus/ppu_open_bus.nes",
+			"../roms/ppu_open_bus/ppu_open_bus.nes",
+		},
 	}
 
 	for _, tt := range tests {

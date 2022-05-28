@@ -94,7 +94,7 @@ type PPU struct {
 	status       StatusRegister
 	oamAddr      byte
 	buf          byte   // internal data buffer
-	v            uint16 // VRAM address
+	v            uint16 // VRAM address (15 bits)
 	t            uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
 	x            byte   // Fine X scroll (3 bits)
 	w            bool   // First or second write toggle (1 bit)
@@ -102,7 +102,7 @@ type PPU struct {
 	Cycle        int
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
-	openbus      byte
+	openbus      DecayRegister
 
 	suppressVBlankFlag bool
 
@@ -162,19 +162,27 @@ func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU) *PPU {
 	return ppu
 }
 
+func (ppu *PPU) updateOpenBus(val byte) {
+	ppu.openbus.Set(ppu.Clock, val)
+}
+
+func (ppu *PPU) getOpenBus() byte {
+	return ppu.openbus.Get(ppu.Clock)
+}
+
 func (ppu *PPU) ReadController() byte {
 	// note: $2000 write only
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // PeekController is used for debugging
 func (ppu *PPU) PeekController() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // $2000: PPUCTRL
 func (ppu *PPU) WriteController(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ControlRegister(val)
 	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
@@ -198,17 +206,17 @@ func (ppu *PPU) WriteController(val byte) {
 
 func (ppu *PPU) ReadMask() byte {
 	// note: $2001 write only
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // PeekMask is used for debugging
 func (ppu *PPU) PeekMask() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // $2001: PPUMASK
 func (ppu *PPU) WriteMask(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	ppu.mask = MaskRegister(val)
 }
 
@@ -233,40 +241,39 @@ func (ppu *PPU) ReadStatus() byte {
 
 	// https://www.nesdev.org/wiki/Open_bus_behavior
 	// > Reading the PPU's status port loads a value onto bits 7-5 of the bus, leaving the rest unchanged.
-	// ????
-	return st | (ppu.openbus & 0x1F)
+	return st | (ppu.getOpenBus() & 0x1F)
 }
 
 // PeekStatus is used for debugging
 func (ppu *PPU) PeekStatus() byte {
-	return ppu.status.Get() | (ppu.openbus & 0x1F)
+	return ppu.status.Get() | (ppu.getOpenBus() & 0x1F)
 }
 
 func (ppu *PPU) WriteStatus(val byte) {
 	// note: $2002 read only
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 }
 
 func (ppu *PPU) ReadOAMAddr() byte {
 	// note: $2003 write only
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // PeekOAMAddr is used for debugging
 func (ppu *PPU) PeekOAMAddr() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // $2003: OAMADDR
 func (ppu *PPU) WriteOAMAddr(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	ppu.oamAddr = val
 }
 
 // $2004: OAMDATA read
 func (ppu *PPU) ReadOAMData() byte {
 	res := ppu.primaryOAM[ppu.oamAddr]
-	ppu.openbus = res
+	ppu.updateOpenBus(res)
 	return res
 }
 
@@ -277,7 +284,7 @@ func (ppu *PPU) PeekOAMData() byte {
 
 // $2004: OAMDATA write
 func (ppu *PPU) WriteOAMData(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
 	// > Writes to OAMDATA during rendering (on the pre-render line and the visible lines 0-239, provided either sprite or background rendering is enabled) do not modify values in OAM
@@ -301,17 +308,17 @@ func (ppu *PPU) WriteOAMData(val byte) {
 
 func (ppu *PPU) ReadScroll() byte {
 	// note: $2005 write only
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // ReadScroll is used for debugging
 func (ppu *PPU) PeekScroll() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // $2005: PPUSCROLL
 func (ppu *PPU) WriteScroll(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	if !ppu.w {
 		// first write
 		// t: ....... ...ABCDE <- d: ABCDE...
@@ -331,17 +338,17 @@ func (ppu *PPU) WriteScroll(val byte) {
 }
 
 func (ppu *PPU) ReadPPUAddr() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // ReadPPUAddr is used for debugging
 func (ppu *PPU) PeekPPUAddr() byte {
-	return ppu.openbus
+	return ppu.getOpenBus()
 }
 
 // $2006: PPUADDR
 func (ppu *PPU) WritePPUAddr(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	if !ppu.w {
 		// first write
 		// t: .CDEFGH ........ <- d: ..CDEFGH
@@ -364,7 +371,7 @@ func (ppu *PPU) WritePPUAddr(val byte) {
 // $2007: PPUDATA read
 func (ppu *PPU) ReadPPUData() byte {
 	res := ppu.readPPUData(ppu.v)
-	ppu.openbus = res
+	ppu.updateOpenBus(res)
 
 	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
@@ -388,7 +395,10 @@ func (ppu *PPU) PeekPPUData() byte {
 		// include mirrors of $2000-$2EFF
 		return ppu.buf
 	case 0x3F00 <= addr && addr <= 0x3FFF:
-		return ppu.paletteTable.Read(paletteForm(addr % 0x20))
+		// ppu_open_bus/readme.txt
+		// D = openbus bit
+		// DD-- ----   palette
+		return (ppu.getOpenBus() & 0b11000000) | ppu.paletteTable.Read(paletteForm(addr%0x20))
 	default:
 		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
 	}
@@ -414,8 +424,12 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 		ppu.buf = ppu.vram.Read(addr - 0x1000)
 		return res
 	case 0x3F00 <= addr && addr <= 0x3FFF:
+		// ppu_open_bus/readme.txt
+		// D = openbus bit
+		// DD-- ----   palette
+
 		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
-		res := ppu.paletteTable.Read(paletteForm(addr % 0x20))
+		res := (ppu.getOpenBus() & 0b11000000) | ppu.paletteTable.Read(paletteForm(addr%0x20))
 		ppu.buf = ppu.vram.Read(addr - 0x1000)
 		return res
 	default:
@@ -425,7 +439,7 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 
 // $2007: PPUDATA write
 func (ppu *PPU) WritePPUData(val byte) {
-	ppu.openbus = val
+	ppu.updateOpenBus(val)
 	ppu.writePPUData(ppu.v, val)
 
 	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {

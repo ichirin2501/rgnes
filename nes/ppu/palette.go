@@ -25,6 +25,7 @@ func init() {
 	}
 }
 
+// A 6-bit value in the palette memory area corresponds to one of 64 outputs
 type paletteRAM [32]byte
 
 func (p *paletteRAM) Read(addr paletteForm) byte {

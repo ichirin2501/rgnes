@@ -234,7 +234,9 @@ func Test_PPU_InternalRegisters(t *testing.T) {
 func Test_PeekWriteOnlyRegister(t *testing.T) {
 	t.Parallel()
 	ppu := &PPU{
-		openbus: 0x30,
+		openbus: DecayRegister{
+			val: 0x30,
+		},
 	}
 	got := ppu.PeekController()
 	want := ppu.ReadController()
@@ -334,7 +336,7 @@ func Test_ReadOAMData(t *testing.T) {
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus)
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.getOpenBus())
 		})
 	}
 
@@ -355,7 +357,7 @@ func Test_ReadStatus(t *testing.T) {
 			"1",
 			&PPU{
 				status:  StatusRegister(0x88),
-				openbus: 0x31,
+				openbus: DecayRegister{val: 0x31},
 				cpu:     &fakeCPU{},
 				w:       true,
 			},
@@ -369,7 +371,7 @@ func Test_ReadStatus(t *testing.T) {
 			"2",
 			&PPU{
 				status:   StatusRegister(0x00),
-				openbus:  0x01,
+				openbus:  DecayRegister{val: 0x01},
 				cpu:      &fakeCPU{},
 				Scanline: 241,
 				Cycle:    0,
@@ -385,7 +387,7 @@ func Test_ReadStatus(t *testing.T) {
 			"3",
 			&PPU{
 				status:   StatusRegister(0x00),
-				openbus:  0x01,
+				openbus:  DecayRegister{val: 0x01},
 				cpu:      &fakeCPU{},
 				Scanline: 241,
 				Cycle:    1,
@@ -401,7 +403,7 @@ func Test_ReadStatus(t *testing.T) {
 			"4",
 			&PPU{
 				status:   StatusRegister(0x00),
-				openbus:  0x01,
+				openbus:  DecayRegister{val: 0x01},
 				cpu:      &fakeCPU{},
 				Scanline: 241,
 				Cycle:    2,
@@ -417,7 +419,7 @@ func Test_ReadStatus(t *testing.T) {
 			"5",
 			&PPU{
 				status:   StatusRegister(0x00),
-				openbus:  0x01,
+				openbus:  DecayRegister{val: 0x01},
 				cpu:      &fakeCPU{},
 				Scanline: 241,
 				Cycle:    3,
@@ -443,7 +445,7 @@ func Test_ReadStatus(t *testing.T) {
 			assert.Equal(t, tt.wantw, tt.ppu.w)
 			assert.Equal(t, tt.wantSuppressVBlankFlag, tt.ppu.suppressVBlankFlag)
 			assert.Equal(t, tt.wantNMIDelay, tt.ppu.nmiDelay)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus)
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.getOpenBus())
 		})
 	}
 }

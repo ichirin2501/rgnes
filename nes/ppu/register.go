@@ -171,3 +171,30 @@ func (s *StatusRegister) VBlankStarted() bool {
 func (s *StatusRegister) Get() byte {
 	return byte(*s)
 }
+
+type DecayRegister struct {
+	val byte
+	tc  int // updated time clock
+}
+
+func (d *DecayRegister) Get(currClock int) byte {
+	// ppu_open_bus/readme.txt
+	// > The PPU effectively has a "decay register", an 8-bit register. Each bit
+	// > can be refreshed with a 0 or 1. If a bit isn't refreshed with a 1 for
+	// > about 600 milliseconds, it will decay to 0 (some decay sooner, depending
+	// > on the NES and temperature).
+
+	// 600ms / 16ms = 37.5 frame
+	// 1 frame = about 341*262 = 89342 PPU clocks
+	// 37.5 * 89342 = 3350325 ppu clocks
+	if currClock-d.tc < 3350325 {
+		return d.val
+	} else {
+		return 0
+	}
+}
+
+func (d *DecayRegister) Set(currClock int, val byte) {
+	d.tc = currClock
+	d.val = val
+}
