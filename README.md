@@ -70,7 +70,7 @@ It's great because it's written so simple.
 | nestest | nestest.nes | OK |
 | oam_read | oam_read.nes | OK |
 | oam_stress | oam_stress.nes | OK |
-| ppu_open_bus | ppu_open_bus.nes | Failed |
+| ppu_open_bus | ppu_open_bus.nes | OK |
 | ppu_read_buffer | test_ppu_read_buffer.nes | OK |
 | ppu_vbl_nmi | 01-vbl_basics.nes | OK |
 | ppu_vbl_nmi | 02-vbl_set_time.nes | OK |
