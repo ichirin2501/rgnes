@@ -156,9 +156,9 @@ func updateKey(win fyne.Window, cpu *cpu.CPU, j *joypad.Joypad, k fyne.KeyName, 
 		j.SetButtonStatus(joypad.ButtonLeft, pressed)
 	case fyne.KeyRight:
 		j.SetButtonStatus(joypad.ButtonRight, pressed)
-	case fyne.KeyA:
+	case fyne.KeyZ:
 		j.SetButtonStatus(joypad.ButtonA, pressed)
-	case fyne.KeyS:
+	case fyne.KeyX:
 		j.SetButtonStatus(joypad.ButtonB, pressed)
 	}
 }

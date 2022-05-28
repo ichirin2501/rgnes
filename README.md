@@ -26,8 +26,9 @@ It's great because it's written so simple.
 | Up, Down, Left, Right	| Arrow Keys |
 | Start | Enter |
 | Select | Space |
-| A | A |
-| B	| S |
+| Reset | R |
+| A | Z |
+| B | X |
 
 ## Tests
 
