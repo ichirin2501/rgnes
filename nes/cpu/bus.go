@@ -5,11 +5,38 @@ import (
 )
 
 type APU interface {
-	// todo
+	WritePulse1Controller(byte)
+	WritePulse1Sweep(byte)
+	WritePulse1TimerLow(byte)
+	WritePulse1LengthAndTimerHigh(byte)
+	WritePulse2Controller(byte)
+	WritePulse2Sweep(byte)
+	WritePulse2TimerLow(byte)
+	WritePulse2LengthAndTimerHigh(byte)
+
+	WriteTriangleController(byte)
+	WriteTriangleTimerLow(byte)
+	WriteTriangleLengthAndTimerHigh(byte)
+
+	WriteNoiseController(byte)
+	WriteNoiseLoopAndPeriod(byte)
+	WriteNoiseLength(byte)
+
+	WriteDMCController(byte)
+	WriteDMCLoadCounter(byte)
+	WriteDMCSampleAddr(byte)
+	WriteDMCSampleLength(byte)
+
+	ReadStatus() byte
+	PeekStatus() byte
+	WriteStatus(byte)
+
+	WriteFrameCounter(byte)
 }
 
 type Joypad interface {
 	Read() byte
+	Peek() byte
 	Write(byte)
 }
 
@@ -109,6 +136,8 @@ func (bus *Bus) read(addr uint16) byte {
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {
+		case addr == 0x4015:
+			return bus.apu.ReadStatus()
 		case addr == 0x4016:
 			return bus.joypad.Read()
 		case addr == 0x4017: // TODO: 2p
@@ -166,14 +195,58 @@ func (bus *Bus) write(addr uint16, val byte) {
 	case 0x4000 <= addr && addr <= 0x4017:
 		// NES APU and I/O registers
 		switch {
+		case addr == 0x4000:
+			bus.apu.WritePulse1Controller(val)
+		case addr == 0x4001:
+			bus.apu.WritePulse1Sweep(val)
+		case addr == 0x4002:
+			bus.apu.WritePulse1TimerLow(val)
+		case addr == 0x4003:
+			bus.apu.WritePulse1LengthAndTimerHigh(val)
+		case addr == 0x4004:
+			bus.apu.WritePulse2Controller(val)
+		case addr == 0x4005:
+			bus.apu.WritePulse2Sweep(val)
+		case addr == 0x4006:
+			bus.apu.WritePulse2TimerLow(val)
+		case addr == 0x4007:
+			bus.apu.WritePulse2LengthAndTimerHigh(val)
+		case addr == 0x4008:
+			bus.apu.WriteTriangleController(val)
+		case addr == 0x4009:
+			// unused
+		case addr == 0x400A:
+			bus.apu.WriteTriangleTimerLow(val)
+		case addr == 0x400B:
+			bus.apu.WriteTriangleLengthAndTimerHigh(val)
+		case addr == 0x400C:
+			bus.apu.WriteNoiseController(val)
+		case addr == 0x400D:
+			// unused
+		case addr == 0x400E:
+			bus.apu.WriteNoiseLoopAndPeriod(val)
+		case addr == 0x400F:
+			bus.apu.WriteNoiseLength(val)
+		case addr == 0x4010:
+			bus.apu.WriteDMCController(val)
+		case addr == 0x4011:
+			bus.apu.WriteDMCLoadCounter(val)
+		case addr == 0x4012:
+			bus.apu.WriteDMCSampleAddr(val)
+		case addr == 0x4013:
+			bus.apu.WriteDMCSampleLength(val)
 		case addr == 0x4014:
 			a := uint16(val) << 8
 			for i := uint16(0); i < 256; i++ {
 				bus.ppu.WriteOAMDMAByte(bus.read(a + i))
 			}
 			bus.tickStall(513 + bus.realClock()%2)
+		case addr == 0x4015:
+			bus.apu.WriteStatus(val)
 		case addr == 0x4016:
 			bus.joypad.Write(val)
+		case addr == 0x4017:
+			bus.apu.WriteFrameCounter(val)
 		default:
 			// basically, ignore
 		}
@@ -237,8 +310,16 @@ func (bus *Bus) Peek(addr uint16) byte {
 		// Mirrors of $2000-2007 (repeats every 8 bytes)
 		return bus.Peek(0x2000 + addr%0x08)
 	case 0x4000 <= addr && addr <= 0x4017:
+		// NES APU and I/O registers
 		// todo
-		return 0
+		switch {
+		case addr == 0x4015:
+			return bus.apu.PeekStatus()
+		case addr == 0x4016:
+			return bus.joypad.Peek()
+		default:
+			return 0
+		}
 	case 0x4018 <= addr && addr <= 0x401F:
 		// todo
 		return 0

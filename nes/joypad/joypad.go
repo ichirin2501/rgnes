@@ -18,7 +18,7 @@ type Joypad struct {
 	Strobe       bool
 	ButtonIndex  byte
 	ButtonStatus byte
-	mu           *sync.RWMutex
+	mu           *sync.RWMutex // for ButtonStatus
 }
 
 func New() *Joypad {
@@ -38,6 +38,16 @@ func (j *Joypad) Read() byte {
 		j.ButtonIndex++
 	}
 	return res
+}
+
+// Peek is used for debugging
+func (j *Joypad) Peek() byte {
+	if j.ButtonIndex > 7 {
+		return 1
+	}
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	return (byte(j.ButtonStatus) & (1 << j.ButtonIndex)) >> j.ButtonIndex
 }
 
 func (j *Joypad) Write(v byte) {

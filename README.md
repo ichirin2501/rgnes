@@ -13,7 +13,6 @@ It's great because it's written so simple.
 ## TODOs
 
 - refactoring
-- decay ppu openbus
 - apu emulation
   - (I'm not interested in sound so I probably won't implement it...)
 
