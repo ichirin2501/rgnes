@@ -47,100 +47,165 @@ func init() {
 	}
 }
 
+type CPU interface {
+	SetIRQ(val bool)
+}
+
 type APU struct {
 	pulse1 pulse
 	pulse2 pulse
+	tnd    triangle
+	noise  noise
+	dmc    dmc
 }
 
 func New() *APU {
 	return &APU{}
 }
 
-// TODO
-func (p *APU) Read(addr uint16) byte {
-	switch addr {
-	case 0x0015:
-	}
-	return 0
+// DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
+func writePulseController(p *pulse, val byte) {
+	p.duty = (val >> 6) & 0b11
+
+	// envelope
+	p.constantVolume = (val & 0x10) == 0x10
+	p.volume = val & 0x0F
+
+	// length counter
+	p.lengthCounterHalt = (val & 0x20) == 0x20
 }
 
-// TODO
-func (p *APU) Write(addr uint16, val byte) {
-	switch addr {
-	default:
-	}
+// https://www.nesdev.org/wiki/APU_Sweep
+// EPPP NSSS	Sweep unit: enabled (E), period (P), negate (N), shift (S)
+func writePulseSweep(p *pulse, val byte) {
+	p.sweepEnabled = (val & 0x80) == 0x80
+	// > The divider's period is P + 1 half-frames
+	p.sweepPeriod = ((val >> 4) & 0b111) + 1
+	p.sweepNegate = (val & 0x04) == 0x04
+	p.sweepShiftCount = val & 0b111
+	// > Side effects	Sets the reload flag
+	p.sweepReload = true
+}
+
+// TTTT TTTT	Timer low (T)
+func writePulseTimerLow(p *pulse, val byte) {
+	p.timerPeriod = (p.timerPeriod & 0xFF00) | uint16(val)
+}
+
+// LLLL LTTT	Length counter load (L), timer high (T)
+func writePulseLengthAndTimerHigh(p *pulse, val byte) {
+	// todo: > If the enabled flag is set, the length counter is loaded with entry L of the length table
+	p.lengthCounter = lengthTable[val>>3]
+	p.timerPeriod = (p.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
 }
 
 // $4000
 func (apu *APU) WritePulse1Controller(val byte) {
-
+	writePulseController(&apu.pulse1, val)
 }
 
 // $4001
 func (apu *APU) WritePulse1Sweep(val byte) {
-	apu.pulse1.sweep = sweepUnit(val)
+	writePulseSweep(&apu.pulse1, val)
 }
 
 // $4002
 func (apu *APU) WritePulse1TimerLow(val byte) {
-	apu.pulse1.timerPeriod = (apu.pulse1.timerPeriod & 0xFF00) | uint16(val)
+	writePulseTimerLow(&apu.pulse1, val)
 }
 
 // $4003
 func (apu *APU) WritePulse1LengthAndTimerHigh(val byte) {
-	// todo len
-	// apu.pulse1.timerPeriod = (apu.pulse1.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
+	writePulseLengthAndTimerHigh(&apu.pulse1, val)
 }
 
 // $4004
 func (apu *APU) WritePulse2Controller(val byte) {
-
+	writePulseController(&apu.pulse2, val)
 }
 
 // $4005
 func (apu *APU) WritePulse2Sweep(val byte) {
-	apu.pulse2.sweep = sweepUnit(val)
+	writePulseSweep(&apu.pulse2, val)
 }
 
 // $4006
 func (apu *APU) WritePulse2TimerLow(val byte) {
-	apu.pulse2.timerPeriod = (apu.pulse2.timerPeriod & 0xFF00) | uint16(val)
+	writePulseTimerLow(&apu.pulse2, val)
 }
 
 // $4007
 func (apu *APU) WritePulse2LengthAndTimerHigh(val byte) {
-
+	writePulseLengthAndTimerHigh(&apu.pulse2, val)
 }
 
 // $4008
-func (apu *APU) WriteTriangleController(val byte) {}
+// CRRR RRRR	Length counter halt / linear counter control (C), linear counter load (R)
+func (apu *APU) WriteTriangleController(val byte) {
+	apu.tnd.lengthCounterHalt = (val & 0x80) == 0x80
+	apu.tnd.linearCounter = val & 0x7F
+}
 
 // $400A
-func (apu *APU) WriteTriangleTimerLow(val byte) {}
+// TTTT TTTT	Timer low (T)
+func (apu *APU) WriteTriangleTimerLow(val byte) {
+	apu.tnd.timerPeriod = (apu.tnd.timerPeriod & 0xFF00) | uint16(val)
+}
 
 // $400B
-func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {}
+// LLLL LTTT	Length counter load (L), timer high (T)
+func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
+	apu.tnd.lengthCounter = lengthTable[val>>3]
+	apu.tnd.timerPeriod = (apu.tnd.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
+	apu.tnd.linearCounterReload = true
+}
 
 // $400C
-func (apu *APU) WriteNoiseController(val byte) {}
+// --LC VVVV	Envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
+func (apu *APU) WriteNoiseController(val byte) {
+	apu.noise.lengthCounterHalt = (val & 0x20) == 0x20
+	apu.noise.constantVolume = (val & 0x10) == 0x10
+	apu.noise.volume = val & 0x0F
+}
 
 // $400E
-func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {}
+// L--- PPPP	Loop noise (L), noise period (P)
+func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {
+	apu.noise.loop = (val & 0x80) == 0x80
+	apu.noise.period = val & 0x0F
+}
 
 // $400F
-func (apu *APU) WriteNoiseLength(val byte) {}
+// LLLL L---	Length counter load (L)
+func (apu *APU) WriteNoiseLength(val byte) {
+	apu.noise.lengthCounter = lengthTable[val>>3]
+}
 
 // $4010
-func (apu *APU) WriteDMCController(val byte) {}
+// IL-- RRRR	IRQ enable (I), loop (L), frequency (R)
+func (apu *APU) WriteDMCController(val byte) {
+	apu.dmc.irqEnabled = (val & 0x80) == 0x80
+	apu.dmc.loop = (val & 0x40) == 0x40
+	apu.dmc.freq = val & 0x0F
+}
 
 // $4011
-func (apu *APU) WriteDMCLoadCounter(val byte) {}
+// -DDD DDDD	Load counter (D)
+func (apu *APU) WriteDMCLoadCounter(val byte) {
+	apu.dmc.counter = val & 0x7F
+}
 
 // $4012
-func (apu *APU) WriteDMCSampleAddr(val byte) {}
+// AAAA AAAA	Sample address (A)
+func (apu *APU) WriteDMCSampleAddr(val byte) {
+	apu.dmc.sampleAddr = val
+}
 
 // $4013
-func (apu *APU) WriteDMCSampleLength(val byte) {}
+// LLLL LLLL	Sample length (L)
+func (apu *APU) WriteDMCSampleLength(val byte) {
+	apu.dmc.sampleLength = val
+}
 
 // $4015 read
 func (apu *APU) ReadStatus() byte {
@@ -158,29 +223,59 @@ func (apu *APU) WriteStatus(val byte) {}
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {}
 
-// https://www.nesdev.org/wiki/APU_Sweep
-type sweepUnit byte
-
-func (s *sweepUnit) Enabled() bool {
-	return (byte(*s) & 0x80) == 0x80
-}
-func (s *sweepUnit) Period() byte {
-	return ((byte(*s) >> 4) & 0b111) + 1
-}
-func (s *sweepUnit) Negate() bool {
-	return (byte(*s) & 0x04) == 0x04
-}
-func (s *sweepUnit) ShiftCount() byte {
-	return byte(*s) & 0b111
-}
-
-type pulseCtrl byte
-
 type pulse struct {
-	dutyCycle          byte // 2bit
-	lengthCounterHalt  bool
-	constantVolumeFlag bool
-	sweep              sweepUnit
-	timerPeriod        uint16
-	lengthCounterLoad  byte
+	// length counter
+	lengthCounterHalt bool
+	lengthCounter     byte
+
+	// envelope
+	// todo: envelop unit自体もdividerを持つ、かつ、noiseでも出てくるので、構造体にしたほうが良さそう?
+	constantVolume bool
+	volume         byte // volume/envelope (V)
+
+	// https://www.nesdev.org/wiki/APU_Sweep
+	sweepEnabled    bool
+	sweepPeriod     byte
+	sweepNegate     bool
+	sweepShiftCount byte
+	// > Each sweep unit contains the following: divider, reload flag.
+	sweepDivider byte
+	sweepReload  bool
+
+	duty        byte
+	timerPeriod uint16
+}
+
+type triangle struct {
+	// length counter
+	lengthCounterHalt bool
+	lengthCounter     byte
+
+	linearCounter       byte
+	linearCounterReload bool
+
+	timerPeriod uint16
+}
+
+type noise struct {
+	// length counter
+	lengthCounterHalt bool
+	lengthCounter     byte
+
+	// envelope
+	constantVolume bool
+	volume         byte // volume/envelope (V)
+
+	loop        bool
+	period      byte
+	timerPeriod uint16
+}
+
+type dmc struct {
+	irqEnabled   bool
+	loop         bool
+	freq         byte
+	counter      byte
+	sampleAddr   byte
+	sampleLength byte
 }
