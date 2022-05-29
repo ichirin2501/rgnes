@@ -184,10 +184,10 @@ func (d *DecayRegister) Get(currClock int) byte {
 	// > about 600 milliseconds, it will decay to 0 (some decay sooner, depending
 	// > on the NES and temperature).
 
-	// 600ms / 16ms = 37.5 frame
+	// 600ms / (1000/60)ms = 36 frame
 	// 1 frame = about 341*262 = 89342 PPU clocks
-	// 37.5 * 89342 = 3350325 ppu clocks
-	if currClock-d.tc < 3350325 {
+	// 36 * 89342 = 3216312 ppu clocks
+	if currClock-d.tc < 3216312 {
 		return d.val
 	} else {
 		return 0
