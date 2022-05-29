@@ -208,22 +208,46 @@ func (apu *APU) WriteDMCSampleLength(val byte) {
 }
 
 // $4015 read
+// IF-D NT21	DMC interrupt (I), frame interrupt (F), DMC active (D), length counter > 0 (N/T/2/1)
 func (apu *APU) ReadStatus() byte {
-	return 0
+	res := byte(0)
+	if apu.pulse1.lengthCounter > 0 {
+		res |= 0x01
+	}
+	if apu.pulse2.lengthCounter > 0 {
+		res |= 0x02
+	}
+	if apu.tnd.lengthCounter > 0 {
+		res |= 0x04
+	}
+	if apu.noise.lengthCounter > 0 {
+		res |= 0x08
+	}
+	// todo: dmc, I, F
+
+	return res
 }
 
 // PeekStatus is used for debugging
 func (apu *APU) PeekStatus() byte {
-	return 0
+	return apu.ReadStatus()
 }
 
 // $4015 write
-func (apu *APU) WriteStatus(val byte) {}
+// ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
+func (apu *APU) WriteStatus(val byte) {
+	apu.dmc.enabled = (val & 0x10) == 0x10
+	apu.noise.enabled = (val & 0x08) == 0x08
+	apu.tnd.enabled = (val & 0x04) == 0x04
+	apu.pulse2.enabled = (val & 0x02) == 0x02
+	apu.pulse1.enabled = (val & 0x01) == 0x01
+}
 
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {}
 
 type pulse struct {
+	enabled bool
 	// length counter
 	lengthCounterHalt bool
 	lengthCounter     byte
@@ -247,6 +271,7 @@ type pulse struct {
 }
 
 type triangle struct {
+	enabled bool
 	// length counter
 	lengthCounterHalt bool
 	lengthCounter     byte
@@ -258,6 +283,7 @@ type triangle struct {
 }
 
 type noise struct {
+	enabled bool
 	// length counter
 	lengthCounterHalt bool
 	lengthCounter     byte
@@ -272,6 +298,7 @@ type noise struct {
 }
 
 type dmc struct {
+	enabled      bool
 	irqEnabled   bool
 	loop         bool
 	freq         byte
