@@ -97,6 +97,9 @@ func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 	// todo: > If the enabled flag is set, the length counter is loaded with entry L of the length table
 	p.lengthCounter = lengthTable[val>>3]
 	p.timerPeriod = (p.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
+
+	// > The sequencer is immediately restarted at the first value of the current sequence.
+	p.dutyPos = 0
 }
 
 // $4000
@@ -246,6 +249,18 @@ func (apu *APU) WriteStatus(val byte) {
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {}
 
+// https://www.nesdev.org/wiki/APU_Mixer#Lookup_Table
+// > output = pulse_out + tnd_out
+// > pulse_out = pulse_table [pulse1 + pulse2]
+// > tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
+// > The values for pulse1, pulse2, triangle, noise, and dmc are the output values for the corresponding channel.
+// > The dmc value ranges from 0 to 127 and the others range from 0 to 15.
+func (apu *APU) output() float32 {
+	pout := pulseTable[apu.pulse1.output()+apu.pulse2.output()]
+	tout := tndTable[3*apu.tnd.output()+2*apu.noise.output()+apu.dmc.output()]
+	return pout + tout
+}
+
 type pulse struct {
 	enabled bool
 	// length counter
@@ -267,7 +282,13 @@ type pulse struct {
 	sweepReload  bool
 
 	duty        byte
+	dutyPos     byte
 	timerPeriod uint16
+}
+
+func (p *pulse) output() byte {
+	// todo
+	return 0
 }
 
 type triangle struct {
@@ -280,6 +301,11 @@ type triangle struct {
 	linearCounterReload bool
 
 	timerPeriod uint16
+}
+
+func (t *triangle) output() byte {
+	// todo
+	return 0
 }
 
 type noise struct {
@@ -297,6 +323,11 @@ type noise struct {
 	timerPeriod uint16
 }
 
+func (t *noise) output() byte {
+	// todo
+	return 0
+}
+
 type dmc struct {
 	enabled      bool
 	irqEnabled   bool
@@ -305,4 +336,9 @@ type dmc struct {
 	counter      byte
 	sampleAddr   byte
 	sampleLength byte
+}
+
+func (d *dmc) output() byte {
+	// todo
+	return 0
 }
