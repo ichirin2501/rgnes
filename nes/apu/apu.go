@@ -2,10 +2,10 @@ package apu
 
 // https://www.nesdev.org/wiki/APU_Pulse
 var dutyTable = [][]byte{
-	{0, 1, 0, 0, 0, 0, 0, 0},
-	{0, 1, 1, 0, 0, 0, 0, 0},
-	{0, 1, 1, 1, 1, 0, 0, 0},
-	{1, 0, 0, 1, 1, 1, 1, 1},
+	{0, 0, 0, 0, 0, 0, 0, 1},
+	{0, 0, 0, 0, 0, 0, 1, 1},
+	{0, 0, 0, 0, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 0, 0},
 }
 
 // https://www.nesdev.org/wiki/APU_Triangle
@@ -68,8 +68,9 @@ func writePulseController(p *pulse, val byte) {
 	p.duty = (val >> 6) & 0b11
 
 	// envelope
-	p.constantVolume = (val & 0x10) == 0x10
-	p.volume = val & 0x0F
+	p.el.Loop = (val & 0x20) == 0x20
+	p.el.ConstantVolume = (val & 0x10) == 0x10
+	p.el.Volume = val & 0x0F
 
 	// length counter
 	p.lengthCounterHalt = (val & 0x20) == 0x20
@@ -99,7 +100,9 @@ func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 	p.timerPeriod = (p.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
 
 	// > The sequencer is immediately restarted at the first value of the current sequence.
+	// > The envelope is also restarted.
 	p.dutyPos = 0
+	p.el.Start = true
 }
 
 // $4000
@@ -167,8 +170,9 @@ func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
 // --LC VVVV	Envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
 func (apu *APU) WriteNoiseController(val byte) {
 	apu.noise.lengthCounterHalt = (val & 0x20) == 0x20
-	apu.noise.constantVolume = (val & 0x10) == 0x10
-	apu.noise.volume = val & 0x0F
+	apu.noise.el.Loop = (val & 0x20) == 0x20
+	apu.noise.el.ConstantVolume = (val & 0x10) == 0x10
+	apu.noise.el.Volume = val & 0x0F
 }
 
 // $400E
@@ -239,11 +243,11 @@ func (apu *APU) PeekStatus() byte {
 // $4015 write
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) WriteStatus(val byte) {
-	apu.dmc.enabled = (val & 0x10) == 0x10
-	apu.noise.enabled = (val & 0x08) == 0x08
-	apu.tnd.enabled = (val & 0x04) == 0x04
-	apu.pulse2.enabled = (val & 0x02) == 0x02
-	apu.pulse1.enabled = (val & 0x01) == 0x01
+	apu.dmc.SetEnabled((val & 0x10) == 0x10)
+	apu.noise.SetEnabled((val & 0x08) == 0x08)
+	apu.tnd.SetEnabled((val & 0x04) == 0x04)
+	apu.pulse2.SetEnabled((val & 0x02) == 0x02)
+	apu.pulse1.SetEnabled((val & 0x01) == 0x01)
 }
 
 // $4017
@@ -256,8 +260,8 @@ func (apu *APU) WriteFrameCounter(val byte) {}
 // > The values for pulse1, pulse2, triangle, noise, and dmc are the output values for the corresponding channel.
 // > The dmc value ranges from 0 to 127 and the others range from 0 to 15.
 func (apu *APU) output() float32 {
-	pout := pulseTable[apu.pulse1.output()+apu.pulse2.output()]
-	tout := tndTable[3*apu.tnd.output()+2*apu.noise.output()+apu.dmc.output()]
+	pout := pulseTable[apu.pulse1.Output()+apu.pulse2.Output()]
+	tout := tndTable[3*apu.tnd.Output()+2*apu.noise.Output()+apu.dmc.Output()]
 	return pout + tout
 }
 
@@ -267,10 +271,7 @@ type pulse struct {
 	lengthCounterHalt bool
 	lengthCounter     byte
 
-	// envelope
-	// todo: envelop unit自体もdividerを持つ、かつ、noiseでも出てくるので、構造体にしたほうが良さそう?
-	constantVolume bool
-	volume         byte // volume/envelope (V)
+	el envelope
 
 	// https://www.nesdev.org/wiki/APU_Sweep
 	sweepEnabled    bool
@@ -286,7 +287,14 @@ type pulse struct {
 	timerPeriod uint16
 }
 
-func (p *pulse) output() byte {
+func (p *pulse) SetEnabled(v bool) {
+	if !v {
+		p.lengthCounter = 0
+	}
+	p.enabled = v
+}
+
+func (p *pulse) Output() byte {
 	// todo
 	return 0
 }
@@ -303,7 +311,14 @@ type triangle struct {
 	timerPeriod uint16
 }
 
-func (t *triangle) output() byte {
+func (t *triangle) SetEnabled(v bool) {
+	if !v {
+		t.lengthCounter = 0
+	}
+	t.enabled = v
+}
+
+func (t *triangle) Output() byte {
 	// todo
 	return 0
 }
@@ -314,16 +329,21 @@ type noise struct {
 	lengthCounterHalt bool
 	lengthCounter     byte
 
-	// envelope
-	constantVolume bool
-	volume         byte // volume/envelope (V)
+	el envelope
 
 	loop        bool
 	period      byte
 	timerPeriod uint16
 }
 
-func (t *noise) output() byte {
+func (n *noise) SetEnabled(v bool) {
+	if !v {
+		n.lengthCounter = 0
+	}
+	n.enabled = v
+}
+
+func (n *noise) Output() byte {
 	// todo
 	return 0
 }
@@ -338,7 +358,31 @@ type dmc struct {
 	sampleLength byte
 }
 
-func (d *dmc) output() byte {
+func (d *dmc) SetEnabled(v bool) {
+	if !v {
+		// todo
+	}
+	d.enabled = v
+}
+
+func (d *dmc) Output() byte {
 	// todo
 	return 0
+}
+
+type envelope struct {
+	ConstantVolume bool
+	Volume         byte
+	Loop           bool
+	Start          bool
+
+	decayLevelCounter byte
+}
+
+func (e *envelope) Output() byte {
+	if e.ConstantVolume {
+		return e.Volume
+	} else {
+		return e.decayLevelCounter
+	}
 }
