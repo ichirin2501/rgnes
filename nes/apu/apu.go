@@ -66,14 +66,10 @@ func New() *APU {
 // DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
 func writePulseController(p *pulse, val byte) {
 	p.duty = (val >> 6) & 0b11
-
-	// envelope
-	p.el.Loop = (val & 0x20) == 0x20
-	p.el.ConstantVolume = (val & 0x10) == 0x10
-	p.el.Volume = val & 0x0F
-
-	// length counter
-	p.lengthCounterHalt = (val & 0x20) == 0x20
+	p.lc.halt = (val & 0x20) == 0x20
+	p.el.loop = (val & 0x20) == 0x20
+	p.el.constantVolume = (val & 0x10) == 0x10
+	p.el.volume = val & 0x0F
 }
 
 // https://www.nesdev.org/wiki/APU_Sweep
@@ -95,14 +91,16 @@ func writePulseTimerLow(p *pulse, val byte) {
 
 // LLLL LTTT	Length counter load (L), timer high (T)
 func writePulseLengthAndTimerHigh(p *pulse, val byte) {
-	// todo: > If the enabled flag is set, the length counter is loaded with entry L of the length table
-	p.lengthCounter = lengthTable[val>>3]
+	// > If the enabled flag is set, the length counter is loaded with entry L of the length table
+	if p.enabled {
+		p.lc.load(val >> 3)
+	}
 	p.timerPeriod = (p.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
 
 	// > The sequencer is immediately restarted at the first value of the current sequence.
 	// > The envelope is also restarted.
 	p.dutyPos = 0
-	p.el.Start = true
+	p.el.start = true
 }
 
 // $4000
@@ -148,7 +146,7 @@ func (apu *APU) WritePulse2LengthAndTimerHigh(val byte) {
 // $4008
 // CRRR RRRR	Length counter halt / linear counter control (C), linear counter load (R)
 func (apu *APU) WriteTriangleController(val byte) {
-	apu.tnd.lengthCounterHalt = (val & 0x80) == 0x80
+	apu.tnd.lc.halt = (val & 0x80) == 0x80
 	apu.tnd.linearCounter = val & 0x7F
 }
 
@@ -161,18 +159,18 @@ func (apu *APU) WriteTriangleTimerLow(val byte) {
 // $400B
 // LLLL LTTT	Length counter load (L), timer high (T)
 func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
-	apu.tnd.lengthCounter = lengthTable[val>>3]
+	apu.tnd.lc.load(val >> 3)
 	apu.tnd.timerPeriod = (apu.tnd.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
 	apu.tnd.linearCounterReload = true
 }
 
 // $400C
-// --LC VVVV	Envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
+// --LC VVVV	el loop / length counter halt (L), constant volume (C), volume/envelope (V)
 func (apu *APU) WriteNoiseController(val byte) {
-	apu.noise.lengthCounterHalt = (val & 0x20) == 0x20
-	apu.noise.el.Loop = (val & 0x20) == 0x20
-	apu.noise.el.ConstantVolume = (val & 0x10) == 0x10
-	apu.noise.el.Volume = val & 0x0F
+	apu.noise.lc.halt = (val & 0x20) == 0x20
+	apu.noise.el.loop = (val & 0x20) == 0x20
+	apu.noise.el.constantVolume = (val & 0x10) == 0x10
+	apu.noise.el.volume = val & 0x0F
 }
 
 // $400E
@@ -185,7 +183,7 @@ func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {
 // $400F
 // LLLL L---	Length counter load (L)
 func (apu *APU) WriteNoiseLength(val byte) {
-	apu.noise.lengthCounter = lengthTable[val>>3]
+	apu.noise.lc.load(val >> 3)
 }
 
 // $4010
@@ -197,7 +195,7 @@ func (apu *APU) WriteDMCController(val byte) {
 }
 
 // $4011
-// -DDD DDDD	Load counter (D)
+// -DDD DDDD	load counter (D)
 func (apu *APU) WriteDMCLoadCounter(val byte) {
 	apu.dmc.counter = val & 0x7F
 }
@@ -218,16 +216,16 @@ func (apu *APU) WriteDMCSampleLength(val byte) {
 // IF-D NT21	DMC interrupt (I), frame interrupt (F), DMC active (D), length counter > 0 (N/T/2/1)
 func (apu *APU) ReadStatus() byte {
 	res := byte(0)
-	if apu.pulse1.lengthCounter > 0 {
+	if apu.pulse1.lc.value > 0 {
 		res |= 0x01
 	}
-	if apu.pulse2.lengthCounter > 0 {
+	if apu.pulse2.lc.value > 0 {
 		res |= 0x02
 	}
-	if apu.tnd.lengthCounter > 0 {
+	if apu.tnd.lc.value > 0 {
 		res |= 0x04
 	}
-	if apu.noise.lengthCounter > 0 {
+	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
 	// todo: dmc, I, F
@@ -243,11 +241,11 @@ func (apu *APU) PeekStatus() byte {
 // $4015 write
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) WriteStatus(val byte) {
-	apu.dmc.SetEnabled((val & 0x10) == 0x10)
-	apu.noise.SetEnabled((val & 0x08) == 0x08)
-	apu.tnd.SetEnabled((val & 0x04) == 0x04)
-	apu.pulse2.SetEnabled((val & 0x02) == 0x02)
-	apu.pulse1.SetEnabled((val & 0x01) == 0x01)
+	apu.dmc.setEnabled((val & 0x10) == 0x10)
+	apu.noise.setEnabled((val & 0x08) == 0x08)
+	apu.tnd.setEnabled((val & 0x04) == 0x04)
+	apu.pulse2.setEnabled((val & 0x02) == 0x02)
+	apu.pulse1.setEnabled((val & 0x01) == 0x01)
 }
 
 // $4017
@@ -260,17 +258,15 @@ func (apu *APU) WriteFrameCounter(val byte) {}
 // > The values for pulse1, pulse2, triangle, noise, and dmc are the output values for the corresponding channel.
 // > The dmc value ranges from 0 to 127 and the others range from 0 to 15.
 func (apu *APU) output() float32 {
-	pout := pulseTable[apu.pulse1.Output()+apu.pulse2.Output()]
-	tout := tndTable[3*apu.tnd.Output()+2*apu.noise.Output()+apu.dmc.Output()]
+	pout := pulseTable[apu.pulse1.output()+apu.pulse2.output()]
+	tout := tndTable[3*apu.tnd.output()+2*apu.noise.output()+apu.dmc.output()]
 	return pout + tout
 }
 
 type pulse struct {
 	enabled bool
-	// length counter
-	lengthCounterHalt bool
-	lengthCounter     byte
 
+	lc lengthCounter
 	el envelope
 
 	// https://www.nesdev.org/wiki/APU_Sweep
@@ -287,63 +283,56 @@ type pulse struct {
 	timerPeriod uint16
 }
 
-func (p *pulse) SetEnabled(v bool) {
+func (p *pulse) setEnabled(v bool) {
 	if !v {
-		p.lengthCounter = 0
+		p.lc.value = 0
 	}
 	p.enabled = v
 }
 
-func (p *pulse) Output() byte {
+func (p *pulse) output() byte {
 	// todo
 	return 0
 }
 
 type triangle struct {
-	enabled bool
-	// length counter
-	lengthCounterHalt bool
-	lengthCounter     byte
-
+	enabled             bool
+	lc                  lengthCounter
 	linearCounter       byte
 	linearCounterReload bool
 
 	timerPeriod uint16
 }
 
-func (t *triangle) SetEnabled(v bool) {
+func (t *triangle) setEnabled(v bool) {
 	if !v {
-		t.lengthCounter = 0
+		t.lc.value = 0
 	}
 	t.enabled = v
 }
 
-func (t *triangle) Output() byte {
+func (t *triangle) output() byte {
 	// todo
 	return 0
 }
 
 type noise struct {
-	enabled bool
-	// length counter
-	lengthCounterHalt bool
-	lengthCounter     byte
-
-	el envelope
-
+	enabled     bool
+	lc          lengthCounter
+	el          envelope
 	loop        bool
 	period      byte
 	timerPeriod uint16
 }
 
-func (n *noise) SetEnabled(v bool) {
+func (n *noise) setEnabled(v bool) {
 	if !v {
-		n.lengthCounter = 0
+		n.lc.value = 0
 	}
 	n.enabled = v
 }
 
-func (n *noise) Output() byte {
+func (n *noise) output() byte {
 	// todo
 	return 0
 }
@@ -358,31 +347,40 @@ type dmc struct {
 	sampleLength byte
 }
 
-func (d *dmc) SetEnabled(v bool) {
+func (d *dmc) setEnabled(v bool) {
 	if !v {
 		// todo
 	}
 	d.enabled = v
 }
 
-func (d *dmc) Output() byte {
+func (d *dmc) output() byte {
 	// todo
 	return 0
 }
 
 type envelope struct {
-	ConstantVolume bool
-	Volume         byte
-	Loop           bool
-	Start          bool
+	constantVolume bool
+	volume         byte
+	loop           bool
+	start          bool
 
 	decayLevelCounter byte
 }
 
-func (e *envelope) Output() byte {
-	if e.ConstantVolume {
-		return e.Volume
+func (e *envelope) output() byte {
+	if e.constantVolume {
+		return e.volume
 	} else {
 		return e.decayLevelCounter
 	}
+}
+
+type lengthCounter struct {
+	halt  bool
+	value byte
+}
+
+func (lc *lengthCounter) load(v byte) {
+	lc.value = lengthTable[v]
 }
