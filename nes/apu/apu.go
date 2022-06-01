@@ -52,19 +52,20 @@ type CPU interface {
 }
 
 type APU struct {
-	pulse1 pulse
-	pulse2 pulse
-	tnd    triangle
-	noise  noise
-	dmc    dmc
+	pulse1 *pulse
+	pulse2 *pulse
+	tnd    *triangle
+	noise  *noise
+	dmc    *dmc
 }
 
 func New() *APU {
 	return &APU{
-		pulse1: pulse{timer: &timer{factor: 2}},
-		pulse2: pulse{timer: &timer{factor: 2}},
-		tnd:    triangle{timer: &timer{factor: 1}},
-		noise:  noise{timer: &timer{factor: 2}},
+		pulse1: newPulse(),
+		pulse2: newPulse(),
+		tnd:    newTriangle(),
+		noise:  newNoise(),
+		dmc:    newDMC(),
 	}
 }
 
@@ -115,42 +116,42 @@ func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 
 // $4000
 func (apu *APU) WritePulse1Controller(val byte) {
-	writePulseController(&apu.pulse1, val)
+	writePulseController(apu.pulse1, val)
 }
 
 // $4001
 func (apu *APU) WritePulse1Sweep(val byte) {
-	writePulseSweep(&apu.pulse1, val)
+	writePulseSweep(apu.pulse1, val)
 }
 
 // $4002
 func (apu *APU) WritePulse1TimerLow(val byte) {
-	writePulseTimerLow(&apu.pulse1, val)
+	writePulseTimerLow(apu.pulse1, val)
 }
 
 // $4003
 func (apu *APU) WritePulse1LengthAndTimerHigh(val byte) {
-	writePulseLengthAndTimerHigh(&apu.pulse1, val)
+	writePulseLengthAndTimerHigh(apu.pulse1, val)
 }
 
 // $4004
 func (apu *APU) WritePulse2Controller(val byte) {
-	writePulseController(&apu.pulse2, val)
+	writePulseController(apu.pulse2, val)
 }
 
 // $4005
 func (apu *APU) WritePulse2Sweep(val byte) {
-	writePulseSweep(&apu.pulse2, val)
+	writePulseSweep(apu.pulse2, val)
 }
 
 // $4006
 func (apu *APU) WritePulse2TimerLow(val byte) {
-	writePulseTimerLow(&apu.pulse2, val)
+	writePulseTimerLow(apu.pulse2, val)
 }
 
 // $4007
 func (apu *APU) WritePulse2LengthAndTimerHigh(val byte) {
-	writePulseLengthAndTimerHigh(&apu.pulse2, val)
+	writePulseLengthAndTimerHigh(apu.pulse2, val)
 }
 
 // $4008
@@ -291,7 +292,13 @@ type pulse struct {
 
 	duty    byte
 	dutyPos byte
-	timer   *timer
+	timer   *divider
+}
+
+func newPulse() *pulse {
+	return &pulse{
+		timer: newDivider(2),
+	}
 }
 
 func (p *pulse) setEnabled(v bool) {
@@ -324,7 +331,13 @@ type triangle struct {
 	linearCounter       byte
 	linearCounterReload bool
 
-	timer *timer
+	timer *divider
+}
+
+func newTriangle() *triangle {
+	return &triangle{
+		timer: newDivider(1),
+	}
 }
 
 func (t *triangle) setEnabled(v bool) {
@@ -351,7 +364,13 @@ type noise struct {
 	el      envelope
 	loop    bool
 	period  byte
-	timer   *timer
+	timer   *divider
+}
+
+func newNoise() *noise {
+	return &noise{
+		timer: newDivider(2),
+	}
 }
 
 func (n *noise) setEnabled(v bool) {
@@ -380,6 +399,10 @@ type dmc struct {
 	counter      byte
 	sampleAddr   byte
 	sampleLength byte
+}
+
+func newDMC() *dmc {
+	return &dmc{}
 }
 
 func (d *dmc) setEnabled(v bool) {
@@ -420,20 +443,18 @@ func (lc *lengthCounter) load(v byte) {
 	lc.value = lengthTable[v]
 }
 
-type timer struct {
-	divider
+type divider struct {
+	counter uint16
+	period  uint16
 	// > The triangle channel's timer is clocked on every CPU cycle,
 	// > but the pulse, noise, and DMC timers are clocked only on every second CPU cycle and thus produce only even periods
 	factor uint16
 }
 
-func (t *timer) reload() {
-	t.counter = t.period * t.factor
-}
-
-type divider struct {
-	counter uint16
-	period  uint16
+func newDivider(factor uint16) *divider {
+	return &divider{
+		factor: factor,
+	}
 }
 
 func (d *divider) tick() bool {
@@ -446,5 +467,5 @@ func (d *divider) tick() bool {
 }
 
 func (d *divider) reload() {
-	d.counter = d.period
+	d.counter = d.period * d.factor
 }
