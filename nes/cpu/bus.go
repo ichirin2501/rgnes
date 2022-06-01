@@ -5,6 +5,7 @@ import (
 )
 
 type APU interface {
+	Step()
 	WritePulse1Controller(byte)
 	WritePulse1Sweep(byte)
 	WritePulse1TimerLow(byte)
@@ -266,14 +267,22 @@ func (bus *Bus) realClock() int {
 
 func (bus *Bus) tick(cpuCycle int) {
 	bus.clock += cpuCycle
-	for i := 0; i < 3*cpuCycle; i++ {
+	for i := 0; i < cpuCycle; i++ {
+		bus.apu.Step()
+
+		bus.ppu.Step()
+		bus.ppu.Step()
 		bus.ppu.Step()
 	}
 }
 
 func (bus *Bus) tickStall(cpuCycle int) {
 	bus.stall += cpuCycle
-	for i := 0; i < 3*cpuCycle; i++ {
+	for i := 0; i < cpuCycle; i++ {
+		bus.apu.Step()
+
+		bus.ppu.Step()
+		bus.ppu.Step()
 		bus.ppu.Step()
 	}
 }

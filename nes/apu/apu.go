@@ -60,7 +60,16 @@ type APU struct {
 }
 
 func New() *APU {
-	return &APU{}
+	return &APU{
+		pulse1: pulse{timer: &timer{factor: 2}},
+		pulse2: pulse{timer: &timer{factor: 2}},
+		tnd:    triangle{timer: &timer{factor: 1}},
+		noise:  noise{timer: &timer{factor: 2}},
+	}
+}
+
+func (apu *APU) Step() {
+	// todo
 }
 
 // DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
@@ -86,7 +95,8 @@ func writePulseSweep(p *pulse, val byte) {
 
 // TTTT TTTT	Timer low (T)
 func writePulseTimerLow(p *pulse, val byte) {
-	p.timerPeriod = (p.timerPeriod & 0xFF00) | uint16(val)
+	// timer is 11bit
+	p.timer.period = (p.timer.period & 0x0700) | uint16(val)
 }
 
 // LLLL LTTT	Length counter load (L), timer high (T)
@@ -95,7 +105,7 @@ func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 	if p.enabled {
 		p.lc.load(val >> 3)
 	}
-	p.timerPeriod = (p.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
+	p.timer.period = (p.timer.period & 0x00FF) | (uint16(val&0b111) << 8)
 
 	// > The sequencer is immediately restarted at the first value of the current sequence.
 	// > The envelope is also restarted.
@@ -153,14 +163,15 @@ func (apu *APU) WriteTriangleController(val byte) {
 // $400A
 // TTTT TTTT	Timer low (T)
 func (apu *APU) WriteTriangleTimerLow(val byte) {
-	apu.tnd.timerPeriod = (apu.tnd.timerPeriod & 0xFF00) | uint16(val)
+	// 11bit
+	apu.tnd.timer.period = (apu.tnd.timer.period & 0x0700) | uint16(val)
 }
 
 // $400B
 // LLLL LTTT	Length counter load (L), timer high (T)
 func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
 	apu.tnd.lc.load(val >> 3)
-	apu.tnd.timerPeriod = (apu.tnd.timerPeriod & 0x00FF) | (uint16(val&0b111) << 8)
+	apu.tnd.timer.period = (apu.tnd.timer.period & 0x00FF) | (uint16(val&0b111) << 8)
 	apu.tnd.linearCounterReload = true
 }
 
@@ -278,9 +289,9 @@ type pulse struct {
 	sweepDivider byte
 	sweepReload  bool
 
-	duty        byte
-	dutyPos     byte
-	timerPeriod uint16
+	duty    byte
+	dutyPos byte
+	timer   *timer
 }
 
 func (p *pulse) setEnabled(v bool) {
@@ -291,8 +302,20 @@ func (p *pulse) setEnabled(v bool) {
 }
 
 func (p *pulse) output() byte {
-	// todo
-	return 0
+	if !p.enabled {
+		return 0
+	}
+	if p.lc.value == 0 {
+		return 0
+	}
+	if dutyTable[p.duty][p.dutyPos] == 0 {
+		return 0
+	}
+	if p.timer.period < 8 {
+		return 0
+	}
+	// todo sweep status
+	return p.el.output()
 }
 
 type triangle struct {
@@ -301,7 +324,7 @@ type triangle struct {
 	linearCounter       byte
 	linearCounterReload bool
 
-	timerPeriod uint16
+	timer *timer
 }
 
 func (t *triangle) setEnabled(v bool) {
@@ -312,17 +335,23 @@ func (t *triangle) setEnabled(v bool) {
 }
 
 func (t *triangle) output() byte {
+	if !t.enabled {
+		return 0
+	}
+	if t.lc.value == 0 {
+		return 0
+	}
 	// todo
 	return 0
 }
 
 type noise struct {
-	enabled     bool
-	lc          lengthCounter
-	el          envelope
-	loop        bool
-	period      byte
-	timerPeriod uint16
+	enabled bool
+	lc      lengthCounter
+	el      envelope
+	loop    bool
+	period  byte
+	timer   *timer
 }
 
 func (n *noise) setEnabled(v bool) {
@@ -333,6 +362,12 @@ func (n *noise) setEnabled(v bool) {
 }
 
 func (n *noise) output() byte {
+	if !n.enabled {
+		return 0
+	}
+	if n.lc.value == 0 {
+		return 0
+	}
 	// todo
 	return 0
 }
@@ -383,4 +418,33 @@ type lengthCounter struct {
 
 func (lc *lengthCounter) load(v byte) {
 	lc.value = lengthTable[v]
+}
+
+type timer struct {
+	divider
+	// > The triangle channel's timer is clocked on every CPU cycle,
+	// > but the pulse, noise, and DMC timers are clocked only on every second CPU cycle and thus produce only even periods
+	factor uint16
+}
+
+func (t *timer) reload() {
+	t.counter = t.period * t.factor
+}
+
+type divider struct {
+	counter uint16
+	period  uint16
+}
+
+func (d *divider) tick() bool {
+	d.counter--
+	if d.counter == 0 {
+		d.reload()
+		return true
+	}
+	return false
+}
+
+func (d *divider) reload() {
+	d.counter = d.period
 }
