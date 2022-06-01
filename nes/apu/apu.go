@@ -79,7 +79,7 @@ func writePulseController(p *pulse, val byte) {
 	p.lc.halt = (val & 0x20) == 0x20
 	p.el.loop = (val & 0x20) == 0x20
 	p.el.constantVolume = (val & 0x10) == 0x10
-	p.el.volume = val & 0x0F
+	p.el.divider.period = uint16(val & 0x0F)
 }
 
 // https://www.nesdev.org/wiki/APU_Sweep
@@ -182,7 +182,7 @@ func (apu *APU) WriteNoiseController(val byte) {
 	apu.noise.lc.halt = (val & 0x20) == 0x20
 	apu.noise.el.loop = (val & 0x20) == 0x20
 	apu.noise.el.constantVolume = (val & 0x10) == 0x10
-	apu.noise.el.volume = val & 0x0F
+	apu.noise.el.divider.period = uint16(val & 0x0F)
 }
 
 // $400E
@@ -297,7 +297,7 @@ type pulse struct {
 
 func newPulse() *pulse {
 	return &pulse{
-		timer: newDivider(2),
+		timer: newTimer(2),
 	}
 }
 
@@ -336,7 +336,7 @@ type triangle struct {
 
 func newTriangle() *triangle {
 	return &triangle{
-		timer: newDivider(1),
+		timer: newTimer(1),
 	}
 }
 
@@ -369,7 +369,7 @@ type noise struct {
 
 func newNoise() *noise {
 	return &noise{
-		timer: newDivider(2),
+		timer: newTimer(2),
 	}
 }
 
@@ -418,19 +418,43 @@ func (d *dmc) output() byte {
 }
 
 type envelope struct {
-	constantVolume bool
-	volume         byte
-	loop           bool
-	start          bool
-
+	constantVolume    bool
+	loop              bool
+	start             bool
+	divider           divider
 	decayLevelCounter byte
 }
 
 func (e *envelope) output() byte {
+	// https://www.nesdev.org/wiki/APU_Envelope
+	// > The envelope unit's volume output depends on the constant volume flag:
+	// > if set, the envelope parameter directly sets the volume, otherwise the decay level is the current volume.
 	if e.constantVolume {
-		return e.volume
+		// > bits 3-0	---- VVVV	Used as the volume in constant volume (C set) mode.
+		// > Also used as the reload value for the envelope's divider (the period becomes V + 1 quarter frames).
+		return byte(e.divider.period)
 	} else {
 		return e.decayLevelCounter
+	}
+}
+
+func (e *envelope) tick() {
+	// https://www.nesdev.org/wiki/APU_Envelope
+	// > When clocked by the frame counter, one of two actions occurs:
+	// > if the start flag is clear, the divider is clocked,
+	// > otherwise the start flag is cleared, the decay level counter is loaded with 15, and the divider's period is immediately reloaded.
+	if e.start {
+		e.start = false
+		e.decayLevelCounter = 15
+		e.divider.reload()
+	} else if e.divider.tick() {
+		// > When the divider is clocked while at 0, it is loaded with V and clocks the decay level counter.
+		// > Then one of two actions occurs: If the counter is non-zero, it is decremented, otherwise if the loop flag is set, the decay level counter is loaded with 15.
+		if e.decayLevelCounter > 0 {
+			e.decayLevelCounter--
+		} else if e.loop {
+			e.decayLevelCounter = 15
+		}
 	}
 }
 
@@ -451,9 +475,11 @@ type divider struct {
 	factor uint16
 }
 
-func newDivider(factor uint16) *divider {
+// using divider as a timer
+func newTimer(factor uint16) *divider {
 	return &divider{
-		factor: factor,
+		// factor is used internally with +1
+		factor: factor - 1,
 	}
 }
 
@@ -467,5 +493,5 @@ func (d *divider) tick() bool {
 }
 
 func (d *divider) reload() {
-	d.counter = d.period * d.factor
+	d.counter = d.period * (d.factor + 1)
 }

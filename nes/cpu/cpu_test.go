@@ -17,6 +17,9 @@ func (p *fakePPU) Step() {}
 type fakeAPU struct {
 	APU
 }
+
+func (apu *fakeAPU) Step() {}
+
 type fakeMapper struct {
 	Mapper
 }
