@@ -87,7 +87,7 @@ func writePulseController(p *pulse, val byte) {
 func writePulseSweep(p *pulse, val byte) {
 	p.sweepEnabled = (val & 0x80) == 0x80
 	// > The divider's period is P + 1 half-frames
-	p.sweepPeriod = ((val >> 4) & 0b111) + 1
+	p.sweepDivider.period = (uint16((val >> 4) & 0b111)) + 1
 	p.sweepNegate = (val & 0x04) == 0x04
 	p.sweepShiftCount = val & 0b111
 	// > Side effects	Sets the reload flag
@@ -283,11 +283,10 @@ type pulse struct {
 
 	// https://www.nesdev.org/wiki/APU_Sweep
 	sweepEnabled    bool
-	sweepPeriod     byte
 	sweepNegate     bool
 	sweepShiftCount byte
 	// > Each sweep unit contains the following: divider, reload flag.
-	sweepDivider byte
+	sweepDivider divider
 	sweepReload  bool
 
 	duty    byte
@@ -321,8 +320,47 @@ func (p *pulse) output() byte {
 	if p.timer.period < 8 {
 		return 0
 	}
-	// todo sweep status
+	if p.isMute() {
+		return 0
+	}
 	return p.el.output()
+}
+
+func (p *pulse) targetPeriod() uint16 {
+	// https://www.nesdev.org/wiki/APU_Sweep
+	// > 1. A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count, producing the change amount.
+	// wiki的にはchange amountって言ってるから差分だと思ったんだけど、他実装エミュ見てると、ただのshift結果のコードになってる...
+	delta := p.timer.period >> uint16(p.sweepShiftCount)
+
+	// > 2. If the negate flag is true, the change amount is made negative.
+	// > 3. The target period is the sum of the current period and the change amount.
+	if p.sweepNegate {
+		return p.timer.period - delta
+	} else {
+		return p.timer.period + delta
+	}
+}
+
+func (p *pulse) isMute() bool {
+	// > Two conditions cause the sweep unit to mute the channel:
+	// > 1. If the current period is less than 8, the sweep unit mutes the channel.
+	// > 2. If at any time the target period is greater than $7FF, the sweep unit mutes the channel.
+	return p.timer.period < 8 || p.targetPeriod() > 0x7FF
+}
+
+func (p *pulse) tickSweep() {
+	// > 1. If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the channel: The pulse's period is adjusted.
+	// the sweep is enable のtypoでは？...
+	// > 2. If the divider's counter is zero or the reload flag is true: The counter is set to P and the reload flag is cleared. Otherwise, the counter is decremented.
+
+	if p.sweepDivider.tick() && p.sweepEnabled && !p.isMute() {
+		p.timer.period = p.targetPeriod()
+	}
+
+	if p.sweepReload {
+		p.sweepReload = false
+		p.sweepDivider.reload()
+	}
 }
 
 type triangle struct {
