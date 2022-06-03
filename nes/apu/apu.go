@@ -158,7 +158,8 @@ func (apu *APU) WritePulse2LengthAndTimerHigh(val byte) {
 // CRRR RRRR	Length counter halt / linear counter control (C), linear counter load (R)
 func (apu *APU) WriteTriangleController(val byte) {
 	apu.tnd.lc.halt = (val & 0x80) == 0x80
-	apu.tnd.linearCounter = val & 0x7F
+	apu.tnd.linearCounterCtrl = (val & 0x80) == 0x80
+	apu.tnd.linearCounterPeriod = val & 0x7F
 }
 
 // $400A
@@ -291,7 +292,7 @@ type pulse struct {
 
 	duty    byte
 	dutyPos byte
-	timer   *divider
+	timer   timer
 }
 
 func newPulse() *pulse {
@@ -320,7 +321,7 @@ func (p *pulse) output() byte {
 	if p.timer.period < 8 {
 		return 0
 	}
-	if p.isMute() {
+	if p.isMuteSweep() {
 		return 0
 	}
 	return p.el.output()
@@ -341,7 +342,7 @@ func (p *pulse) targetPeriod() uint16 {
 	}
 }
 
-func (p *pulse) isMute() bool {
+func (p *pulse) isMuteSweep() bool {
 	// > Two conditions cause the sweep unit to mute the channel:
 	// > 1. If the current period is less than 8, the sweep unit mutes the channel.
 	// > 2. If at any time the target period is greater than $7FF, the sweep unit mutes the channel.
@@ -352,7 +353,7 @@ func (p *pulse) tickSweep() {
 	// > 1. If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the channel: The pulse's period is adjusted.
 	// > 2. If the divider's counter is zero or the reload flag is true: The counter is set to P and the reload flag is cleared. Otherwise, the counter is decremented.
 
-	if p.sweepDivider.tick() && p.sweepEnabled && !p.isMute() {
+	if p.sweepDivider.tick() && p.sweepEnabled && !p.isMuteSweep() {
 		p.timer.period = p.targetPeriod()
 	}
 
@@ -362,13 +363,26 @@ func (p *pulse) tickSweep() {
 	}
 }
 
+func (p *pulse) tickTimer() {
+	if p.timer.tick() {
+		p.dutyPos = (p.dutyPos - 1) & 7
+	}
+}
+
+func (p *pulse) tickEnvelope() {
+	p.el.tick()
+}
+
 type triangle struct {
 	enabled             bool
+	seqPos              byte
 	lc                  lengthCounter
+	linearCounterCtrl   bool
 	linearCounter       byte
+	linearCounterPeriod byte
 	linearCounterReload bool
 
-	timer *divider
+	timer timer
 }
 
 func newTriangle() *triangle {
@@ -395,13 +409,34 @@ func (t *triangle) output() byte {
 	return 0
 }
 
+func (t *triangle) tickTimer() {
+	if t.timer.tick() {
+		if t.lc.value > 0 && t.linearCounter > 0 {
+			t.seqPos = (t.seqPos + 1) % 32
+		}
+	}
+}
+
+func (t *triangle) tickLinearCounter() {
+	// > 1. If the linear counter reload flag is set, the linear counter is reloaded with the counter reload value, otherwise if the linear counter is non-zero, it is decremented.
+	// > 2. If the control flag is clear, the linear counter reload flag is cleared.
+	if t.linearCounterReload {
+		t.linearCounter = t.linearCounterPeriod
+	} else if t.linearCounter > 0 {
+		t.linearCounter--
+	}
+	if !t.linearCounterCtrl {
+		t.linearCounterReload = false
+	}
+}
+
 type noise struct {
 	enabled bool
 	lc      lengthCounter
 	el      envelope
 	loop    bool
 	period  byte
-	timer   *divider
+	timer   timer
 }
 
 func newNoise() *noise {
@@ -504,20 +539,25 @@ func (lc *lengthCounter) load(v byte) {
 	lc.value = lengthTable[v]
 }
 
+type timer struct {
+	divider
+}
+
+func newTimer(factor uint16) timer {
+	return timer{
+		divider: divider{
+			// factor is used internally with +1
+			factor: factor - 1,
+		},
+	}
+}
+
 type divider struct {
 	counter uint16
 	period  uint16
 	// > The triangle channel's timer is clocked on every CPU cycle,
 	// > but the pulse, noise, and DMC timers are clocked only on every second CPU cycle and thus produce only even periods
 	factor uint16
-}
-
-// using divider as a timer
-func newTimer(factor uint16) *divider {
-	return &divider{
-		// factor is used internally with +1
-		factor: factor - 1,
-	}
 }
 
 func (d *divider) tick() bool {
