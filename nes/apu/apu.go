@@ -1,5 +1,17 @@
 package apu
 
+// https://www.nesdev.org/wiki/APU_Frame_Counter
+// > The sequencer is clocked on every other CPU cycle, so 2 CPU cycles = 1 APU cycle.
+// > The sequencer keeps track of how many APU cycles have elapsed in total,
+// > and each step of the sequence will occur once that total has reached the indicated amount (with an additional delay of one CPU cycle for the quarter and half frame signals).
+// > Once the last step has executed, the count resets to 0 on the next APU cycle.
+// apu cyclesを保持するとあるけど、timerはcpu cycleで動くので、ここでもcpu cyclesで統一してテーブルを用意する
+// NTSC
+var frameTable = [][]int{
+	{7457, 14913, 22371, 29828, 29829, 29830}, // 4-step seq
+	{7457, 14913, 22371, 29829, 37281, 37282}, // 5-step seq
+}
+
 // https://www.nesdev.org/wiki/APU_Mixer#Lookup_Table
 var pulseTable [31]float32
 var tndTable [203]float32
@@ -18,25 +30,38 @@ type CPU interface {
 }
 
 type APU struct {
+	cpu    CPU
+	clock  int
 	pulse1 *pulse
 	pulse2 *pulse
 	tnd    *triangle
 	noise  *noise
 	dmc    *dmc
+
+	// frame counter
+	frameMode             byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
+	frameInterruptInhibit bool
+	frameStep             int
+	frameSequenceStep     int
 }
 
-func New() *APU {
+func New(cpu CPU) *APU {
 	return &APU{
+		cpu:    cpu,
+		clock:  -1,
 		pulse1: newPulse(1),
 		pulse2: newPulse(2),
 		tnd:    newTriangle(),
 		noise:  newNoise(),
 		dmc:    newDMC(),
+
+		frameStep: -1,
 	}
 }
 
 func (apu *APU) Step() {
-	// todo
+	apu.clock++
+	apu.tickTimers()
 }
 
 // DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
@@ -204,7 +229,7 @@ func (apu *APU) ReadStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
-	// todo: dmc, I, F
+	// todo: dmc, F
 
 	return res
 }
@@ -225,7 +250,16 @@ func (apu *APU) WriteStatus(val byte) {
 }
 
 // $4017
-func (apu *APU) WriteFrameCounter(val byte) {}
+func (apu *APU) WriteFrameCounter(val byte) {
+	if (val & 0x80) == 0x80 {
+		apu.frameMode = 1
+	} else {
+		apu.frameMode = 0
+	}
+	if (val & 0x40) == 0x40 {
+		apu.frameInterruptInhibit = false
+	}
+}
 
 // https://www.nesdev.org/wiki/APU_Mixer#Lookup_Table
 // > output = pulse_out + tnd_out
@@ -237,6 +271,95 @@ func (apu *APU) output() float32 {
 	pout := pulseTable[apu.pulse1.output()+apu.pulse2.output()]
 	tout := tndTable[3*apu.tnd.output()+2*apu.noise.output()+apu.dmc.output()]
 	return pout + tout
+}
+
+func (apu *APU) tickTimers() {
+	apu.pulse1.tickTimer()
+	apu.pulse2.tickTimer()
+	apu.tnd.tickTimer()
+	apu.noise.tickTimer()
+}
+
+func (apu *APU) tickEnvelopes() {
+	apu.pulse1.tickEnvelope()
+	apu.pulse2.tickEnvelope()
+	apu.noise.tickEnvelope()
+}
+
+func (apu *APU) tickSweeps() {
+	apu.pulse1.tickSweep()
+	apu.pulse2.tickSweep()
+}
+
+func (apu *APU) tickLengthCounters() {
+	apu.pulse1.tickLengthCounter()
+	apu.pulse2.tickLengthCounter()
+	apu.tnd.tickLengthCounter()
+	apu.noise.tickLengthCounter()
+}
+
+func (apu *APU) tickFrameCounter() {
+	apu.frameStep++
+	if apu.frameStep >= frameTable[apu.frameMode][apu.frameSequenceStep] {
+		if apu.frameMode == 0 {
+			// 4 step
+			switch apu.frameSequenceStep {
+			case 0:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+			case 1:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+				apu.tickLengthCounters()
+				apu.tickSweeps()
+			case 2:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+			case 3:
+				if !apu.frameInterruptInhibit {
+					apu.cpu.SetIRQ(true)
+				}
+			case 4:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+				apu.tickLengthCounters()
+				apu.tickSweeps()
+				if !apu.frameInterruptInhibit {
+					apu.cpu.SetIRQ(true)
+				}
+			case 5:
+				if !apu.frameInterruptInhibit {
+					apu.cpu.SetIRQ(true)
+				}
+			}
+		} else {
+			// 5 step
+			switch apu.frameSequenceStep {
+			case 0:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+			case 1:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+				apu.tickLengthCounters()
+				apu.tickSweeps()
+			case 2:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+			case 4:
+				apu.tickEnvelopes()
+				apu.tnd.tickLinearCounter()
+				apu.tickLengthCounters()
+				apu.tickSweeps()
+			}
+		}
+
+		apu.frameSequenceStep++
+		if apu.frameSequenceStep >= 6 {
+			apu.frameStep = 0
+			apu.frameSequenceStep = 0
+		}
+	}
 }
 
 type timer struct {

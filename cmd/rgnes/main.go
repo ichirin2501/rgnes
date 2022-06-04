@@ -95,7 +95,7 @@ func realMain() error {
 	m := mapper.MirroingType()
 	ppu := ppu.New(renderer, mapper, &m, irp)
 	joypad := joypad.New()
-	apu := apu.New()
+	apu := apu.New(irp)
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
