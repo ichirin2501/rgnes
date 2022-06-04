@@ -61,8 +61,8 @@ type APU struct {
 
 func New() *APU {
 	return &APU{
-		pulse1: newPulse(),
-		pulse2: newPulse(),
+		pulse1: newPulse(1),
+		pulse2: newPulse(2),
 		tnd:    newTriangle(),
 		noise:  newNoise(),
 		dmc:    newDMC(),
@@ -102,10 +102,7 @@ func writePulseTimerLow(p *pulse, val byte) {
 
 // LLLL LTTT	Length counter load (L), timer high (T)
 func writePulseLengthAndTimerHigh(p *pulse, val byte) {
-	// > If the enabled flag is set, the length counter is loaded with entry L of the length table
-	if p.enabled {
-		p.lc.load(val >> 3)
-	}
+	p.lc.load(val >> 3)
 	p.timer.period = (p.timer.period & 0x00FF) | (uint16(val&0b111) << 8)
 
 	// > The sequencer is immediately restarted at the first value of the current sequence.
@@ -187,10 +184,10 @@ func (apu *APU) WriteNoiseController(val byte) {
 }
 
 // $400E
-// L--- PPPP	Loop noise (L), noise period (P)
+// M---.PPPP	Mode and period (write)
 func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {
-	apu.noise.loop = (val & 0x80) == 0x80
-	apu.noise.period = val & 0x0F
+	apu.noise.mode = (val & 0x80) == 0x80
+	apu.noise.timer.period = noisePeriodTable[val&0x0F]
 }
 
 // $400F
@@ -255,10 +252,10 @@ func (apu *APU) PeekStatus() byte {
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) WriteStatus(val byte) {
 	apu.dmc.setEnabled((val & 0x10) == 0x10)
-	apu.noise.setEnabled((val & 0x08) == 0x08)
-	apu.tnd.setEnabled((val & 0x04) == 0x04)
-	apu.pulse2.setEnabled((val & 0x02) == 0x02)
-	apu.pulse1.setEnabled((val & 0x01) == 0x01)
+	apu.noise.lc.setEnabled((val & 0x08) == 0x08)
+	apu.tnd.lc.setEnabled((val & 0x04) == 0x04)
+	apu.pulse2.lc.setEnabled((val & 0x02) == 0x02)
+	apu.pulse1.lc.setEnabled((val & 0x01) == 0x01)
 }
 
 // $4017
@@ -277,10 +274,9 @@ func (apu *APU) output() float32 {
 }
 
 type pulse struct {
-	enabled bool
-
-	lc lengthCounter
-	el envelope
+	channel byte
+	lc      lengthCounter
+	el      envelope
 
 	// https://www.nesdev.org/wiki/APU_Sweep
 	sweepEnabled    bool
@@ -295,23 +291,14 @@ type pulse struct {
 	timer   timer
 }
 
-func newPulse() *pulse {
+func newPulse(channel byte) *pulse {
 	return &pulse{
-		timer: newTimer(2),
+		channel: channel,
+		timer:   newTimer(2),
 	}
-}
-
-func (p *pulse) setEnabled(v bool) {
-	if !v {
-		p.lc.value = 0
-	}
-	p.enabled = v
 }
 
 func (p *pulse) output() byte {
-	if !p.enabled {
-		return 0
-	}
 	if p.lc.value == 0 {
 		return 0
 	}
@@ -336,7 +323,14 @@ func (p *pulse) targetPeriod() uint16 {
 	// > 2. If the negate flag is true, the change amount is made negative.
 	// > 3. The target period is the sum of the current period and the change amount.
 	if p.sweepNegate {
-		return p.timer.period - delta
+		// > The two pulse channels have their adders' carry inputs wired differently, which produces different results when each channel's change amount is made negative:
+		// > Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount of −21.
+		// > Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
+		if p.channel == 1 {
+			return p.timer.period - delta - 1
+		} else {
+			return p.timer.period - delta
+		}
 	} else {
 		return p.timer.period + delta
 	}
@@ -373,8 +367,11 @@ func (p *pulse) tickEnvelope() {
 	p.el.tick()
 }
 
+func (p *pulse) tickLengthCounter() {
+	p.lc.tick()
+}
+
 type triangle struct {
-	enabled             bool
 	seqPos              byte
 	lc                  lengthCounter
 	linearCounterCtrl   bool
@@ -391,17 +388,7 @@ func newTriangle() *triangle {
 	}
 }
 
-func (t *triangle) setEnabled(v bool) {
-	if !v {
-		t.lc.value = 0
-	}
-	t.enabled = v
-}
-
 func (t *triangle) output() byte {
-	if !t.enabled {
-		return 0
-	}
 	if t.lc.value == 0 {
 		return 0
 	}
@@ -430,13 +417,16 @@ func (t *triangle) tickLinearCounter() {
 	}
 }
 
+func (t *triangle) tickLengthCounter() {
+	t.lc.tick()
+}
+
 type noise struct {
-	enabled bool
-	lc      lengthCounter
-	el      envelope
-	loop    bool
-	period  byte
-	timer   timer
+	lc            lengthCounter
+	el            envelope
+	mode          bool
+	shiftRegister uint16
+	timer         timer
 }
 
 func newNoise() *noise {
@@ -445,22 +435,35 @@ func newNoise() *noise {
 	}
 }
 
-func (n *noise) setEnabled(v bool) {
-	if !v {
-		n.lc.value = 0
-	}
-	n.enabled = v
-}
-
 func (n *noise) output() byte {
-	if !n.enabled {
-		return 0
-	}
 	if n.lc.value == 0 {
 		return 0
 	}
-	// todo
-	return 0
+	if (n.shiftRegister & 1) == 1 {
+		return 0
+	}
+	return n.el.output()
+}
+
+func (n *noise) tickTimer() {
+	if n.timer.tick() {
+		fb := uint16(0)
+		if n.mode {
+			fb = (n.shiftRegister & 0x01) ^ ((n.shiftRegister >> 6) & 0x01)
+		} else {
+			fb = (n.shiftRegister & 0x01) ^ ((n.shiftRegister >> 1) & 0x01)
+		}
+		n.shiftRegister >>= 1
+		n.shiftRegister |= (fb << 14)
+	}
+}
+
+func (n *noise) tickEnvelope() {
+	n.el.tick()
+}
+
+func (n *noise) tickLengthCounter() {
+	n.lc.tick()
 }
 
 type dmc struct {
@@ -531,12 +534,31 @@ func (e *envelope) tick() {
 }
 
 type lengthCounter struct {
-	halt  bool
-	value byte
+	enabled bool
+	halt    bool
+	value   byte
+}
+
+func (lc *lengthCounter) setEnabled(v bool) {
+	if v {
+		lc.enabled = true
+	} else {
+		lc.enabled = false
+		lc.value = 0
+	}
 }
 
 func (lc *lengthCounter) load(v byte) {
-	lc.value = lengthTable[v]
+	// > If the enabled flag is set, the length counter is loaded with entry L of the length table
+	if lc.enabled {
+		lc.value = lengthTable[v]
+	}
+}
+
+func (lc *lengthCounter) tick() {
+	if lc.value > 0 && !lc.halt {
+		lc.value--
+	}
 }
 
 type timer struct {
