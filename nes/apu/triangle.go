@@ -27,8 +27,10 @@ func (t *triangle) output() byte {
 	if t.lc.value == 0 {
 		return 0
 	}
-	// todo
-	return 0
+	if t.linearCounter == 0 {
+		return 0
+	}
+	return triangleTable[t.seqPos]
 }
 
 func (t *triangle) tickTimer() {

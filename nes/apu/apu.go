@@ -62,6 +62,7 @@ func New(cpu CPU) *APU {
 func (apu *APU) Step() {
 	apu.clock++
 	apu.tickTimers()
+	apu.tickFrameCounter()
 }
 
 // DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
