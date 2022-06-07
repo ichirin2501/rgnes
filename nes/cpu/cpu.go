@@ -85,6 +85,7 @@ func (cpu *CPU) Step() {
 			return
 		}
 	case InterruptIRQ:
+		//fmt.Println("call irq")
 		cpu.irq()
 		cpu.I.interrupt = InterruptNone
 		// adjust

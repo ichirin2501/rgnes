@@ -59,6 +59,11 @@ func New(cpu CPU) *APU {
 	}
 }
 
+func (apu *APU) Reset() {
+	// todo
+	apu.WriteStatus(0)
+}
+
 func (apu *APU) Step() {
 	apu.clock++
 	apu.tickTimers()
@@ -186,6 +191,7 @@ func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {
 // LLLL L---	Length counter load (L)
 func (apu *APU) WriteNoiseLength(val byte) {
 	apu.noise.lc.load(val >> 3)
+	apu.noise.el.start = true
 }
 
 // $4010
@@ -252,8 +258,12 @@ func (apu *APU) WriteStatus(val byte) {
 
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {
+	apu.resetFrameCounter()
+
 	if (val & 0x80) == 0x80 {
 		apu.frameMode = 1
+		apu.tickHalfFrameCounter()
+		apu.tickQuarterFrameCounter()
 	} else {
 		apu.frameMode = 0
 	}
@@ -281,22 +291,40 @@ func (apu *APU) tickTimers() {
 	apu.noise.tickTimer()
 }
 
-func (apu *APU) tickEnvelopes() {
+func (apu *APU) tickQuarterFrameCounter() {
 	apu.pulse1.tickEnvelope()
 	apu.pulse2.tickEnvelope()
 	apu.noise.tickEnvelope()
+	apu.tnd.tickLinearCounter()
 }
 
-func (apu *APU) tickSweeps() {
-	apu.pulse1.tickSweep()
-	apu.pulse2.tickSweep()
-}
-
-func (apu *APU) tickLengthCounters() {
+func (apu *APU) tickHalfFrameCounter() {
 	apu.pulse1.tickLengthCounter()
 	apu.pulse2.tickLengthCounter()
 	apu.tnd.tickLengthCounter()
 	apu.noise.tickLengthCounter()
+
+	apu.pulse1.tickSweep()
+	apu.pulse2.tickSweep()
+}
+
+// debug
+func (apu *APU) FetchFrameStep() int {
+	return apu.frameStep
+}
+func (apu *APU) FetchFrameMode() int {
+	return int(apu.frameMode)
+}
+func (apu *APU) FetchFrameSeqStep() int {
+	return apu.frameSequenceStep
+}
+func (apu *APU) FetchPulse1LC() int {
+	return int(apu.pulse1.lc.value)
+}
+
+func (apu *APU) resetFrameCounter() {
+	apu.frameStep = 0
+	apu.frameSequenceStep = 0
 }
 
 func (apu *APU) tickFrameCounter() {
@@ -306,25 +334,19 @@ func (apu *APU) tickFrameCounter() {
 			// 4 step
 			switch apu.frameSequenceStep {
 			case 0:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
+				apu.tickQuarterFrameCounter()
 			case 1:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
-				apu.tickLengthCounters()
-				apu.tickSweeps()
+				apu.tickQuarterFrameCounter()
+				apu.tickHalfFrameCounter()
 			case 2:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
+				apu.tickQuarterFrameCounter()
 			case 3:
 				if !apu.frameInterruptInhibit {
 					apu.cpu.SetIRQ(true)
 				}
 			case 4:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
-				apu.tickLengthCounters()
-				apu.tickSweeps()
+				apu.tickQuarterFrameCounter()
+				apu.tickHalfFrameCounter()
 				if !apu.frameInterruptInhibit {
 					apu.cpu.SetIRQ(true)
 				}
@@ -337,28 +359,21 @@ func (apu *APU) tickFrameCounter() {
 			// 5 step
 			switch apu.frameSequenceStep {
 			case 0:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
+				apu.tickQuarterFrameCounter()
 			case 1:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
-				apu.tickLengthCounters()
-				apu.tickSweeps()
+				apu.tickQuarterFrameCounter()
+				apu.tickHalfFrameCounter()
 			case 2:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
+				apu.tickQuarterFrameCounter()
 			case 4:
-				apu.tickEnvelopes()
-				apu.tnd.tickLinearCounter()
-				apu.tickLengthCounters()
-				apu.tickSweeps()
+				apu.tickQuarterFrameCounter()
+				apu.tickHalfFrameCounter()
 			}
 		}
 
 		apu.frameSequenceStep++
 		if apu.frameSequenceStep >= 6 {
-			apu.frameStep = 0
-			apu.frameSequenceStep = 0
+			apu.resetFrameCounter()
 		}
 	}
 }
