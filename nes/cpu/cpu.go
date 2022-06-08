@@ -80,17 +80,15 @@ func (cpu *CPU) Step() {
 		if !cpu.I.delayNMI {
 			cpu.nmi()
 			cpu.I.interrupt = InterruptNone
-			// adjust
-			cpu.bus.tick(2)
 			return
 		}
 	case InterruptIRQ:
 		//fmt.Println("call irq")
-		cpu.irq()
 		cpu.I.interrupt = InterruptNone
-		// adjust
-		cpu.bus.tick(2)
-		return
+		if !cpu.P.IsInterruptDisable() {
+			cpu.irq()
+			return
+		}
 	}
 
 	cpu.I.delayNMI = false

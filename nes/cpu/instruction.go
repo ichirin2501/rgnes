@@ -325,7 +325,7 @@ func (cpu *CPU) rts() {
 // 5  $0100,S  R  pull PCL from stack, increment S
 // 6  $0100,S  R  pull PCH from stack
 func (cpu *CPU) rti() {
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
 	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
 	cpu.PC = cpu.pop16()
 }
@@ -436,7 +436,20 @@ func (cpu *CPU) brk() {
 
 // Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack.
 // In the byte pushed, bit 5 is always set to 1, and bit 4 is 1 if from an instruction (PHP or BRK) or 0 if from an interrupt line being pulled low (/IRQ or /NMI).
+// https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_execution
+// #  address R/W description
+// --- ------- --- -----------------------------------------------
+//  1    PC     R  fetch opcode (and discard it - $00 (BRK) is forced into the opcode register instead)
+//  2    PC     R  read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+//  3  $0100,S  W  push PCH on stack, decrement S
+//  4  $0100,S  W  push PCL on stack, decrement S
+// *** At this point, the signal status determines which interrupt vector is used ***
+//  5  $0100,S  W  push P on stack (with B flag *clear*), decrement S
+//  6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
+//  7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
 func (cpu *CPU) nmi() {
+	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.bus.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte() | 0x20)
 	cpu.P.SetInterruptDisable(true)
@@ -444,9 +457,8 @@ func (cpu *CPU) nmi() {
 }
 
 func (cpu *CPU) irq() {
-	if cpu.P.IsInterruptDisable() {
-		return
-	}
+	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.bus.Read(cpu.PC) // dummy read
 	cpu.P.SetBreak1(false)
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte())
