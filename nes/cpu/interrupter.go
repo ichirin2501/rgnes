@@ -1,32 +1,17 @@
 package cpu
 
-type InterruptType byte
-
-const (
-	InterruptNone InterruptType = iota
-	InterruptNMI
-	InterruptIRQ
-)
-
 type Interrupter struct {
-	delayNMI  bool
-	interrupt InterruptType
+	delayNMI bool
+	nmi      bool
+	irq      bool
 }
 
 func (i *Interrupter) SetNMI(v bool) {
-	if v {
-		i.interrupt = InterruptNMI
-	} else {
-		i.interrupt = InterruptNone
-	}
+	i.nmi = v
 }
 func (i *Interrupter) SetDelayNMI() {
 	i.delayNMI = true
 }
 func (i *Interrupter) SetIRQ(v bool) {
-	if v {
-		i.interrupt = InterruptIRQ
-	} else {
-		i.interrupt = InterruptNone
-	}
+	i.irq = v
 }

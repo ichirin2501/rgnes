@@ -41,6 +41,7 @@ type APU struct {
 	// frame counter
 	frameMode             byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
 	frameInterruptInhibit bool
+	frameInterruptFlag    bool
 	frameStep             int
 	frameSequenceStep     int
 }
@@ -236,6 +237,12 @@ func (apu *APU) ReadStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
+	if apu.frameInterruptFlag {
+		res |= 0x40
+	}
+	apu.frameInterruptFlag = false
+	apu.cpu.SetIRQ(false)
+
 	// todo: dmc, F
 
 	return res
@@ -243,7 +250,24 @@ func (apu *APU) ReadStatus() byte {
 
 // PeekStatus is used for debugging
 func (apu *APU) PeekStatus() byte {
-	return apu.ReadStatus()
+	res := byte(0)
+	if apu.pulse1.lc.value > 0 {
+		res |= 0x01
+	}
+	if apu.pulse2.lc.value > 0 {
+		res |= 0x02
+	}
+	if apu.tnd.lc.value > 0 {
+		res |= 0x04
+	}
+	if apu.noise.lc.value > 0 {
+		res |= 0x08
+	}
+	if apu.frameInterruptFlag {
+		res |= 0x40
+	}
+	// todo
+	return res
 }
 
 // $4015 write
@@ -268,6 +292,10 @@ func (apu *APU) WriteFrameCounter(val byte) {
 		apu.frameMode = 0
 	}
 	if (val & 0x40) == 0x40 {
+		apu.frameInterruptInhibit = true
+		apu.frameInterruptFlag = false
+		apu.cpu.SetIRQ(false)
+	} else {
 		apu.frameInterruptInhibit = false
 	}
 }
@@ -321,6 +349,9 @@ func (apu *APU) FetchFrameSeqStep() int {
 func (apu *APU) FetchPulse1LC() int {
 	return int(apu.pulse1.lc.value)
 }
+func (apu *APU) FetchFrameIRQFlag() bool {
+	return apu.frameInterruptFlag
+}
 
 func (apu *APU) resetFrameCounter() {
 	apu.frameStep = 0
@@ -342,16 +373,19 @@ func (apu *APU) tickFrameCounter() {
 				apu.tickQuarterFrameCounter()
 			case 3:
 				if !apu.frameInterruptInhibit {
+					apu.frameInterruptFlag = true
 					apu.cpu.SetIRQ(true)
 				}
 			case 4:
 				apu.tickQuarterFrameCounter()
 				apu.tickHalfFrameCounter()
 				if !apu.frameInterruptInhibit {
+					apu.frameInterruptFlag = true
 					apu.cpu.SetIRQ(true)
 				}
 			case 5:
 				if !apu.frameInterruptInhibit {
+					apu.frameInterruptFlag = true
 					apu.cpu.SetIRQ(true)
 				}
 			}

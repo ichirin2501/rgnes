@@ -75,16 +75,14 @@ func (cpu *CPU) Step() {
 
 	additionalCycle := 0
 
-	switch cpu.I.interrupt {
-	case InterruptNMI:
+	if cpu.I.nmi {
 		if !cpu.I.delayNMI {
 			cpu.nmi()
-			cpu.I.interrupt = InterruptNone
+			cpu.I.nmi = false
 			return
 		}
-	case InterruptIRQ:
-		//fmt.Println("call irq")
-		cpu.I.interrupt = InterruptNone
+	} else if cpu.I.irq {
+		//cpu.I.irq = false
 		if !cpu.P.IsInterruptDisable() {
 			cpu.irq()
 			return
