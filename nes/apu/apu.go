@@ -29,14 +29,23 @@ type CPU interface {
 	SetIRQ(val bool)
 }
 
+type Player interface {
+	Sample(float32)
+}
+
+type Option func(*APU)
+
 type APU struct {
-	cpu    CPU
-	clock  int
-	pulse1 *pulse
-	pulse2 *pulse
-	tnd    *triangle
-	noise  *noise
-	dmc    *dmc
+	cpu          CPU
+	player       Player
+	sampleRate   int
+	sampleTiming int
+	clock        int
+	pulse1       *pulse
+	pulse2       *pulse
+	tnd          *triangle
+	noise        *noise
+	dmc          *dmc
 
 	// frame counter
 	frameMode             byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
@@ -46,9 +55,12 @@ type APU struct {
 	frameSequenceStep     int
 }
 
-func New(cpu CPU) *APU {
-	return &APU{
-		cpu:    cpu,
+func New(cpu CPU, p Player, opts ...Option) *APU {
+	apu := &APU{
+		player:     p,
+		cpu:        cpu,
+		sampleRate: 44100,
+
 		clock:  -1,
 		pulse1: newPulse(1),
 		pulse2: newPulse(2),
@@ -57,6 +69,17 @@ func New(cpu CPU) *APU {
 		dmc:    newDMC(),
 
 		frameStep: -1,
+	}
+	for _, opt := range opts {
+		opt(apu)
+	}
+	apu.sampleTiming = 1789773 / apu.sampleRate
+	return apu
+}
+
+func WithSampleRate(sampleRate int) Option {
+	return func(apu *APU) {
+		apu.sampleRate = sampleRate
 	}
 }
 
@@ -69,6 +92,12 @@ func (apu *APU) Step() {
 	apu.clock++
 	apu.tickTimers()
 	apu.tickFrameCounter()
+
+	// test
+	if apu.clock%apu.sampleTiming == 0 {
+		out := apu.output()
+		apu.player.Sample(out)
+	}
 }
 
 // DDLC VVVV	Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)

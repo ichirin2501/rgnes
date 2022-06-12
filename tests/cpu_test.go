@@ -15,11 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type fakeRenderer struct {
-}
+type fakeRenderer struct{}
 
 func (f *fakeRenderer) Render(x, y int, c color.Color) {}
 func (f *fakeRenderer) Refresh()                       {}
+
+type fakePlayer struct{}
+
+func (f *fakePlayer) Sample(v float32) {}
 
 func Test_CPU_OUT_6000(t *testing.T) {
 	t.Parallel()
@@ -141,8 +144,9 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			m := mapper.MirroingType()
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
+			fakePlayer := &fakePlayer{}
 			ppu := ppu.New(fake, mapper, &m, irp)
-			apu := apu.New(irp)
+			apu := apu.New(irp, fakePlayer)
 			joypad := joypad.New()
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.New(cpuBus, irp)
@@ -187,8 +191,9 @@ func Test_NESTest(t *testing.T) {
 	m := mapper.MirroingType()
 	irp := &cpu.Interrupter{}
 	fake := &fakeRenderer{}
+	fakePlayer := &fakePlayer{}
 	ppu := ppu.New(fake, mapper, &m, irp)
-	apu := apu.New(irp)
+	apu := apu.New(irp, fakePlayer)
 	joypad := joypad.New()
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 	cpu := cpu.New(cpuBus, irp)

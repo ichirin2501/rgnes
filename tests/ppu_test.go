@@ -92,8 +92,9 @@ func Test_PPU_OUT_6000(t *testing.T) {
 			m := mapper.MirroingType()
 			irp := &cpu.Interrupter{}
 			fake := &fakeRenderer{}
+			fakePlayer := &fakePlayer{}
 			ppu := ppu.New(fake, mapper, &m, irp)
-			apu := apu.New(irp)
+			apu := apu.New(irp, fakePlayer)
 			joypad := joypad.New()
 			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 			cpu := cpu.New(cpuBus, irp)

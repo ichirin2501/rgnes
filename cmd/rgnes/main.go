@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"github.com/hajimehoshi/oto"
 	"github.com/ichirin2501/rgnes/nes/apu"
 	"github.com/ichirin2501/rgnes/nes/cassette"
 	"github.com/ichirin2501/rgnes/nes/cpu"
@@ -54,6 +55,30 @@ func (r *renderer) Refresh() {
 	r.currImg.Refresh()
 }
 
+type player struct {
+	p   *oto.Player
+	buf []byte
+}
+
+func newPlayer() (*player, error) {
+	c, err := oto.NewContext(44100, 1, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	p := c.NewPlayer()
+	return &player{
+		p:   p,
+		buf: make([]byte, 1),
+	}, nil
+}
+
+func (p *player) Sample(v float32) {
+	p.buf[0] = byte(v * 0xFF)
+	if _, err := p.p.Write(p.buf); err != nil {
+		fmt.Println("why: ", err)
+	}
+}
+
 func realMain() error {
 	var (
 		rom string
@@ -89,13 +114,18 @@ func realMain() error {
 		return err
 	}
 
+	player, err := newPlayer()
+	if err != nil {
+		return err
+	}
+
 	trace := &cpu.Trace{}
 	irp := &cpu.Interrupter{}
 
 	m := mapper.MirroingType()
 	ppu := ppu.New(renderer, mapper, &m, irp)
 	joypad := joypad.New()
-	apu := apu.New(irp)
+	apu := apu.New(irp, player)
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
