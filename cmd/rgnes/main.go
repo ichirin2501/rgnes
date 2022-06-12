@@ -153,12 +153,14 @@ func realMain() error {
 			//beforeScanline := ppu.Scanline
 			cpu.Step()
 
-			// fmt.Printf("%s apuSteps:%d\tapuFrameMode:%d\tapuFrameSeqStep:%d\tapuPulse1LC:%d\tframeIRQFlag:%v\n", trace.NESTestString(),
+			// fmt.Printf("%s apuSteps:%d\tapuFrameMode:%d\tapuFrameSeqStep:%d\tapuPulse1LC:%d\tframeIRQFlag:%v\tnewfval:%v\twriteDelayFC:%v\n", trace.NESTestString(),
 			// 	apu.FetchFrameStep(),
 			// 	apu.FetchFrameMode(),
 			// 	apu.FetchFrameSeqStep(),
 			// 	apu.FetchPulse1LC(),
 			// 	apu.FetchFrameIRQFlag(),
+			// 	apu.FetchNewFrameCounterVal(),
+			// 	apu.FetchWriteDelayFC(),
 			// )
 			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))

@@ -48,11 +48,13 @@ type APU struct {
 	dmc          *dmc
 
 	// frame counter
-	frameMode             byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
-	frameInterruptInhibit bool
-	frameInterruptFlag    bool
-	frameStep             int
-	frameSequenceStep     int
+	frameMode              byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
+	frameInterruptInhibit  bool
+	frameInterruptFlag     bool
+	frameStep              int
+	frameSequenceStep      int
+	newFrameCounterVal     int // for delay
+	writeDelayFrameCounter byte
 }
 
 func New(cpu CPU, p Player, opts ...Option) *APU {
@@ -68,7 +70,8 @@ func New(cpu CPU, p Player, opts ...Option) *APU {
 		noise:  newNoise(),
 		dmc:    newDMC(),
 
-		frameStep: -1,
+		frameStep:          -1,
+		newFrameCounterVal: -1,
 	}
 	for _, opt := range opts {
 		opt(apu)
@@ -311,14 +314,11 @@ func (apu *APU) WriteStatus(val byte) {
 
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {
-	apu.resetFrameCounter()
-
-	if (val & 0x80) == 0x80 {
-		apu.frameMode = 1
-		apu.tickHalfFrameCounter()
-		apu.tickQuarterFrameCounter()
+	apu.newFrameCounterVal = int(val)
+	if apu.clock%2 == 0 {
+		apu.writeDelayFrameCounter = 3
 	} else {
-		apu.frameMode = 0
+		apu.writeDelayFrameCounter = 4
 	}
 	if (val & 0x40) == 0x40 {
 		apu.frameInterruptInhibit = true
@@ -381,6 +381,12 @@ func (apu *APU) FetchPulse1LC() int {
 func (apu *APU) FetchFrameIRQFlag() bool {
 	return apu.frameInterruptFlag
 }
+func (apu *APU) FetchNewFrameCounterVal() int {
+	return apu.newFrameCounterVal
+}
+func (apu *APU) FetchWriteDelayFC() byte {
+	return apu.writeDelayFrameCounter
+}
 
 func (apu *APU) resetFrameCounter() {
 	apu.frameStep = 0
@@ -388,6 +394,23 @@ func (apu *APU) resetFrameCounter() {
 }
 
 func (apu *APU) tickFrameCounter() {
+	if apu.newFrameCounterVal >= 0 {
+		if apu.writeDelayFrameCounter > 0 {
+			apu.writeDelayFrameCounter--
+		} else {
+			apu.resetFrameCounter()
+			if (apu.newFrameCounterVal & 0x80) == 0x80 {
+				apu.frameMode = 1
+				apu.tickHalfFrameCounter()
+				apu.tickQuarterFrameCounter()
+			} else {
+				apu.frameMode = 0
+			}
+			apu.writeDelayFrameCounter = 0
+			apu.newFrameCounterVal = -1
+		}
+	}
+
 	apu.frameStep++
 	if apu.frameStep >= frameTable[apu.frameMode][apu.frameSequenceStep] {
 		if apu.frameMode == 0 {
@@ -439,6 +462,7 @@ func (apu *APU) tickFrameCounter() {
 			apu.resetFrameCounter()
 		}
 	}
+
 }
 
 type timer struct {

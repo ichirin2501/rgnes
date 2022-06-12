@@ -31,18 +31,18 @@ func Test_APU_OUT_6000(t *testing.T) {
 			"apu_test/rom_singles/3-irq_flag.nes",
 			"../roms/apu_test/rom_singles/3-irq_flag.nes",
 		},
-		// {
-		// 	"apu_test/rom_singles/4-jitter.nes",
-		// 	"../roms/apu_test/rom_singles/4-jitter.nes",
-		// },
-		// {
-		// 	"apu_test/rom_singles/5-len_timing.nes",
-		// 	"../roms/apu_test/rom_singles/5-len_timing.nes",
-		// },
-		// {
-		// 	"apu_test/rom_singles/6-irq_flag_timing.nes",
-		// 	"../roms/apu_test/rom_singles/6-irq_flag_timing.nes",
-		// },
+		{
+			"apu_test/rom_singles/4-jitter.nes",
+			"../roms/apu_test/rom_singles/4-jitter.nes",
+		},
+		{
+			"apu_test/rom_singles/5-len_timing.nes",
+			"../roms/apu_test/rom_singles/5-len_timing.nes",
+		},
+		{
+			"apu_test/rom_singles/6-irq_flag_timing.nes",
+			"../roms/apu_test/rom_singles/6-irq_flag_timing.nes",
+		},
 		// {
 		// 	"apu_test/rom_singles/7-dmc_basics.nes",
 		// 	"../roms/apu_test/rom_singles/7-dmc_basics.nes",
