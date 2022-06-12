@@ -463,10 +463,11 @@ type divider struct {
 }
 
 func (d *divider) tick() bool {
-	d.counter--
 	if d.counter == 0 {
 		d.reload()
 		return true
+	} else {
+		d.counter--
 	}
 	return false
 }

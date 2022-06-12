@@ -81,12 +81,12 @@ func (p *pulse) isMuteSweep() bool {
 func (p *pulse) tickSweep() {
 	// > 1. If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the channel: The pulse's period is adjusted.
 	// > 2. If the divider's counter is zero or the reload flag is true: The counter is set to P and the reload flag is cleared. Otherwise, the counter is decremented.
-
-	if p.sweepDivider.tick() && p.sweepEnabled && !p.isMuteSweep() {
+	// > If the shift count is zero, the pulse channel's period is never updated, but muting logic still applies.
+	tick := p.sweepDivider.tick()
+	if tick && p.sweepEnabled && !p.isMuteSweep() && p.sweepShiftCount > 0 {
 		p.timer.period = p.targetPeriod()
 	}
-
-	if p.sweepReload {
+	if tick || p.sweepReload {
 		p.sweepReload = false
 		p.sweepDivider.reload()
 	}
