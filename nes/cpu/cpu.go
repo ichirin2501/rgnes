@@ -45,26 +45,34 @@ func (cpu *CPU) FetchCycles() int {
 	return cpu.bus.clock
 }
 
+// http://users.telenet.be/kim1-6502/6502/proman.html#92
+// Cycles   Address Bus   Data Bus    External Operation     Internal Operation
+// 1           ?           ?        Don't Care             Hold During Reset
+// 2         ? + 1         ?        Don't Care             First Start State
+// 3        0100 + SP      ?        Don't Care             Second Start State
+// 4        0100 + SP-1    ?        Don't Care             Third Start State
+// 5        0100 + SP-2    ?        Don't Care             Fourth Start State
+// 6        FFFC        Start PCL   Fetch First Vector
+// 7        FFFD        Start PCH   Fetch Second Vector    Hold PCL
+// 8        PCH PCL     First       Load First OP CODE
 func (cpu *CPU) PowerUp() {
+	cpu.bus.tick(5)
 	cpu.A = 0x00
 	cpu.X = 0x00
 	cpu.Y = 0x00
 	cpu.P = StatusRegister(0x34)
 	cpu.S = 0xFD
 	cpu.PC = cpu.read16(0xFFFC)
-	// adjust
-	cpu.bus.tick(5)
 }
 
 func (cpu *CPU) Reset() {
 	// とりあえず今はlock取っておく
 	cpu.mu.Lock()
 	defer cpu.mu.Unlock()
+	cpu.bus.tick(5)
 	cpu.PC = cpu.read16(0xFFFC)
 	cpu.P.SetInterruptDisable(true)
 	cpu.S -= 3
-	// adjust
-	cpu.bus.tick(5)
 }
 
 func (cpu *CPU) Step() {

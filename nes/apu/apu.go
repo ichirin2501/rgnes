@@ -86,6 +86,12 @@ func WithSampleRate(sampleRate int) Option {
 	}
 }
 
+func (apu *APU) PowerUp() {
+	// todo
+	apu.WriteStatus(0)
+	apu.noise.shiftRegister = 1
+}
+
 func (apu *APU) Reset() {
 	// todo
 	apu.WriteStatus(0)

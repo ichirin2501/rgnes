@@ -129,6 +129,7 @@ func realMain() error {
 	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
 
 	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
+	apu.PowerUp()
 	cpu.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
