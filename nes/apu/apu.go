@@ -128,18 +128,21 @@ func writePulseSweep(p *pulse, val byte) {
 	p.sweepShiftCount = val & 0b111
 	// > Side effects	Sets the reload flag
 	p.sweepReload = true
+	p.updateTargetPeriod()
 }
 
 // TTTT TTTT	Timer low (T)
 func writePulseTimerLow(p *pulse, val byte) {
 	// timer is 11bit
 	p.timer.period = (p.timer.period & 0x0700) | uint16(val)
+	p.updateTargetPeriod()
 }
 
 // LLLL LTTT	Length counter load (L), timer high (T)
 func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 	p.lc.load(val >> 3)
 	p.timer.period = (p.timer.period & 0x00FF) | (uint16(val&0b111) << 8)
+	p.updateTargetPeriod()
 
 	// > The sequencer is immediately restarted at the first value of the current sequence.
 	// > The envelope is also restarted.
@@ -320,6 +323,13 @@ func (apu *APU) WriteStatus(val byte) {
 
 // $4017
 func (apu *APU) WriteFrameCounter(val byte) {
+	// https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
+	// > Writing to $4017 resets the frame counter and the quarter/half frame triggers happen simultaneously,
+	// > but only on "odd" cycles (and only after the first "even" cycle after the write occurs)
+	// > - thus, it happens either 2 or 3 cycles after the write (i.e. on the 2nd or 3rd cycle of the next instruction).
+	// > After 2 or 3 clock cycles (depending on when the write is performed), the timer is reset.
+	// 2 or 3 って書いてるけど、別のFrameCounterのページ見たら 3 or 4 って書いてたりしてよくわからん
+	// テストROMで適当に試したら3 or 4っぽかったのでこれでfixとする
 	apu.newFrameCounterVal = int(val)
 	if apu.clock%2 == 0 {
 		apu.writeDelayFrameCounter = 3

@@ -13,6 +13,7 @@ type pulse struct {
 	lc      lengthCounter
 	el      envelope
 
+	targetPeriod uint16
 	// https://www.nesdev.org/wiki/APU_Sweep
 	sweepEnabled    bool
 	sweepNegate     bool
@@ -49,7 +50,8 @@ func (p *pulse) output() byte {
 	return p.el.output()
 }
 
-func (p *pulse) targetPeriod() uint16 {
+// > Whenever the current period changes for any reason, whether by $400x writes or by sweep, the target period also changes.
+func (p *pulse) updateTargetPeriod() {
 	// https://www.nesdev.org/wiki/APU_Sweep
 	// > 1. A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count, producing the change amount.
 	// wiki的にはchange amountって言ってるから差分だと思ったんだけど、他実装エミュ見てると、ただのshift結果のコードになってる...
@@ -62,12 +64,12 @@ func (p *pulse) targetPeriod() uint16 {
 		// > Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount of −21.
 		// > Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
 		if p.channel == 1 {
-			return p.timer.period - delta - 1
+			p.targetPeriod = p.timer.period - delta - 1
 		} else {
-			return p.timer.period - delta
+			p.targetPeriod = p.timer.period - delta
 		}
 	} else {
-		return p.timer.period + delta
+		p.targetPeriod = p.timer.period + delta
 	}
 }
 
@@ -75,7 +77,7 @@ func (p *pulse) isMuteSweep() bool {
 	// > Two conditions cause the sweep unit to mute the channel:
 	// > 1. If the current period is less than 8, the sweep unit mutes the channel.
 	// > 2. If at any time the target period is greater than $7FF, the sweep unit mutes the channel.
-	return p.timer.period < 8 || p.targetPeriod() > 0x7FF
+	return p.timer.period < 8 || p.targetPeriod > 0x7FF
 }
 
 func (p *pulse) tickSweep() {
@@ -84,7 +86,8 @@ func (p *pulse) tickSweep() {
 	// > If the shift count is zero, the pulse channel's period is never updated, but muting logic still applies.
 	tick := p.sweepDivider.tick()
 	if tick && p.sweepEnabled && !p.isMuteSweep() && p.sweepShiftCount > 0 {
-		p.timer.period = p.targetPeriod()
+		p.timer.period = p.targetPeriod
+		p.updateTargetPeriod()
 	}
 	if tick || p.sweepReload {
 		p.sweepReload = false
