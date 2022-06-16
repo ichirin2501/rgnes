@@ -15,9 +15,7 @@ type noise struct {
 }
 
 func newNoise() *noise {
-	return &noise{
-		timer: newTimer(2),
-	}
+	return &noise{}
 }
 
 func (n *noise) output() byte {

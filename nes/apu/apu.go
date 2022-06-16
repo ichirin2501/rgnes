@@ -358,10 +358,14 @@ func (apu *APU) output() float32 {
 }
 
 func (apu *APU) tickTimers() {
-	apu.pulse1.tickTimer()
-	apu.pulse2.tickTimer()
+	// > The triangle channel's timer is clocked on every CPU cycle,
+	// > but the pulse, noise, and DMC timers are clocked only on every second CPU cycle and thus produce only even periods
+	if apu.clock%2 == 0 {
+		apu.pulse1.tickTimer()
+		apu.pulse2.tickTimer()
+		apu.noise.tickTimer()
+	}
 	apu.tnd.tickTimer()
-	apu.noise.tickTimer()
 }
 
 func (apu *APU) tickQuarterFrameCounter() {
@@ -376,7 +380,6 @@ func (apu *APU) tickHalfFrameCounter() {
 	apu.pulse2.tickLengthCounter()
 	apu.tnd.tickLengthCounter()
 	apu.noise.tickLengthCounter()
-
 	apu.pulse1.tickSweep()
 	apu.pulse2.tickSweep()
 }
@@ -485,21 +488,9 @@ type timer struct {
 	divider
 }
 
-func newTimer(factor uint16) timer {
-	return timer{
-		divider: divider{
-			// factor is used internally with +1
-			factor: factor - 1,
-		},
-	}
-}
-
 type divider struct {
 	counter uint16
 	period  uint16
-	// > The triangle channel's timer is clocked on every CPU cycle,
-	// > but the pulse, noise, and DMC timers are clocked only on every second CPU cycle and thus produce only even periods
-	factor uint16
 }
 
 func (d *divider) tick() bool {
@@ -513,5 +504,5 @@ func (d *divider) tick() bool {
 }
 
 func (d *divider) reload() {
-	d.counter = d.period * (d.factor + 1)
+	d.counter = d.period
 }

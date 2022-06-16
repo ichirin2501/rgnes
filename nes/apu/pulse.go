@@ -30,7 +30,6 @@ type pulse struct {
 func newPulse(channel byte) *pulse {
 	return &pulse{
 		channel: channel,
-		timer:   newTimer(2),
 	}
 }
 

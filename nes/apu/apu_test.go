@@ -27,15 +27,9 @@ func Test_Divider_Tick(t *testing.T) {
 			true,
 		},
 		{
-			"3",
-			&divider{counter: 0, period: 0x7FF, factor: 1},
-			&divider{counter: 0xFFE, period: 0x7FF, factor: 1},
-			true,
-		},
-		{
 			"4",
-			&divider{counter: 1, period: 2, factor: 1},
-			&divider{counter: 0, period: 2, factor: 1},
+			&divider{counter: 1, period: 2},
+			&divider{counter: 0, period: 2},
 			false,
 		},
 	}

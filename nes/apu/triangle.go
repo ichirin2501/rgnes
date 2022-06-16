@@ -18,9 +18,7 @@ type triangle struct {
 }
 
 func newTriangle() *triangle {
-	return &triangle{
-		timer: newTimer(1),
-	}
+	return &triangle{}
 }
 
 func (t *triangle) output() byte {
