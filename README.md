@@ -1,6 +1,6 @@
 # rgnes
 
-[![Build Status](https://github.com/ichirin2501/rgnes/workflows/Test/badge.svg?branch=master)](https://github.com/ichirin2501/rgnes/actions)
+[![Scheduled-test](https://github.com/ichirin2501/rgnes/actions/workflows/scheduled-test.yml/badge.svg)](https://github.com/ichirin2501/rgnes/actions/workflows/scheduled-test.yml)
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
 This NES emulator is implemented for my study
@@ -12,9 +12,9 @@ It's great because it's written so simple.
 
 ## TODOs
 
-- refactoring
-- apu emulation
-  - (I'm not interested in sound so I probably won't implement it...)
+- Refactoring
+- Many bug fixes
+- Support for many mappers
 
 .. and tons more
 
