@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"runtime"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -13,12 +14,13 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/cassette"
-	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/joypad"
-	"github.com/ichirin2501/rgnes/nes/ppu"
+	"github.com/hajimehoshi/oto"
+	"github.com/ichirin2501/rgnes/nes"
 )
+
+func init() {
+	runtime.LockOSThread()
+}
 
 func main() {
 	if err := realMain(); err != nil {
@@ -54,6 +56,30 @@ func (r *renderer) Refresh() {
 	r.currImg.Refresh()
 }
 
+type player struct {
+	p   *oto.Player
+	buf []byte
+}
+
+func newPlayer() (*player, error) {
+	c, err := oto.NewContext(44100, 1, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	p := c.NewPlayer()
+	return &player{
+		p:   p,
+		buf: make([]byte, 1),
+	}, nil
+}
+
+func (p *player) Sample(v float32) {
+	p.buf[0] = byte(v * 0xFF)
+	if _, err := p.p.Write(p.buf); err != nil {
+		fmt.Println("why: ", err)
+	}
+}
+
 func realMain() error {
 	var (
 		rom string
@@ -84,21 +110,27 @@ func realMain() error {
 	}
 	defer f.Close()
 
-	mapper, err := cassette.NewMapper(f)
+	mapper, err := nes.NewMapper(f)
 	if err != nil {
 		return err
 	}
 
-	trace := &cpu.Trace{}
-	irp := &cpu.Interrupter{}
+	player, err := newPlayer()
+	if err != nil {
+		return err
+	}
+
+	trace := &nes.Trace{}
+	irp := &nes.Interrupter{}
 
 	m := mapper.MirroingType()
-	ppu := ppu.New(renderer, mapper, &m, irp)
-	joypad := joypad.New()
-	apu := apu.New()
-	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
+	ppu := nes.NewPPU(renderer, mapper, m, irp)
+	joypad := nes.NewJoypad()
+	apu := nes.NewAPU(irp, player)
+	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
 
-	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
+	cpu := nes.NewCPU(cpuBus, irp, nes.WithTracer(trace))
+	apu.PowerUp()
 	cpu.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
@@ -123,7 +155,15 @@ func realMain() error {
 			//beforeScanline := ppu.Scanline
 			cpu.Step()
 
-			//fmt.Printf("%s\n", trace.NESTestString())
+			// fmt.Printf("%s apuSteps:%d\tapuFrameMode:%d\tapuFrameSeqStep:%d\tapuPulse1LC:%d\tframeIRQFlag:%v\tnewfval:%v\twriteDelayFC:%v\n", trace.NESTestString(),
+			// 	apu.FetchFrameStep(),
+			// 	apu.FetchFrameMode(),
+			// 	apu.FetchFrameSeqStep(),
+			// 	apu.FetchPulse1LC(),
+			// 	apu.FetchFrameIRQFlag(),
+			// 	apu.FetchNewFrameCounterVal(),
+			// 	apu.FetchWriteDelayFC(),
+			// )
 			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
 			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
 
@@ -138,27 +178,27 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, cpu *cpu.CPU, j *joypad.Joypad, k fyne.KeyName, pressed bool) {
+func updateKey(win fyne.Window, cpu *nes.CPU, j *nes.Joypad, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
 		win.Close()
 	case fyne.KeyR:
 		cpu.Reset()
 	case fyne.KeySpace:
-		j.SetButtonStatus(joypad.ButtonSelect, pressed)
+		j.SetButtonStatus(nes.ButtonSelect, pressed)
 	case fyne.KeyReturn:
-		j.SetButtonStatus(joypad.ButtonStart, pressed)
+		j.SetButtonStatus(nes.ButtonStart, pressed)
 	case fyne.KeyUp:
-		j.SetButtonStatus(joypad.ButtonUP, pressed)
+		j.SetButtonStatus(nes.ButtonUP, pressed)
 	case fyne.KeyDown:
-		j.SetButtonStatus(joypad.ButtonDown, pressed)
+		j.SetButtonStatus(nes.ButtonDown, pressed)
 	case fyne.KeyLeft:
-		j.SetButtonStatus(joypad.ButtonLeft, pressed)
+		j.SetButtonStatus(nes.ButtonLeft, pressed)
 	case fyne.KeyRight:
-		j.SetButtonStatus(joypad.ButtonRight, pressed)
+		j.SetButtonStatus(nes.ButtonRight, pressed)
 	case fyne.KeyZ:
-		j.SetButtonStatus(joypad.ButtonA, pressed)
+		j.SetButtonStatus(nes.ButtonA, pressed)
 	case fyne.KeyX:
-		j.SetButtonStatus(joypad.ButtonB, pressed)
+		j.SetButtonStatus(nes.ButtonB, pressed)
 	}
 }
