@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"runtime"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -16,6 +17,10 @@ import (
 	"github.com/hajimehoshi/oto"
 	"github.com/ichirin2501/rgnes/nes"
 )
+
+func init() {
+	runtime.LockOSThread()
+}
 
 func main() {
 	if err := realMain(); err != nil {
