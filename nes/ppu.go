@@ -5,17 +5,6 @@ import (
 	"image/color"
 )
 
-// type MirroringType interface {
-// 	IsVertical() bool
-// 	IsHorizontal() bool
-// 	IsFourScreen() bool
-// }
-
-// type Mapper interface {
-// 	Read(addr uint16) byte
-// 	Write(addr uint16, val byte)
-// }
-
 type Renderer interface {
 	Render(x, y int, c color.Color)
 	Refresh()
@@ -84,9 +73,9 @@ type PPU struct {
 	mapper       Mapper
 	vram         *vram // include nametable and attribute
 	paletteTable paletteRAM
-	ctrl         PPUControlRegister
-	mask         PPUMaskRegister
-	status       PPUStatusRegister
+	ctrl         ppuControlRegister
+	mask         ppuMaskRegister
+	status       ppuStatusRegister
 	oamAddr      byte
 	buf          byte   // internal data buffer
 	v            uint16 // VRAM address (15 bits)
@@ -97,7 +86,7 @@ type PPU struct {
 	Cycle        int
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
-	openbus      PPUDecayRegister
+	openbus      ppuDecayRegister
 
 	suppressVBlankFlag bool
 
@@ -165,7 +154,7 @@ func (ppu *PPU) getOpenBus() byte {
 	return ppu.openbus.Get(ppu.Clock)
 }
 
-func (ppu *PPU) ReadController() byte {
+func (ppu *PPU) readController() byte {
 	// note: $2000 write only
 	return ppu.getOpenBus()
 }
@@ -176,10 +165,10 @@ func (ppu *PPU) PeekController() byte {
 }
 
 // $2000: PPUCTRL
-func (ppu *PPU) WriteController(val byte) {
+func (ppu *PPU) writeController(val byte) {
 	ppu.updateOpenBus(val)
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
-	ppu.ctrl = PPUControlRegister(val)
+	ppu.ctrl = ppuControlRegister(val)
 	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
 		if ppu.Scanline == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
 			ppu.cpu.SetNMI(false)
@@ -199,7 +188,7 @@ func (ppu *PPU) WriteController(val byte) {
 	ppu.t = (ppu.t & 0xF3FF) | (uint16(val)&0x03)<<10
 }
 
-func (ppu *PPU) ReadMask() byte {
+func (ppu *PPU) readMask() byte {
 	// note: $2001 write only
 	return ppu.getOpenBus()
 }
@@ -210,13 +199,13 @@ func (ppu *PPU) PeekMask() byte {
 }
 
 // $2001: PPUMASK
-func (ppu *PPU) WriteMask(val byte) {
+func (ppu *PPU) writeMask(val byte) {
 	ppu.updateOpenBus(val)
-	ppu.mask = PPUMaskRegister(val)
+	ppu.mask = ppuMaskRegister(val)
 }
 
 // $2002: PPUSTATUS
-func (ppu *PPU) ReadStatus() byte {
+func (ppu *PPU) readStatus() byte {
 	st := ppu.status.Get()
 	ppu.status.SetVBlankStarted(false)
 
@@ -244,12 +233,12 @@ func (ppu *PPU) PeekStatus() byte {
 	return ppu.status.Get() | (ppu.getOpenBus() & 0x1F)
 }
 
-func (ppu *PPU) WriteStatus(val byte) {
+func (ppu *PPU) writeStatus(val byte) {
 	// note: $2002 read only
 	ppu.updateOpenBus(val)
 }
 
-func (ppu *PPU) ReadOAMAddr() byte {
+func (ppu *PPU) readOAMAddr() byte {
 	// note: $2003 write only
 	return ppu.getOpenBus()
 }
@@ -260,13 +249,13 @@ func (ppu *PPU) PeekOAMAddr() byte {
 }
 
 // $2003: OAMADDR
-func (ppu *PPU) WriteOAMAddr(val byte) {
+func (ppu *PPU) writeOAMAddr(val byte) {
 	ppu.updateOpenBus(val)
 	ppu.oamAddr = val
 }
 
 // $2004: OAMDATA read
-func (ppu *PPU) ReadOAMData() byte {
+func (ppu *PPU) readOAMData() byte {
 	res := ppu.primaryOAM[ppu.oamAddr]
 	ppu.updateOpenBus(res)
 	return res
@@ -278,7 +267,7 @@ func (ppu *PPU) PeekOAMData() byte {
 }
 
 // $2004: OAMDATA write
-func (ppu *PPU) WriteOAMData(val byte) {
+func (ppu *PPU) writeOAMData(val byte) {
 	ppu.updateOpenBus(val)
 
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
@@ -301,7 +290,7 @@ func (ppu *PPU) WriteOAMData(val byte) {
 	}
 }
 
-func (ppu *PPU) ReadScroll() byte {
+func (ppu *PPU) readScroll() byte {
 	// note: $2005 write only
 	return ppu.getOpenBus()
 }
@@ -312,7 +301,7 @@ func (ppu *PPU) PeekScroll() byte {
 }
 
 // $2005: PPUSCROLL
-func (ppu *PPU) WriteScroll(val byte) {
+func (ppu *PPU) writeScroll(val byte) {
 	ppu.updateOpenBus(val)
 	if !ppu.w {
 		// first write
@@ -332,7 +321,7 @@ func (ppu *PPU) WriteScroll(val byte) {
 	}
 }
 
-func (ppu *PPU) ReadPPUAddr() byte {
+func (ppu *PPU) readPPUAddr() byte {
 	return ppu.getOpenBus()
 }
 
@@ -342,7 +331,7 @@ func (ppu *PPU) PeekPPUAddr() byte {
 }
 
 // $2006: PPUADDR
-func (ppu *PPU) WritePPUAddr(val byte) {
+func (ppu *PPU) writePPUAddr(val byte) {
 	ppu.updateOpenBus(val)
 	if !ppu.w {
 		// first write
@@ -364,8 +353,8 @@ func (ppu *PPU) WritePPUAddr(val byte) {
 }
 
 // $2007: PPUDATA read
-func (ppu *PPU) ReadPPUData() byte {
-	res := ppu.readPPUData(ppu.v)
+func (ppu *PPU) readPPUData() byte {
+	res := ppu._readPPUData(ppu.v)
 	ppu.updateOpenBus(res)
 
 	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
@@ -399,7 +388,7 @@ func (ppu *PPU) PeekPPUData() byte {
 	}
 }
 
-func (ppu *PPU) readPPUData(addr uint16) byte {
+func (ppu *PPU) _readPPUData(addr uint16) byte {
 	// https://www.nesdev.org/wiki/PPU_scrolling#PPU_internal_registers
 	// > Note that while the v register has 15 bits, the PPU memory space is only 14 bits wide.
 	// > The highest bit is unused for access through $2007.
@@ -433,9 +422,9 @@ func (ppu *PPU) readPPUData(addr uint16) byte {
 }
 
 // $2007: PPUDATA write
-func (ppu *PPU) WritePPUData(val byte) {
+func (ppu *PPU) writePPUData(val byte) {
 	ppu.updateOpenBus(val)
-	ppu.writePPUData(ppu.v, val)
+	ppu._writePPUData(ppu.v, val)
 
 	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
@@ -449,7 +438,7 @@ func (ppu *PPU) WritePPUData(val byte) {
 	}
 }
 
-func (ppu *PPU) writePPUData(addr uint16, val byte) {
+func (ppu *PPU) _writePPUData(addr uint16, val byte) {
 	addr &= 0x3FFF
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -467,9 +456,9 @@ func (ppu *PPU) writePPUData(addr uint16, val byte) {
 	}
 }
 
-// WriteOAMDMAByte is used $4014 from cpubus.
+// writeOAMDMAByte is used $4014 from cpubus.
 // control cpu clock on cpubus side
-func (ppu *PPU) WriteOAMDMAByte(val byte) {
+func (ppu *PPU) writeOAMDMAByte(val byte) {
 	ppu.primaryOAM[ppu.oamAddr] = val
 	ppu.oamAddr++
 }

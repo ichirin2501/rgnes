@@ -2,17 +2,17 @@ package nes
 
 import "fmt"
 
-type Mapper3 struct {
+type mapper3 struct {
 	*Cassette
 	chrBank  int
 	prgBank1 int
 	prgBank2 int
 }
 
-func NewMapper3(c *Cassette) *Mapper3 {
+func newMapper3(c *Cassette) *mapper3 {
 	prgBanks := len(c.PRG) / 0x4000
 	prgBank2 := prgBanks - 1
-	return &Mapper3{
+	return &mapper3{
 		Cassette: c,
 		chrBank:  0,
 		prgBank1: 0,
@@ -20,15 +20,15 @@ func NewMapper3(c *Cassette) *Mapper3 {
 	}
 }
 
-func (m *Mapper3) String() string {
+func (m *mapper3) String() string {
 	return "Mapper 3"
 }
 
-func (m *Mapper3) Reset() {
+func (m *mapper3) Reset() {
 	// nothing
 }
 
-func (m *Mapper3) Read(addr uint16) byte {
+func (m *mapper3) Read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
 		index := m.chrBank*0x2000 + int(addr)
@@ -46,7 +46,7 @@ func (m *Mapper3) Read(addr uint16) byte {
 	}
 }
 
-func (m *Mapper3) Write(addr uint16, val byte) {
+func (m *mapper3) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
 		// read only (for ppu_read_buffer test)

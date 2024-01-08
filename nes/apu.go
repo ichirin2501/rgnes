@@ -29,7 +29,7 @@ type Player interface {
 	Sample(float32)
 }
 
-type Option func(*APU)
+type APUOption func(*APU)
 
 type APU struct {
 	cpu          *Interrupter
@@ -53,7 +53,7 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *Interrupter, p Player, opts ...Option) *APU {
+func NewAPU(cpu *Interrupter, p Player, opts ...APUOption) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,
@@ -76,7 +76,7 @@ func NewAPU(cpu *Interrupter, p Player, opts ...Option) *APU {
 	return apu
 }
 
-func WithSampleRate(sampleRate int) Option {
+func WithSampleRate(sampleRate int) APUOption {
 	return func(apu *APU) {
 		apu.sampleRate = sampleRate
 	}
@@ -84,13 +84,13 @@ func WithSampleRate(sampleRate int) Option {
 
 func (apu *APU) PowerUp() {
 	// todo
-	apu.WriteStatus(0)
+	apu.writeStatus(0)
 	apu.noise.shiftRegister = 1
 }
 
 func (apu *APU) Reset() {
 	// todo
-	apu.WriteStatus(0)
+	apu.writeStatus(0)
 }
 
 func (apu *APU) Step() {
@@ -147,48 +147,48 @@ func writePulseLengthAndTimerHigh(p *pulse, val byte) {
 }
 
 // $4000
-func (apu *APU) WritePulse1Controller(val byte) {
+func (apu *APU) writePulse1Controller(val byte) {
 	writePulseController(apu.pulse1, val)
 }
 
 // $4001
-func (apu *APU) WritePulse1Sweep(val byte) {
+func (apu *APU) writePulse1Sweep(val byte) {
 	writePulseSweep(apu.pulse1, val)
 }
 
 // $4002
-func (apu *APU) WritePulse1TimerLow(val byte) {
+func (apu *APU) writePulse1TimerLow(val byte) {
 	writePulseTimerLow(apu.pulse1, val)
 }
 
 // $4003
-func (apu *APU) WritePulse1LengthAndTimerHigh(val byte) {
+func (apu *APU) writePulse1LengthAndTimerHigh(val byte) {
 	writePulseLengthAndTimerHigh(apu.pulse1, val)
 }
 
 // $4004
-func (apu *APU) WritePulse2Controller(val byte) {
+func (apu *APU) writePulse2Controller(val byte) {
 	writePulseController(apu.pulse2, val)
 }
 
 // $4005
-func (apu *APU) WritePulse2Sweep(val byte) {
+func (apu *APU) writePulse2Sweep(val byte) {
 	writePulseSweep(apu.pulse2, val)
 }
 
 // $4006
-func (apu *APU) WritePulse2TimerLow(val byte) {
+func (apu *APU) writePulse2TimerLow(val byte) {
 	writePulseTimerLow(apu.pulse2, val)
 }
 
 // $4007
-func (apu *APU) WritePulse2LengthAndTimerHigh(val byte) {
+func (apu *APU) writePulse2LengthAndTimerHigh(val byte) {
 	writePulseLengthAndTimerHigh(apu.pulse2, val)
 }
 
 // $4008
 // CRRR RRRR	Length counter halt / linear counter control (C), linear counter load (R)
-func (apu *APU) WriteTriangleController(val byte) {
+func (apu *APU) writeTriangleController(val byte) {
 	apu.tnd.lc.halt = (val & 0x80) == 0x80
 	apu.tnd.linearCounterCtrl = (val & 0x80) == 0x80
 	apu.tnd.linearCounterPeriod = val & 0x7F
@@ -196,14 +196,14 @@ func (apu *APU) WriteTriangleController(val byte) {
 
 // $400A
 // TTTT TTTT	Timer low (T)
-func (apu *APU) WriteTriangleTimerLow(val byte) {
+func (apu *APU) writeTriangleTimerLow(val byte) {
 	// 11bit
 	apu.tnd.timer.period = (apu.tnd.timer.period & 0x0700) | uint16(val)
 }
 
 // $400B
 // LLLL LTTT	Length counter load (L), timer high (T)
-func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
+func (apu *APU) writeTriangleLengthAndTimerHigh(val byte) {
 	apu.tnd.lc.load(val >> 3)
 	apu.tnd.timer.period = (apu.tnd.timer.period & 0x00FF) | (uint16(val&0b111) << 8)
 	apu.tnd.linearCounterReload = true
@@ -211,7 +211,7 @@ func (apu *APU) WriteTriangleLengthAndTimerHigh(val byte) {
 
 // $400C
 // --LC VVVV	el loop / length counter halt (L), constant volume (C), volume/envelope (V)
-func (apu *APU) WriteNoiseController(val byte) {
+func (apu *APU) writeNoiseController(val byte) {
 	apu.noise.lc.halt = (val & 0x20) == 0x20
 	apu.noise.el.loop = (val & 0x20) == 0x20
 	apu.noise.el.constantVolume = (val & 0x10) == 0x10
@@ -220,21 +220,21 @@ func (apu *APU) WriteNoiseController(val byte) {
 
 // $400E
 // M---.PPPP	Mode and period (write)
-func (apu *APU) WriteNoiseLoopAndPeriod(val byte) {
+func (apu *APU) writeNoiseLoopAndPeriod(val byte) {
 	apu.noise.mode = (val & 0x80) == 0x80
 	apu.noise.loadPeriod(val & 0x0F)
 }
 
 // $400F
 // LLLL L---	Length counter load (L)
-func (apu *APU) WriteNoiseLength(val byte) {
+func (apu *APU) writeNoiseLength(val byte) {
 	apu.noise.lc.load(val >> 3)
 	apu.noise.el.start = true
 }
 
 // $4010
 // IL-- RRRR	IRQ enable (I), loop (L), frequency (R)
-func (apu *APU) WriteDMCController(val byte) {
+func (apu *APU) writeDMCController(val byte) {
 	apu.dmc.irqEnabled = (val & 0x80) == 0x80
 	apu.dmc.loop = (val & 0x40) == 0x40
 	apu.dmc.freq = val & 0x0F
@@ -242,25 +242,25 @@ func (apu *APU) WriteDMCController(val byte) {
 
 // $4011
 // -DDD DDDD	load counter (D)
-func (apu *APU) WriteDMCLoadCounter(val byte) {
+func (apu *APU) writeDMCLoadCounter(val byte) {
 	apu.dmc.counter = val & 0x7F
 }
 
 // $4012
 // AAAA AAAA	Sample address (A)
-func (apu *APU) WriteDMCSampleAddr(val byte) {
+func (apu *APU) writeDMCSampleAddr(val byte) {
 	apu.dmc.sampleAddr = val
 }
 
 // $4013
 // LLLL LLLL	Sample length (L)
-func (apu *APU) WriteDMCSampleLength(val byte) {
+func (apu *APU) writeDMCSampleLength(val byte) {
 	apu.dmc.sampleLength = val
 }
 
 // $4015 read
 // IF-D NT21	DMC interrupt (I), frame interrupt (F), DMC active (D), length counter > 0 (N/T/2/1)
-func (apu *APU) ReadStatus() byte {
+func (apu *APU) readStatus() byte {
 	res := byte(0)
 	if apu.pulse1.lc.value > 0 {
 		res |= 0x01
@@ -309,7 +309,7 @@ func (apu *APU) PeekStatus() byte {
 
 // $4015 write
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
-func (apu *APU) WriteStatus(val byte) {
+func (apu *APU) writeStatus(val byte) {
 	apu.dmc.setEnabled((val & 0x10) == 0x10)
 	apu.noise.lc.setEnabled((val & 0x08) == 0x08)
 	apu.tnd.lc.setEnabled((val & 0x04) == 0x04)
@@ -318,7 +318,7 @@ func (apu *APU) WriteStatus(val byte) {
 }
 
 // $4017
-func (apu *APU) WriteFrameCounter(val byte) {
+func (apu *APU) writeFrameCounter(val byte) {
 	// https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
 	// > Writing to $4017 resets the frame counter and the quarter/half frame triggers happen simultaneously,
 	// > but only on "odd" cycles (and only after the first "even" cycle after the write occurs)

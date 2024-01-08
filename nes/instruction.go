@@ -236,14 +236,18 @@ func (cpu *CPU) sbc(addr uint16) {
 	cpu.P.SetZN(v)
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// PHA, PHP
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away)
-// 3  $0100,S  W  push register on stack, decrement S
-// ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	PHA, PHP
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away)
+	3  $0100,S  W  push register on stack, decrement S
+
+ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
+*/
 func (cpu *CPU) pha() {
 	//cpu.bus.Read(cpu.PC) // dummy read
 	cpu.push(cpu.A)
@@ -253,14 +257,17 @@ func (cpu *CPU) php() {
 	cpu.push(cpu.P.Byte() | 0x30)
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// PLA, PLP
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away)
-// 3  $0100,S  R  increment S
-// 4  $0100,S  R  pull register from stack
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	PLA, PLP
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away)
+	3  $0100,S  R  increment S
+	4  $0100,S  R  pull register from stack
+*/
 func (cpu *CPU) pla() {
 	cpu.bus.Read(cpu.PC) // dummy read
 	cpu.A = cpu.pop()
@@ -268,25 +275,28 @@ func (cpu *CPU) pla() {
 }
 func (cpu *CPU) plp() {
 	cpu.bus.Read(cpu.PC) // dummy read
-	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
+	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 }
 
 func (cpu *CPU) jmp(addr uint16) {
 	cpu.PC = addr
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// JSR
-// #  address R/W description
-// --- ------- --- -------------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  fetch low address byte, increment PC
-// 3  $0100,S  R  internal operation (predecrement S?)
-// 4  $0100,S  W  push PCH on stack, decrement S
-// 5  $0100,S  W  push PCL on stack, decrement S
-// 6    PC     R  copy low address byte to PCL, fetch high address
-//
-//	byte to PCH
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	JSR
+	#  address R/W description
+	--- ------- --- -------------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  fetch low address byte, increment PC
+	3  $0100,S  R  internal operation (predecrement S?)
+	4  $0100,S  W  push PCH on stack, decrement S
+	5  $0100,S  W  push PCL on stack, decrement S
+	6    PC     R  copy low address byte to PCL, fetch high address
+
+	byte to PCH
+*/
 func (cpu *CPU) jsr(addr uint16) {
 	cpu.push16(cpu.PC - 1)
 	// dummy read
@@ -294,16 +304,19 @@ func (cpu *CPU) jsr(addr uint16) {
 	cpu.PC = addr
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// RTS
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away)
-// 3  $0100,S  R  increment S
-// 4  $0100,S  R  pull PCL from stack, increment S
-// 5  $0100,S  R  pull PCH from stack
-// 6    PC     R  increment PC
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	RTS
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away)
+	3  $0100,S  R  increment S
+	4  $0100,S  R  pull PCL from stack, increment S
+	5  $0100,S  R  pull PCH from stack
+	6    PC     R  increment PC
+*/
 func (cpu *CPU) rts() {
 	// 3  $0100,S  R  increment S
 	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
@@ -315,19 +328,22 @@ func (cpu *CPU) rts() {
 	cpu.PC++
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// RTI
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away)
-// 3  $0100,S  R  increment S
-// 4  $0100,S  R  pull P from stack, increment S
-// 5  $0100,S  R  pull PCL from stack, increment S
-// 6  $0100,S  R  pull PCH from stack
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	RTI
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away)
+	3  $0100,S  R  increment S
+	4  $0100,S  R  pull P from stack, increment S
+	5  $0100,S  R  pull PCL from stack, increment S
+	6  $0100,S  R  pull PCH from stack
+*/
 func (cpu *CPU) rti() {
 	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
-	cpu.P = StatusRegister((cpu.pop() & 0xEF) | (1 << 5))
+	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 	cpu.PC = cpu.pop16()
 }
 
@@ -415,20 +431,24 @@ func (cpu *CPU) sei() {
 	cpu.P.SetInterruptDisable(true)
 }
 
-// BRK
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away),
-//
-//	increment PC
-//
-// 3  $0100,S  W  push PCH on stack (with B flag set), decrement S
-// 4  $0100,S  W  push PCL on stack, decrement S
-// 5  $0100,S  W  push P on stack, decrement S
-// 6   $FFFE   R  fetch PCL
-// 7   $FFFF   R  fetch PCH
-// ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
+/*
+BRK
+
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away),
+
+	increment PC
+
+	3  $0100,S  W  push PCH on stack (with B flag set), decrement S
+	4  $0100,S  W  push PCL on stack, decrement S
+	5  $0100,S  W  push P on stack, decrement S
+	6   $FFFE   R  fetch PCL
+	7   $FFFF   R  fetch PCH
+
+ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
+*/
 func (cpu *CPU) brk() {
 	// cpu.bus.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC + 1)
@@ -437,22 +457,26 @@ func (cpu *CPU) brk() {
 	cpu.PC = cpu.read16(0xFFFE)
 }
 
-// Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack.
-// In the byte pushed, bit 5 is always set to 1, and bit 4 is 1 if from an instruction (PHP or BRK) or 0 if from an interrupt line being pulled low (/IRQ or /NMI).
-// https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_execution
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-//
-//	1    PC     R  fetch opcode (and discard it - $00 (BRK) is forced into the opcode register instead)
-//	2    PC     R  read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
-//	3  $0100,S  W  push PCH on stack, decrement S
-//	4  $0100,S  W  push PCL on stack, decrement S
-//
-// *** At this point, the signal status determines which interrupt vector is used ***
-//
-//	5  $0100,S  W  push P on stack (with B flag *clear*), decrement S
-//	6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
-//	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
+/*
+Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack.
+In the byte pushed, bit 5 is always set to 1, and bit 4 is 1 if from an instruction (PHP or BRK) or 0 if from an interrupt line being pulled low (/IRQ or /NMI).
+
+ref: https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_execution
+
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+
+	1    PC     R  fetch opcode (and discard it - $00 (BRK) is forced into the opcode register instead)
+	2    PC     R  read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+	3  $0100,S  W  push PCH on stack, decrement S
+	4  $0100,S  W  push PCL on stack, decrement S
+
+	*** At this point, the signal status determines which interrupt vector is used ***
+
+	5  $0100,S  W  push P on stack (with B flag *clear*), decrement S
+	6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
+	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
+*/
 func (cpu *CPU) nmi() {
 	cpu.bus.Read(cpu.PC) // dummy read
 	cpu.bus.Read(cpu.PC) // dummy read

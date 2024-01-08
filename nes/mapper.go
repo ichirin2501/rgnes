@@ -24,9 +24,9 @@ func NewMapper(r io.Reader) (Mapper, error) {
 func NewMapperFromCassette(c *Cassette) Mapper {
 	switch c.Mapper {
 	case 0:
-		return NewMapper0(c)
+		return newMapper0(c)
 	case 3:
-		return NewMapper3(c)
+		return newMapper3(c)
 	}
 	panic(fmt.Sprintf("Unsupported mapper: %0x", c.Mapper))
 }

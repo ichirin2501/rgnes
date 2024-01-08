@@ -2,18 +2,18 @@ package nes
 
 import "fmt"
 
-type Mapper0 struct {
+type mapper0 struct {
 	*Cassette
 	prgBanks int
 	prgBank1 int
 	prgBank2 int
 }
 
-func NewMapper0(c *Cassette) *Mapper0 {
+func newMapper0(c *Cassette) *mapper0 {
 	prgBanks := len(c.PRG) / 0x4000
 	prgBank1 := 0
 	prgBank2 := prgBanks - 1
-	return &Mapper0{
+	return &mapper0{
 		Cassette: c,
 		prgBanks: prgBanks,
 		prgBank1: prgBank1,
@@ -21,15 +21,15 @@ func NewMapper0(c *Cassette) *Mapper0 {
 	}
 }
 
-func (m *Mapper0) String() string {
+func (m *mapper0) String() string {
 	return "Mapper 0"
 }
 
-func (m *Mapper0) Reset() {
+func (m *mapper0) Reset() {
 	// nothing
 }
 
-func (m *Mapper0) Read(addr uint16) byte {
+func (m *mapper0) Read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
 		return m.CHR[addr]
@@ -46,7 +46,7 @@ func (m *Mapper0) Read(addr uint16) byte {
 	}
 }
 
-func (m *Mapper0) Write(addr uint16, val byte) {
+func (m *mapper0) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
 		// https://www.nesdev.org/wiki/NROM

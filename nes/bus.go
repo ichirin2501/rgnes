@@ -4,79 +4,6 @@ import (
 	"fmt"
 )
 
-// type APU interface {
-// 	Step()
-// 	WritePulse1Controller(byte)
-// 	WritePulse1Sweep(byte)
-// 	WritePulse1TimerLow(byte)
-// 	WritePulse1LengthAndTimerHigh(byte)
-// 	WritePulse2Controller(byte)
-// 	WritePulse2Sweep(byte)
-// 	WritePulse2TimerLow(byte)
-// 	WritePulse2LengthAndTimerHigh(byte)
-
-// 	WriteTriangleController(byte)
-// 	WriteTriangleTimerLow(byte)
-// 	WriteTriangleLengthAndTimerHigh(byte)
-
-// 	WriteNoiseController(byte)
-// 	WriteNoiseLoopAndPeriod(byte)
-// 	WriteNoiseLength(byte)
-
-// 	WriteDMCController(byte)
-// 	WriteDMCLoadCounter(byte)
-// 	WriteDMCSampleAddr(byte)
-// 	WriteDMCSampleLength(byte)
-
-// 	ReadStatus() byte
-// 	PeekStatus() byte
-// 	WriteStatus(byte)
-
-// 	WriteFrameCounter(byte)
-// }
-
-// type Joypad interface {
-// 	Read() byte
-// 	Peek() byte
-// 	Write(byte)
-// }
-
-// // type Mapper interface {
-// // 	Read(uint16) byte
-// // 	Write(uint16, byte)
-// // }
-
-// type PPU interface {
-// 	Step()
-// 	ReadController() byte
-// 	ReadMask() byte
-// 	ReadStatus() byte
-// 	ReadOAMAddr() byte
-// 	ReadOAMData() byte
-// 	ReadScroll() byte
-// 	ReadPPUAddr() byte
-// 	ReadPPUData() byte
-
-// 	PeekController() byte
-// 	PeekMask() byte
-// 	PeekStatus() byte
-// 	PeekOAMAddr() byte
-// 	PeekOAMData() byte
-// 	PeekScroll() byte
-// 	PeekPPUAddr() byte
-// 	PeekPPUData() byte
-
-// 	WriteController(byte)
-// 	WriteMask(byte)
-// 	WriteStatus(byte)
-// 	WriteOAMAddr(byte)
-// 	WriteOAMData(byte)
-// 	WriteScroll(byte)
-// 	WritePPUAddr(byte)
-// 	WritePPUData(byte)
-// 	WriteOAMDMAByte(byte)
-// }
-
 type Bus struct {
 	ram    []byte
 	ppu    *PPU
@@ -113,21 +40,21 @@ func (bus *Bus) read(addr uint16) byte {
 		// NES PPU registers
 		switch {
 		case addr == 0x2000:
-			return bus.ppu.ReadController()
+			return bus.ppu.readController()
 		case addr == 0x2001:
-			return bus.ppu.ReadMask()
+			return bus.ppu.readMask()
 		case addr == 0x2002:
-			return bus.ppu.ReadStatus()
+			return bus.ppu.readStatus()
 		case addr == 0x2003:
-			return bus.ppu.ReadOAMAddr()
+			return bus.ppu.readOAMAddr()
 		case addr == 0x2004:
-			return bus.ppu.ReadOAMData()
+			return bus.ppu.readOAMData()
 		case addr == 0x2005:
-			return bus.ppu.ReadScroll()
+			return bus.ppu.readScroll()
 		case addr == 0x2006:
-			return bus.ppu.ReadPPUAddr()
+			return bus.ppu.readPPUAddr()
 		case addr == 0x2007:
-			return bus.ppu.ReadPPUData()
+			return bus.ppu.readPPUData()
 		default:
 			panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Read", addr))
 		}
@@ -138,7 +65,7 @@ func (bus *Bus) read(addr uint16) byte {
 		// NES APU and I/O registers
 		switch {
 		case addr == 0x4015:
-			return bus.apu.ReadStatus()
+			return bus.apu.readStatus()
 		case addr == 0x4016:
 			return bus.joypad.Read()
 		case addr == 0x4017: // TODO: 2p
@@ -172,21 +99,21 @@ func (bus *Bus) write(addr uint16, val byte) {
 		// NES PPU registers
 		switch {
 		case addr == 0x2000:
-			bus.ppu.WriteController(val)
+			bus.ppu.writeController(val)
 		case addr == 0x2001:
-			bus.ppu.WriteMask(val)
+			bus.ppu.writeMask(val)
 		case addr == 0x2002:
-			bus.ppu.WriteStatus(val)
+			bus.ppu.writeStatus(val)
 		case addr == 0x2003:
-			bus.ppu.WriteOAMAddr(val)
+			bus.ppu.writeOAMAddr(val)
 		case addr == 0x2004:
-			bus.ppu.WriteOAMData(val)
+			bus.ppu.writeOAMData(val)
 		case addr == 0x2005:
-			bus.ppu.WriteScroll(val)
+			bus.ppu.writeScroll(val)
 		case addr == 0x2006:
-			bus.ppu.WritePPUAddr(val)
+			bus.ppu.writePPUAddr(val)
 		case addr == 0x2007:
-			bus.ppu.WritePPUData(val)
+			bus.ppu.writePPUData(val)
 		default:
 			panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Write", addr))
 		}
@@ -197,57 +124,57 @@ func (bus *Bus) write(addr uint16, val byte) {
 		// NES APU and I/O registers
 		switch {
 		case addr == 0x4000:
-			bus.apu.WritePulse1Controller(val)
+			bus.apu.writePulse1Controller(val)
 		case addr == 0x4001:
-			bus.apu.WritePulse1Sweep(val)
+			bus.apu.writePulse1Sweep(val)
 		case addr == 0x4002:
-			bus.apu.WritePulse1TimerLow(val)
+			bus.apu.writePulse1TimerLow(val)
 		case addr == 0x4003:
-			bus.apu.WritePulse1LengthAndTimerHigh(val)
+			bus.apu.writePulse1LengthAndTimerHigh(val)
 		case addr == 0x4004:
-			bus.apu.WritePulse2Controller(val)
+			bus.apu.writePulse2Controller(val)
 		case addr == 0x4005:
-			bus.apu.WritePulse2Sweep(val)
+			bus.apu.writePulse2Sweep(val)
 		case addr == 0x4006:
-			bus.apu.WritePulse2TimerLow(val)
+			bus.apu.writePulse2TimerLow(val)
 		case addr == 0x4007:
-			bus.apu.WritePulse2LengthAndTimerHigh(val)
+			bus.apu.writePulse2LengthAndTimerHigh(val)
 		case addr == 0x4008:
-			bus.apu.WriteTriangleController(val)
+			bus.apu.writeTriangleController(val)
 		case addr == 0x4009:
 			// unused
 		case addr == 0x400A:
-			bus.apu.WriteTriangleTimerLow(val)
+			bus.apu.writeTriangleTimerLow(val)
 		case addr == 0x400B:
-			bus.apu.WriteTriangleLengthAndTimerHigh(val)
+			bus.apu.writeTriangleLengthAndTimerHigh(val)
 		case addr == 0x400C:
-			bus.apu.WriteNoiseController(val)
+			bus.apu.writeNoiseController(val)
 		case addr == 0x400D:
 			// unused
 		case addr == 0x400E:
-			bus.apu.WriteNoiseLoopAndPeriod(val)
+			bus.apu.writeNoiseLoopAndPeriod(val)
 		case addr == 0x400F:
-			bus.apu.WriteNoiseLength(val)
+			bus.apu.writeNoiseLength(val)
 		case addr == 0x4010:
-			bus.apu.WriteDMCController(val)
+			bus.apu.writeDMCController(val)
 		case addr == 0x4011:
-			bus.apu.WriteDMCLoadCounter(val)
+			bus.apu.writeDMCLoadCounter(val)
 		case addr == 0x4012:
-			bus.apu.WriteDMCSampleAddr(val)
+			bus.apu.writeDMCSampleAddr(val)
 		case addr == 0x4013:
-			bus.apu.WriteDMCSampleLength(val)
+			bus.apu.writeDMCSampleLength(val)
 		case addr == 0x4014:
 			a := uint16(val) << 8
 			for i := uint16(0); i < 256; i++ {
-				bus.ppu.WriteOAMDMAByte(bus.read(a + i))
+				bus.ppu.writeOAMDMAByte(bus.read(a + i))
 			}
 			bus.tickStall(513 + bus.realClock()%2)
 		case addr == 0x4015:
-			bus.apu.WriteStatus(val)
+			bus.apu.writeStatus(val)
 		case addr == 0x4016:
 			bus.joypad.Write(val)
 		case addr == 0x4017:
-			bus.apu.WriteFrameCounter(val)
+			bus.apu.writeFrameCounter(val)
 		default:
 			// basically, ignore
 		}

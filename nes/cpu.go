@@ -8,12 +8,13 @@ import (
 type CPUOption func(*CPU)
 
 type CPU struct {
+	// registers
 	A  byte   // Accumulator
 	X  byte   // Index
 	Y  byte   // Index
 	PC uint16 // Program Counter
 	S  byte   // Stack Pointer
-	P  StatusRegister
+	P  processorStatus
 
 	I   *Interrupter
 	bus *Bus
@@ -45,22 +46,25 @@ func (cpu *CPU) FetchCycles() int {
 	return cpu.bus.clock
 }
 
-// http://users.telenet.be/kim1-6502/6502/proman.html#92
-// Cycles   Address Bus   Data Bus    External Operation     Internal Operation
-// 1           ?           ?        Don't Care             Hold During Reset
-// 2         ? + 1         ?        Don't Care             First Start State
-// 3        0100 + SP      ?        Don't Care             Second Start State
-// 4        0100 + SP-1    ?        Don't Care             Third Start State
-// 5        0100 + SP-2    ?        Don't Care             Fourth Start State
-// 6        FFFC        Start PCL   Fetch First Vector
-// 7        FFFD        Start PCH   Fetch Second Vector    Hold PCL
-// 8        PCH PCL     First       Load First OP CODE
+/*
+ref: http://users.telenet.be/kim1-6502/6502/proman.html#92
+
+	Cycles   Address Bus   Data Bus    External Operation     Internal Operation
+	1           ?           ?        Don't Care             Hold During Reset
+	2         ? + 1         ?        Don't Care             First Start State
+	3        0100 + SP      ?        Don't Care             Second Start State
+	4        0100 + SP-1    ?        Don't Care             Third Start State
+	5        0100 + SP-2    ?        Don't Care             Fourth Start State
+	6        FFFC        Start PCL   Fetch First Vector
+	7        FFFD        Start PCH   Fetch Second Vector    Hold PCL
+	8        PCH PCL     First       Load First OP CODE
+*/
 func (cpu *CPU) PowerUp() {
 	cpu.bus.tick(5)
 	cpu.A = 0x00
 	cpu.X = 0x00
 	cpu.Y = 0x00
-	cpu.P = StatusRegister(0x34)
+	cpu.P = processorStatus(0x34)
 	cpu.S = 0xFD
 	cpu.PC = cpu.read16(0xFFFC)
 }
@@ -343,43 +347,43 @@ func (cpu *CPU) read16(addr uint16) uint16 {
 func (cpu *CPU) fetchOperand(op *opcode) (uint16, bool) {
 	switch op.Mode {
 	case absolute:
-		return cpu.AddressingAbsolute(op)
+		return cpu.addressingAbsolute(op)
 	case absoluteX:
-		return cpu.AddressingAbsoluteX(op, false)
+		return cpu.addressingAbsoluteX(op, false)
 	case absoluteX_D:
-		return cpu.AddressingAbsoluteX(op, true)
+		return cpu.addressingAbsoluteX(op, true)
 	case absoluteY:
-		return cpu.AddressingAbsoluteY(op, false)
+		return cpu.addressingAbsoluteY(op, false)
 	case absoluteY_D:
-		return cpu.AddressingAbsoluteY(op, true)
+		return cpu.addressingAbsoluteY(op, true)
 	case accumulator:
-		return cpu.AddressingAccumulator(op)
+		return cpu.addressingAccumulator(op)
 	case immediate:
-		return cpu.AddressingImmediate(op)
+		return cpu.addressingImmediate(op)
 	case implied:
-		return cpu.AddressingImplied(op)
+		return cpu.addressingImplied(op)
 	case indexedIndirect:
-		return cpu.AddressingIndexedIndirect(op)
+		return cpu.addressingIndexedIndirect(op)
 	case indirect:
-		return cpu.AddressingIndirect(op)
+		return cpu.addressingIndirect(op)
 	case indirectIndexed:
-		return cpu.AddressingIndirectIndexed(op, false)
+		return cpu.addressingIndirectIndexed(op, false)
 	case indirectIndexed_D:
-		return cpu.AddressingIndirectIndexed(op, true)
+		return cpu.addressingIndirectIndexed(op, true)
 	case relative:
-		return cpu.AddressingRelative(op)
+		return cpu.addressingRelative(op)
 	case zeroPage:
-		return cpu.AddressingZeroPage(op)
+		return cpu.addressingZeroPage(op)
 	case zeroPageX:
-		return cpu.AddressingZeroPageX(op)
+		return cpu.addressingZeroPageX(op)
 	case zeroPageY:
-		return cpu.AddressingZeroPageY(op)
+		return cpu.addressingZeroPageY(op)
 	default:
 		panic("unknown addressing mode")
 	}
 }
 
-func (cpu *CPU) AddressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	addr = uint16(h)<<8 | uint16(l)
@@ -395,7 +399,7 @@ func (cpu *CPU) AddressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 }
 
-func (cpu *CPU) AddressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
@@ -413,7 +417,7 @@ func (cpu *CPU) AddressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint1
 	return addr, pageCrossed
 }
 
-func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
@@ -431,26 +435,29 @@ func (cpu *CPU) AddressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 	return addr, pageCrossed
 }
 
-// https://www.nesdev.org/6502_cpu.txt
-// Accumulator or implied addressing
-//
-// #  address R/W description
-// --- ------- --- -----------------------------------------------
-// 1    PC     R  fetch opcode, increment PC
-// 2    PC     R  read next instruction byte (and throw it away)
-func (cpu *CPU) AddressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
+/*
+ref: https://www.nesdev.org/6502_cpu.txt
+
+	Accumulator or implied addressing
+
+	#  address R/W description
+	--- ------- --- -----------------------------------------------
+	1    PC     R  fetch opcode, increment PC
+	2    PC     R  read next instruction byte (and throw it away)
+*/
+func (cpu *CPU) addressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
 	cpu.bus.Read(cpu.PC) // dummy read
 	if cpu.t != nil {
 		cpu.t.SetCPUAddressingResult("A")
 	}
 	return 0, false
 }
-func (cpu *CPU) AddressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
 	cpu.bus.Read(cpu.PC) // dummy read
 	return 0, false
 }
 
-func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingImmediate(op *opcode) (addr uint16, pageCrossed bool) {
 	addr = cpu.PC
 	cpu.PC++
 	if cpu.t != nil {
@@ -461,7 +468,7 @@ func (cpu *CPU) AddressingImmediate(op *opcode) (addr uint16, pageCrossed bool) 
 	return addr, false
 }
 
-func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	k := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > pointer    R  read from the address, add X to it
@@ -477,7 +484,7 @@ func (cpu *CPU) AddressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed 
 	return addr, false
 }
 
-func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
@@ -491,7 +498,7 @@ func (cpu *CPU) AddressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 
 }
-func (cpu *CPU) AddressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	a := uint16(cpu.fetch())
 	b := (a & 0xFF00) | uint16(byte(a)+1)
 	baseAddr := uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
@@ -509,7 +516,7 @@ func (cpu *CPU) AddressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr
 	}
 	return addr, pageCrossed
 }
-func (cpu *CPU) AddressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
 	offset := uint16(cpu.fetch())
 	if offset < 0x80 {
 		addr = cpu.PC + offset
@@ -523,7 +530,7 @@ func (cpu *CPU) AddressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 }
 
-func (cpu *CPU) AddressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	addr = uint16(a)
 	if cpu.t != nil {
@@ -533,7 +540,7 @@ func (cpu *CPU) AddressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 }
 
-func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it
@@ -547,7 +554,7 @@ func (cpu *CPU) AddressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) 
 	return addr, false
 }
 
-func (cpu *CPU) AddressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *CPU) addressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it

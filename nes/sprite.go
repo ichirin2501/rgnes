@@ -1,12 +1,16 @@
 package nes
 
-// 76543210
-// ||||||||
-// ||||||++ - Palette (4 to 7) of sprite
-// |||+++-- - Unimplemented (read 0)
-// ||+----- - Priority (0: in front of background; 1: behind background)
-// |+------ - Flip sprite horizontally
-// +------- - Flip sprite vertically
+/*
+Sprite Attribute
+
+	76543210
+	||||||||
+	||||||++ - Palette (4 to 7) of sprite
+	|||+++-- - Unimplemented (read 0)
+	||+----- - Priority (0: in front of background; 1: behind background)
+	|+------ - Flip sprite horizontally
+	+------- - Flip sprite vertically
+*/
 type spriteAttribute byte
 
 func (s *spriteAttribute) Palette() byte {
@@ -48,12 +52,16 @@ func (s *spriteSlot) PixelPalette(x int) paletteForm {
 	return newPaletteForm(true, s.attr.Palette(), p)
 }
 
-// getSpriteFromOAM returns (y, tile, attr, x)
-// https://www.nesdev.org/wiki/PPU_OAM
-// Byte 0: Y position of top of sprite
-// Byte 1: Tile index number
-// Byte 2: Attributes
-// Byte 3: X position of left side of sprite
+/*
+getSpriteFromOAM returns (y, tile, attr, x)
+
+ref: https://www.nesdev.org/wiki/PPU_OAM
+
+	Byte 0: Y position of top of sprite
+	Byte 1: Tile index number
+	Byte 2: Attributes
+	Byte 3: X position of left side of sprite
+*/
 func getSpriteFromOAM(oam []byte, idx byte) (byte, byte, spriteAttribute, byte) {
 	y := oam[4*idx+0]
 	tile := oam[4*idx+1]

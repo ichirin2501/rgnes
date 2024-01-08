@@ -45,12 +45,15 @@ func (p *paletteRAM) Write(addr paletteForm, val byte) {
 	}
 }
 
-// https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
-// 43210
-// |||||
-// |||++ - Pixel value from tile data
-// |++-- - Palette number from attribute table or OAM
-// +---- - Background/Sprite select
+/*
+ref: https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
+
+	43210
+	|||||
+	|||++ - Pixel value from tile data
+	|++-- - Palette number from attribute table or OAM
+	+---- - Background/Sprite select
+*/
 type paletteForm byte
 
 const (
