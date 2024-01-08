@@ -1,4 +1,4 @@
-package apu
+package nes
 
 // https://www.nesdev.org/wiki/APU_DMC
 // > These periods are all even numbers because there are 2 CPU cycles in an APU cycle.

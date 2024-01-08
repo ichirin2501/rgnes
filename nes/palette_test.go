@@ -1,4 +1,4 @@
-package ppu
+package nes
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package apu
+package nes
 
 import (
 	"testing"

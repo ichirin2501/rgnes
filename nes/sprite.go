@@ -1,4 +1,4 @@
-package ppu
+package nes
 
 // 76543210
 // ||||||||

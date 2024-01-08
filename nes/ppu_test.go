@@ -1,4 +1,4 @@
-package ppu
+package nes
 
 import (
 	"testing"
@@ -31,17 +31,17 @@ func (f *fakeMirroringType) IsFourScreen() bool {
 	return *f == fakeMirroringFourScreen
 }
 
-func getFakeMirroringVertical() *fakeMirroringType {
+func getFakeMirroringVertical() fakeMirroringType {
 	m := fakeMirroringVertical
-	return &m
+	return m
 }
-func getFakeMirroringHorizontal() *fakeMirroringType {
+func getFakeMirroringHorizontal() fakeMirroringType {
 	m := fakeMirroringHorizontal
-	return &m
+	return m
 }
-func getFakeMirroringFourScreen() *fakeMirroringType {
+func getFakeMirroringFourScreen() fakeMirroringType {
 	m := fakeMirroringFourScreen
-	return &m
+	return m
 }
 
 func Test_PPU_MirrorVRAMAddr(t *testing.T) {
@@ -54,49 +54,57 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	}{
 		{
 			"1",
-			newVRAM(getFakeMirroringHorizontal()),
+			newVRAM(MirroringHorizontal),
+			// newVRAM(getFakeMirroringHorizontal()),
 			0x2003,
 			0x0003,
 		},
 		{
 			"2",
-			newVRAM(getFakeMirroringHorizontal()),
+			newVRAM(MirroringHorizontal),
+			//newVRAM(getFakeMirroringHorizontal()),
 			0x2403,
 			0x0003,
 		},
 		{
 			"3",
-			newVRAM(getFakeMirroringHorizontal()),
+			newVRAM(MirroringHorizontal),
+			//newVRAM(getFakeMirroringHorizontal()),
 			0x2800,
 			0x0400,
 		},
 		{
 			"4",
-			newVRAM(getFakeMirroringHorizontal()),
+			newVRAM(MirroringHorizontal),
+			//newVRAM(getFakeMirroringHorizontal()),
 			0x2C00,
 			0x0400,
 		},
 		{
 			"5",
-			newVRAM(getFakeMirroringVertical()),
+			newVRAM(MirroringVertical),
+			//newVRAM(getFakeMirroringVertical()),
 			0x2000,
 			0x0000,
 		},
 		{
 			"6",
-			newVRAM(getFakeMirroringVertical()),
+			newVRAM(MirroringVertical),
+			//newVRAM(getFakeMirroringVertical()),
 			0x2801,
 			0x0001,
 		},
 		{
 			"7",
-			newVRAM(getFakeMirroringVertical()),
+			newVRAM(MirroringVertical),
+			//newVRAM(getFakeMirroringVertical()),
 			0x2400,
 			0x0400,
 		},
 		{
 			"8",
-			newVRAM(getFakeMirroringVertical()),
+			newVRAM(MirroringVertical),
+			//newVRAM(getFakeMirroringVertical()),
 			0x2C01,
 			0x0401,
 		},
@@ -234,7 +242,7 @@ func Test_PPU_InternalRegisters(t *testing.T) {
 func Test_PeekWriteOnlyRegister(t *testing.T) {
 	t.Parallel()
 	ppu := &PPU{
-		openbus: DecayRegister{
+		openbus: PPUDecayRegister{
 			val: 0x30,
 		},
 	}
@@ -356,9 +364,9 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"1",
 			&PPU{
-				status:  StatusRegister(0x88),
-				openbus: DecayRegister{val: 0x31},
-				cpu:     &fakeCPU{},
+				status:  PPUStatusRegister(0x88),
+				openbus: PPUDecayRegister{val: 0x31},
+				cpu:     &Interrupter{},
 				w:       true,
 			},
 			0x99,
@@ -370,9 +378,9 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"2",
 			&PPU{
-				status:   StatusRegister(0x00),
-				openbus:  DecayRegister{val: 0x01},
-				cpu:      &fakeCPU{},
+				status:   PPUStatusRegister(0x00),
+				openbus:  PPUDecayRegister{val: 0x01},
+				cpu:      &Interrupter{},
 				Scanline: 241,
 				Cycle:    0,
 				nmiDelay: 3,
@@ -386,9 +394,9 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"3",
 			&PPU{
-				status:   StatusRegister(0x00),
-				openbus:  DecayRegister{val: 0x01},
-				cpu:      &fakeCPU{},
+				status:   PPUStatusRegister(0x00),
+				openbus:  PPUDecayRegister{val: 0x01},
+				cpu:      &Interrupter{},
 				Scanline: 241,
 				Cycle:    1,
 				nmiDelay: 3,
@@ -402,9 +410,9 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"4",
 			&PPU{
-				status:   StatusRegister(0x00),
-				openbus:  DecayRegister{val: 0x01},
-				cpu:      &fakeCPU{},
+				status:   PPUStatusRegister(0x00),
+				openbus:  PPUDecayRegister{val: 0x01},
+				cpu:      &Interrupter{},
 				Scanline: 241,
 				Cycle:    2,
 				nmiDelay: 3,
@@ -418,9 +426,9 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"5",
 			&PPU{
-				status:   StatusRegister(0x00),
-				openbus:  DecayRegister{val: 0x01},
-				cpu:      &fakeCPU{},
+				status:   PPUStatusRegister(0x00),
+				openbus:  PPUDecayRegister{val: 0x01},
+				cpu:      &Interrupter{},
 				Scanline: 241,
 				Cycle:    3,
 				nmiDelay: 3,

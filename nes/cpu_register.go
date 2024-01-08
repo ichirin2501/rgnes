@@ -1,4 +1,4 @@
-package cpu
+package nes
 
 // 7  bit  0
 // ---- ----

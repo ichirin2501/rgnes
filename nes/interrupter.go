@@ -1,4 +1,4 @@
-package cpu
+package nes
 
 type Interrupter struct {
 	delayNMI bool

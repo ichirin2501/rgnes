@@ -1,4 +1,4 @@
-package apu
+package nes
 
 // https://www.nesdev.org/wiki/APU_Length_Counter
 var lengthTable = []byte{

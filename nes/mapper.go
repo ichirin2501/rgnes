@@ -1,4 +1,4 @@
-package cassette
+package nes
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ type Mapper interface {
 }
 
 func NewMapper(r io.Reader) (Mapper, error) {
-	c, err := New(r)
+	c, err := NewCassette(r)
 	if err != nil {
 		return nil, err
 	}

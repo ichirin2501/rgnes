@@ -1,11 +1,11 @@
-package cpu
+package nes
 
 import (
 	"fmt"
 	"sync"
 )
 
-type Option func(*CPU)
+type CPUOption func(*CPU)
 
 type CPU struct {
 	A  byte   // Accumulator
@@ -21,7 +21,7 @@ type CPU struct {
 	mu  *sync.Mutex
 }
 
-func New(bus *Bus, i *Interrupter, opts ...Option) *CPU {
+func NewCPU(bus *Bus, i *Interrupter, opts ...CPUOption) *CPU {
 	cpu := &CPU{
 		I:   i,
 		bus: bus,
@@ -34,7 +34,7 @@ func New(bus *Bus, i *Interrupter, opts ...Option) *CPU {
 	return cpu
 }
 
-func WithTracer(tracer *Trace) Option {
+func WithTracer(tracer *Trace) CPUOption {
 	return func(cpu *CPU) {
 		cpu.t = tracer
 	}

@@ -1,4 +1,4 @@
-package cpu
+package nes
 
 func (cpu *CPU) lda(addr uint16) {
 	a := cpu.bus.Read(addr)
@@ -285,7 +285,8 @@ func (cpu *CPU) jmp(addr uint16) {
 // 4  $0100,S  W  push PCH on stack, decrement S
 // 5  $0100,S  W  push PCL on stack, decrement S
 // 6    PC     R  copy low address byte to PCL, fetch high address
-// 	       byte to PCH
+//
+//	byte to PCH
 func (cpu *CPU) jsr(addr uint16) {
 	cpu.push16(cpu.PC - 1)
 	// dummy read
@@ -419,7 +420,9 @@ func (cpu *CPU) sei() {
 // --- ------- --- -----------------------------------------------
 // 1    PC     R  fetch opcode, increment PC
 // 2    PC     R  read next instruction byte (and throw it away),
-// 	       increment PC
+//
+//	increment PC
+//
 // 3  $0100,S  W  push PCH on stack (with B flag set), decrement S
 // 4  $0100,S  W  push PCL on stack, decrement S
 // 5  $0100,S  W  push P on stack, decrement S
@@ -439,14 +442,17 @@ func (cpu *CPU) brk() {
 // https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_execution
 // #  address R/W description
 // --- ------- --- -----------------------------------------------
-//  1    PC     R  fetch opcode (and discard it - $00 (BRK) is forced into the opcode register instead)
-//  2    PC     R  read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
-//  3  $0100,S  W  push PCH on stack, decrement S
-//  4  $0100,S  W  push PCL on stack, decrement S
+//
+//	1    PC     R  fetch opcode (and discard it - $00 (BRK) is forced into the opcode register instead)
+//	2    PC     R  read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+//	3  $0100,S  W  push PCH on stack, decrement S
+//	4  $0100,S  W  push PCL on stack, decrement S
+//
 // *** At this point, the signal status determines which interrupt vector is used ***
-//  5  $0100,S  W  push P on stack (with B flag *clear*), decrement S
-//  6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
-//  7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
+//
+//	5  $0100,S  W  push P on stack (with B flag *clear*), decrement S
+//	6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
+//	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
 func (cpu *CPU) nmi() {
 	cpu.bus.Read(cpu.PC) // dummy read
 	cpu.bus.Read(cpu.PC) // dummy read

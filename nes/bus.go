@@ -1,88 +1,88 @@
-package cpu
+package nes
 
 import (
 	"fmt"
 )
 
-type APU interface {
-	Step()
-	WritePulse1Controller(byte)
-	WritePulse1Sweep(byte)
-	WritePulse1TimerLow(byte)
-	WritePulse1LengthAndTimerHigh(byte)
-	WritePulse2Controller(byte)
-	WritePulse2Sweep(byte)
-	WritePulse2TimerLow(byte)
-	WritePulse2LengthAndTimerHigh(byte)
+// type APU interface {
+// 	Step()
+// 	WritePulse1Controller(byte)
+// 	WritePulse1Sweep(byte)
+// 	WritePulse1TimerLow(byte)
+// 	WritePulse1LengthAndTimerHigh(byte)
+// 	WritePulse2Controller(byte)
+// 	WritePulse2Sweep(byte)
+// 	WritePulse2TimerLow(byte)
+// 	WritePulse2LengthAndTimerHigh(byte)
 
-	WriteTriangleController(byte)
-	WriteTriangleTimerLow(byte)
-	WriteTriangleLengthAndTimerHigh(byte)
+// 	WriteTriangleController(byte)
+// 	WriteTriangleTimerLow(byte)
+// 	WriteTriangleLengthAndTimerHigh(byte)
 
-	WriteNoiseController(byte)
-	WriteNoiseLoopAndPeriod(byte)
-	WriteNoiseLength(byte)
+// 	WriteNoiseController(byte)
+// 	WriteNoiseLoopAndPeriod(byte)
+// 	WriteNoiseLength(byte)
 
-	WriteDMCController(byte)
-	WriteDMCLoadCounter(byte)
-	WriteDMCSampleAddr(byte)
-	WriteDMCSampleLength(byte)
+// 	WriteDMCController(byte)
+// 	WriteDMCLoadCounter(byte)
+// 	WriteDMCSampleAddr(byte)
+// 	WriteDMCSampleLength(byte)
 
-	ReadStatus() byte
-	PeekStatus() byte
-	WriteStatus(byte)
+// 	ReadStatus() byte
+// 	PeekStatus() byte
+// 	WriteStatus(byte)
 
-	WriteFrameCounter(byte)
-}
+// 	WriteFrameCounter(byte)
+// }
 
-type Joypad interface {
-	Read() byte
-	Peek() byte
-	Write(byte)
-}
+// type Joypad interface {
+// 	Read() byte
+// 	Peek() byte
+// 	Write(byte)
+// }
 
-type Mapper interface {
-	Read(uint16) byte
-	Write(uint16, byte)
-}
+// // type Mapper interface {
+// // 	Read(uint16) byte
+// // 	Write(uint16, byte)
+// // }
 
-type PPU interface {
-	Step()
-	ReadController() byte
-	ReadMask() byte
-	ReadStatus() byte
-	ReadOAMAddr() byte
-	ReadOAMData() byte
-	ReadScroll() byte
-	ReadPPUAddr() byte
-	ReadPPUData() byte
+// type PPU interface {
+// 	Step()
+// 	ReadController() byte
+// 	ReadMask() byte
+// 	ReadStatus() byte
+// 	ReadOAMAddr() byte
+// 	ReadOAMData() byte
+// 	ReadScroll() byte
+// 	ReadPPUAddr() byte
+// 	ReadPPUData() byte
 
-	PeekController() byte
-	PeekMask() byte
-	PeekStatus() byte
-	PeekOAMAddr() byte
-	PeekOAMData() byte
-	PeekScroll() byte
-	PeekPPUAddr() byte
-	PeekPPUData() byte
+// 	PeekController() byte
+// 	PeekMask() byte
+// 	PeekStatus() byte
+// 	PeekOAMAddr() byte
+// 	PeekOAMData() byte
+// 	PeekScroll() byte
+// 	PeekPPUAddr() byte
+// 	PeekPPUData() byte
 
-	WriteController(byte)
-	WriteMask(byte)
-	WriteStatus(byte)
-	WriteOAMAddr(byte)
-	WriteOAMData(byte)
-	WriteScroll(byte)
-	WritePPUAddr(byte)
-	WritePPUData(byte)
-	WriteOAMDMAByte(byte)
-}
+// 	WriteController(byte)
+// 	WriteMask(byte)
+// 	WriteStatus(byte)
+// 	WriteOAMAddr(byte)
+// 	WriteOAMData(byte)
+// 	WriteScroll(byte)
+// 	WritePPUAddr(byte)
+// 	WritePPUData(byte)
+// 	WriteOAMDMAByte(byte)
+// }
 
 type Bus struct {
 	ram    []byte
-	ppu    PPU
-	apu    APU
+	ppu    *PPU
+	apu    *APU
 	mapper Mapper
-	joypad Joypad
+	joypad *Joypad
 
 	// This clock is used to adjust the clock difference for each instruction,
 	// so keep the state separate from the $4014 dma stall.
@@ -90,7 +90,7 @@ type Bus struct {
 	stall int
 }
 
-func NewBus(ppu PPU, apu APU, mapper Mapper, joypad Joypad) *Bus {
+func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad) *Bus {
 	return &Bus{
 		ram:    make([]byte, 2048),
 		ppu:    ppu,

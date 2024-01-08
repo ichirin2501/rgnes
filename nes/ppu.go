@@ -1,29 +1,24 @@
-package ppu
+package nes
 
 import (
 	"fmt"
 	"image/color"
 )
 
-type MirroringType interface {
-	IsVertical() bool
-	IsHorizontal() bool
-	IsFourScreen() bool
-}
+// type MirroringType interface {
+// 	IsVertical() bool
+// 	IsHorizontal() bool
+// 	IsFourScreen() bool
+// }
 
-type Mapper interface {
-	Read(addr uint16) byte
-	Write(addr uint16, val byte)
-}
+// type Mapper interface {
+// 	Read(addr uint16) byte
+// 	Write(addr uint16, val byte)
+// }
 
 type Renderer interface {
 	Render(x, y int, c color.Color)
 	Refresh()
-}
-
-type CPU interface {
-	SetDelayNMI()
-	SetNMI(val bool)
 }
 
 type vram struct {
@@ -89,9 +84,9 @@ type PPU struct {
 	mapper       Mapper
 	vram         *vram // include nametable and attribute
 	paletteTable paletteRAM
-	ctrl         ControlRegister
-	mask         MaskRegister
-	status       StatusRegister
+	ctrl         PPUControlRegister
+	mask         PPUMaskRegister
+	status       PPUStatusRegister
 	oamAddr      byte
 	buf          byte   // internal data buffer
 	v            uint16 // VRAM address (15 bits)
@@ -102,7 +97,7 @@ type PPU struct {
 	Cycle        int
 	renderer     Renderer
 	f            byte // even/odd frame flag (1 bit)
-	openbus      DecayRegister
+	openbus      PPUDecayRegister
 
 	suppressVBlankFlag bool
 
@@ -125,7 +120,7 @@ type PPU struct {
 	patternAttributeLowBit  uint16
 	patternAttributeHighBit uint16
 
-	cpu CPU
+	cpu *Interrupter
 
 	nmiDelay int
 	Clock    int
@@ -144,7 +139,7 @@ func (ppu *PPU) FetchBuffer() byte {
 	return ppu.buf
 }
 
-func New(renderer Renderer, mapper Mapper, mirror MirroringType, c CPU) *PPU {
+func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *Interrupter) *PPU {
 	ppu := &PPU{
 		vram:     newVRAM(mirror),
 		mapper:   mapper,
@@ -184,7 +179,7 @@ func (ppu *PPU) PeekController() byte {
 func (ppu *PPU) WriteController(val byte) {
 	ppu.updateOpenBus(val)
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
-	ppu.ctrl = ControlRegister(val)
+	ppu.ctrl = PPUControlRegister(val)
 	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
 		if ppu.Scanline == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
 			ppu.cpu.SetNMI(false)
@@ -217,7 +212,7 @@ func (ppu *PPU) PeekMask() byte {
 // $2001: PPUMASK
 func (ppu *PPU) WriteMask(val byte) {
 	ppu.updateOpenBus(val)
-	ppu.mask = MaskRegister(val)
+	ppu.mask = PPUMaskRegister(val)
 }
 
 // $2002: PPUSTATUS

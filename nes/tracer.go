@@ -1,4 +1,4 @@
-package cpu
+package nes
 
 import "fmt"
 

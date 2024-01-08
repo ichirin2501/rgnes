@@ -1,4 +1,4 @@
-package apu
+package nes
 
 // https://www.nesdev.org/wiki/APU_Frame_Counter
 // > The sequencer is clocked on every other CPU cycle, so 2 CPU cycles = 1 APU cycle.
@@ -25,10 +25,6 @@ func init() {
 	}
 }
 
-type CPU interface {
-	SetIRQ(val bool)
-}
-
 type Player interface {
 	Sample(float32)
 }
@@ -36,7 +32,7 @@ type Player interface {
 type Option func(*APU)
 
 type APU struct {
-	cpu          CPU
+	cpu          *Interrupter
 	player       Player
 	sampleRate   int
 	sampleTiming int
@@ -57,7 +53,7 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func New(cpu CPU, p Player, opts ...Option) *APU {
+func NewAPU(cpu *Interrupter, p Player, opts ...Option) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,

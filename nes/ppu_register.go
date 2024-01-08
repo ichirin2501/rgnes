@@ -1,6 +1,6 @@
-package ppu
+package nes
 
-// ControlRegister
+// PPUControlRegister
 // 7  bit  0
 // ---- ----
 // VPHB SINN
@@ -16,10 +16,11 @@ package ppu
 // |+------- - PPU master/slave select
 // |           (0: read backdrop from EXT pins; 1: output color on EXT pins)
 // +-------- - Generate an NMI at the start of the
-//             vertical blanking interval (0: off; 1: on)
-type ControlRegister byte
+//
+//	vertical blanking interval (0: off; 1: on)
+type PPUControlRegister byte
 
-func (c *ControlRegister) BaseNameTableAddr() uint16 {
+func (c *PPUControlRegister) BaseNameTableAddr() uint16 {
 	switch byte(*c) & 0x03 {
 	case 0:
 		return 0x2000
@@ -33,7 +34,7 @@ func (c *ControlRegister) BaseNameTableAddr() uint16 {
 	panic("uwaaaaaaaaaaa")
 }
 
-func (c *ControlRegister) IncrementalVRAMAddr() byte {
+func (c *PPUControlRegister) IncrementalVRAMAddr() byte {
 	if (byte(*c) & 0x04) == 0 {
 		return 1
 	} else {
@@ -41,7 +42,7 @@ func (c *ControlRegister) IncrementalVRAMAddr() byte {
 	}
 }
 
-func (c *ControlRegister) SpritePatternAddr() uint16 {
+func (c *PPUControlRegister) SpritePatternAddr() uint16 {
 	if (byte(*c) & 0x08) == 0 {
 		return 0
 	} else {
@@ -49,7 +50,7 @@ func (c *ControlRegister) SpritePatternAddr() uint16 {
 	}
 }
 
-func (c *ControlRegister) BackgroundPatternAddr() uint16 {
+func (c *PPUControlRegister) BackgroundPatternAddr() uint16 {
 	if (byte(*c) & 0x10) == 0 {
 		return 0
 	} else {
@@ -57,7 +58,7 @@ func (c *ControlRegister) BackgroundPatternAddr() uint16 {
 	}
 }
 
-func (c *ControlRegister) SpriteSize() byte {
+func (c *PPUControlRegister) SpriteSize() byte {
 	if (byte(*c) & 0x20) == 0 {
 		return 8
 	} else {
@@ -65,7 +66,7 @@ func (c *ControlRegister) SpriteSize() byte {
 	}
 }
 
-func (c *ControlRegister) MasterSlaveSelect() byte {
+func (c *PPUControlRegister) MasterSlaveSelect() byte {
 	if (byte(*c) & 0x40) == 0 {
 		return 0
 	} else {
@@ -73,7 +74,7 @@ func (c *ControlRegister) MasterSlaveSelect() byte {
 	}
 }
 
-func (c *ControlRegister) GenerateVBlankNMI() bool {
+func (c *PPUControlRegister) GenerateVBlankNMI() bool {
 	return (byte(*c) & 0x80) == 0x80
 }
 
@@ -90,30 +91,30 @@ func (c *ControlRegister) GenerateVBlankNMI() bool {
 // ||+------ - Emphasize red (green on PAL/Dendy)
 // |+------- - Emphasize green (red on PAL/Dendy)
 // +-------- - Emphasize blue
-type MaskRegister byte
+type PPUMaskRegister byte
 
-func (m *MaskRegister) IsGreyscale() bool {
+func (m *PPUMaskRegister) IsGreyscale() bool {
 	return (byte(*m) & 0x01) == 0x01
 }
-func (m *MaskRegister) ShowBackgroundLeftMost8pxlScreen() bool {
+func (m *PPUMaskRegister) ShowBackgroundLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x02) == 0x02
 }
-func (m *MaskRegister) ShowSpritesLeftMost8pxlScreen() bool {
+func (m *PPUMaskRegister) ShowSpritesLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x04) == 0x04
 }
-func (m *MaskRegister) ShowBackground() bool {
+func (m *PPUMaskRegister) ShowBackground() bool {
 	return (byte(*m) & 0x08) == 0x08
 }
-func (m *MaskRegister) ShowSprites() bool {
+func (m *PPUMaskRegister) ShowSprites() bool {
 	return (byte(*m) & 0x10) == 0x10
 }
-func (m *MaskRegister) EmphasizeRed() bool {
+func (m *PPUMaskRegister) EmphasizeRed() bool {
 	return (byte(*m) & 0x20) == 0x20
 }
-func (m *MaskRegister) EmphasizeGreen() bool {
+func (m *PPUMaskRegister) EmphasizeGreen() bool {
 	return (byte(*m) & 0x40) == 0x40
 }
-func (m *MaskRegister) EmphasizeBlue() bool {
+func (m *PPUMaskRegister) EmphasizeBlue() bool {
 	return (byte(*m) & 0x80) == 0x80
 }
 
@@ -135,12 +136,13 @@ func (m *MaskRegister) EmphasizeBlue() bool {
 // |           a nonzero background pixel; cleared at dot 1 of the pre-render
 // |           line.  Used for raster timing.
 // +-------- - Vertical blank has started (0: not in vblank; 1: in vblank).
-//             Set at dot 1 of line 241 (the line *after* the post-render
-//             line); cleared after reading $2002 and at dot 1 of the
-//             pre-render line.
-type StatusRegister byte
+//
+//	Set at dot 1 of line 241 (the line *after* the post-render
+//	line); cleared after reading $2002 and at dot 1 of the
+//	pre-render line.
+type PPUStatusRegister byte
 
-func (s *StatusRegister) SetSpriteOverflow(val bool) {
+func (s *PPUStatusRegister) SetSpriteOverflow(val bool) {
 	if val {
 		*s |= 0x20
 	} else {
@@ -148,7 +150,7 @@ func (s *StatusRegister) SetSpriteOverflow(val bool) {
 	}
 }
 
-func (s *StatusRegister) SetSprite0Hit(val bool) {
+func (s *PPUStatusRegister) SetSprite0Hit(val bool) {
 	if val {
 		*s |= 0x40
 	} else {
@@ -156,7 +158,7 @@ func (s *StatusRegister) SetSprite0Hit(val bool) {
 	}
 }
 
-func (s *StatusRegister) SetVBlankStarted(val bool) {
+func (s *PPUStatusRegister) SetVBlankStarted(val bool) {
 	if val {
 		*s |= 0x80
 	} else {
@@ -164,20 +166,20 @@ func (s *StatusRegister) SetVBlankStarted(val bool) {
 	}
 }
 
-func (s *StatusRegister) VBlankStarted() bool {
+func (s *PPUStatusRegister) VBlankStarted() bool {
 	return ((*s) & 0x80) == 0x80
 }
 
-func (s *StatusRegister) Get() byte {
+func (s *PPUStatusRegister) Get() byte {
 	return byte(*s)
 }
 
-type DecayRegister struct {
+type PPUDecayRegister struct {
 	val byte
 	tc  int // updated time clock
 }
 
-func (d *DecayRegister) Get(currClock int) byte {
+func (d *PPUDecayRegister) Get(currClock int) byte {
 	// ppu_open_bus/readme.txt
 	// > The PPU effectively has a "decay register", an 8-bit register. Each bit
 	// > can be refreshed with a 0 or 1. If a bit isn't refreshed with a 1 for
@@ -194,7 +196,7 @@ func (d *DecayRegister) Get(currClock int) byte {
 	}
 }
 
-func (d *DecayRegister) Set(currClock int, val byte) {
+func (d *PPUDecayRegister) Set(currClock int, val byte) {
 	d.tc = currClock
 	d.val = val
 }

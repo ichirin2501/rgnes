@@ -14,11 +14,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/hajimehoshi/oto"
-	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/cassette"
-	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/joypad"
-	"github.com/ichirin2501/rgnes/nes/ppu"
+	"github.com/ichirin2501/rgnes/nes"
 )
 
 func main() {
@@ -109,7 +105,7 @@ func realMain() error {
 	}
 	defer f.Close()
 
-	mapper, err := cassette.NewMapper(f)
+	mapper, err := nes.NewMapper(f)
 	if err != nil {
 		return err
 	}
@@ -119,16 +115,16 @@ func realMain() error {
 		return err
 	}
 
-	trace := &cpu.Trace{}
-	irp := &cpu.Interrupter{}
+	trace := &nes.Trace{}
+	irp := &nes.Interrupter{}
 
 	m := mapper.MirroingType()
-	ppu := ppu.New(renderer, mapper, &m, irp)
-	joypad := joypad.New()
-	apu := apu.New(irp, player)
-	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
+	ppu := nes.NewPPU(renderer, mapper, m, irp)
+	joypad := nes.NewJoypad()
+	apu := nes.NewAPU(irp, player)
+	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
 
-	cpu := cpu.New(cpuBus, irp, cpu.WithTracer(trace))
+	cpu := nes.NewCPU(cpuBus, irp, nes.WithTracer(trace))
 	apu.PowerUp()
 	cpu.PowerUp()
 
@@ -177,27 +173,27 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, cpu *cpu.CPU, j *joypad.Joypad, k fyne.KeyName, pressed bool) {
+func updateKey(win fyne.Window, cpu *nes.CPU, j *nes.Joypad, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
 		win.Close()
 	case fyne.KeyR:
 		cpu.Reset()
 	case fyne.KeySpace:
-		j.SetButtonStatus(joypad.ButtonSelect, pressed)
+		j.SetButtonStatus(nes.ButtonSelect, pressed)
 	case fyne.KeyReturn:
-		j.SetButtonStatus(joypad.ButtonStart, pressed)
+		j.SetButtonStatus(nes.ButtonStart, pressed)
 	case fyne.KeyUp:
-		j.SetButtonStatus(joypad.ButtonUP, pressed)
+		j.SetButtonStatus(nes.ButtonUP, pressed)
 	case fyne.KeyDown:
-		j.SetButtonStatus(joypad.ButtonDown, pressed)
+		j.SetButtonStatus(nes.ButtonDown, pressed)
 	case fyne.KeyLeft:
-		j.SetButtonStatus(joypad.ButtonLeft, pressed)
+		j.SetButtonStatus(nes.ButtonLeft, pressed)
 	case fyne.KeyRight:
-		j.SetButtonStatus(joypad.ButtonRight, pressed)
+		j.SetButtonStatus(nes.ButtonRight, pressed)
 	case fyne.KeyZ:
-		j.SetButtonStatus(joypad.ButtonA, pressed)
+		j.SetButtonStatus(nes.ButtonA, pressed)
 	case fyne.KeyX:
-		j.SetButtonStatus(joypad.ButtonB, pressed)
+		j.SetButtonStatus(nes.ButtonB, pressed)
 	}
 }

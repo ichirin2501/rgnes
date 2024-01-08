@@ -1,10 +1,4 @@
-package cpu
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
+package nes
 
 type fakePPU struct {
 	PPU
@@ -28,32 +22,32 @@ type fakeJoypad struct {
 }
 
 // エミュレーションとして正しいかどうかわからないけど、自分が期待する実装としてのテスト
-func Test_DMACycle(t *testing.T) {
-	t.Parallel()
+// func Test_DMACycle(t *testing.T) {
+// 	t.Parallel()
 
-	ppu := &fakePPU{}
-	apu := &fakeAPU{}
-	mapper := &fakeMapper{}
-	joypad := &fakeJoypad{}
-	bus := NewBus(ppu, apu, mapper, joypad)
+// 	ppu := &fakePPU{}
+// 	apu := &fakeAPU{}
+// 	mapper := &fakeMapper{}
+// 	joypad := &fakeJoypad{}
+// 	bus := NewBus(ppu, apu, mapper, joypad)
 
-	it := &Interrupter{}
-	cpu := New(bus, it)
-	cpu.X = 0x02
-	cpu.PC = 0x0000
-	// 03      SLO     indexedIndirect cycle:8
-	bus.ram[0] = 0x03
-	bus.ram[1] = 0x00
-	bus.ram[2] = 0x14
-	bus.ram[3] = 0x40
-	cpu.Step()
+// 	it := &Interrupter{}
+// 	cpu := NewCPU(bus, it)
+// 	cpu.X = 0x02
+// 	cpu.PC = 0x0000
+// 	// 03      SLO     indexedIndirect cycle:8
+// 	bus.ram[0] = 0x03
+// 	bus.ram[1] = 0x00
+// 	bus.ram[2] = 0x14
+// 	bus.ram[3] = 0x40
+// 	cpu.Step()
 
-	// 実装的には7,8clock目にwriteが走るので、
-	// 7 clock目 = +513+1
-	// 8 clock目は7+513+1で奇数なのでまた +513+1
-	// = 521+513+1 = cpu clock 1035 が期待値
-	assert.Equal(t, 1035, bus.realClock())
-}
+// 	// 実装的には7,8clock目にwriteが走るので、
+// 	// 7 clock目 = +513+1
+// 	// 8 clock目は7+513+1で奇数なのでまた +513+1
+// 	// = 521+513+1 = cpu clock 1035 が期待値
+// 	assert.Equal(t, 1035, bus.realClock())
+// }
 
 // func Test_AddressingMode(t *testing.T) {
 // 	t.Parallel()

@@ -6,12 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ichirin2501/rgnes/nes/apu"
-	"github.com/ichirin2501/rgnes/nes/cassette"
-	"github.com/ichirin2501/rgnes/nes/cpu"
-	"github.com/ichirin2501/rgnes/nes/joypad"
-	"github.com/ichirin2501/rgnes/nes/ppu"
-
+	"github.com/ichirin2501/rgnes/nes"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -137,19 +132,19 @@ func Test_CPU_OUT_6000(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer f.Close()
-			mapper, err := cassette.NewMapper(f)
+			mapper, err := nes.NewMapper(f)
 			if err != nil {
 				t.Fatal(err)
 			}
 			m := mapper.MirroingType()
-			irp := &cpu.Interrupter{}
+			irp := &nes.Interrupter{}
 			fake := &fakeRenderer{}
 			fakePlayer := &fakePlayer{}
-			ppu := ppu.New(fake, mapper, &m, irp)
-			apu := apu.New(irp, fakePlayer)
-			joypad := joypad.New()
-			cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
-			cpu := cpu.New(cpuBus, irp)
+			ppu := nes.NewPPU(fake, mapper, m, irp)
+			apu := nes.NewAPU(irp, fakePlayer)
+			joypad := nes.NewJoypad()
+			cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
+			cpu := nes.NewCPU(cpuBus, irp)
 			cpu.PowerUp()
 
 			ready := false
@@ -184,19 +179,19 @@ func Test_NESTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	mapper, err := cassette.NewMapper(f)
+	mapper, err := nes.NewMapper(f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := mapper.MirroingType()
-	irp := &cpu.Interrupter{}
+	irp := &nes.Interrupter{}
 	fake := &fakeRenderer{}
 	fakePlayer := &fakePlayer{}
-	ppu := ppu.New(fake, mapper, &m, irp)
-	apu := apu.New(irp, fakePlayer)
-	joypad := joypad.New()
-	cpuBus := cpu.NewBus(ppu, apu, mapper, joypad)
-	cpu := cpu.New(cpuBus, irp)
+	ppu := nes.NewPPU(fake, mapper, m, irp)
+	apu := nes.NewAPU(irp, fakePlayer)
+	joypad := nes.NewJoypad()
+	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
+	cpu := nes.NewCPU(cpuBus, irp)
 
 	cpu.PC = 0xC000
 	assert.Equal(t, byte(0), cpuBus.Peek(0x02))

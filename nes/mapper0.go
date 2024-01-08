@@ -1,4 +1,4 @@
-package cassette
+package nes
 
 import "fmt"
 

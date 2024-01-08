@@ -1,4 +1,4 @@
-package cassette
+package nes
 
 import (
 	"encoding/binary"
@@ -48,7 +48,7 @@ type Cassette struct {
 	Mirror MirroringType
 }
 
-func New(r io.Reader) (*Cassette, error) {
+func NewCassette(r io.Reader) (*Cassette, error) {
 	header := &iNESHeader{}
 	if err := binary.Read(r, binary.LittleEndian, header); err != nil {
 		return nil, err

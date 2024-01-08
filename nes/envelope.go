@@ -1,4 +1,4 @@
-package apu
+package nes
 
 type envelope struct {
 	constantVolume    bool
