@@ -136,22 +136,15 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m := mapper.MirroingType()
-			irp := &nes.Interrupter{}
-			fake := &fakeRenderer{}
-			fakePlayer := &fakePlayer{}
-			ppu := nes.NewPPU(fake, mapper, m, irp)
-			apu := nes.NewAPU(irp, fakePlayer)
-			joypad := nes.NewJoypad()
-			cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
-			cpu := nes.NewCPU(cpuBus, irp)
-			cpu.PowerUp()
+
+			n := nes.New(mapper, &fakeRenderer{}, &fakePlayer{})
+			n.PowerUp()
 
 			ready := false
 			done := false
 			for {
-				cpu.Step()
-				got := cpuBus.Peek(0x6000)
+				n.Step()
+				got := n.PeekMemory(0x6000)
 				switch got {
 				case 0x80:
 					ready = true
@@ -183,28 +176,21 @@ func Test_NESTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := mapper.MirroingType()
-	irp := &nes.Interrupter{}
-	fake := &fakeRenderer{}
-	fakePlayer := &fakePlayer{}
-	ppu := nes.NewPPU(fake, mapper, m, irp)
-	apu := nes.NewAPU(irp, fakePlayer)
-	joypad := nes.NewJoypad()
-	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
-	cpu := nes.NewCPU(cpuBus, irp)
 
-	cpu.PC = 0xC000
-	assert.Equal(t, byte(0), cpuBus.Peek(0x02))
-	assert.Equal(t, byte(0), cpuBus.Peek(0x03))
+	n := nes.New(mapper, &fakeRenderer{}, &fakePlayer{})
+	n.SetCPUPC(0xC000)
+
+	assert.Equal(t, byte(0), n.PeekMemory(0x02))
+	assert.Equal(t, byte(0), n.PeekMemory(0x03))
 	for i := 0; i < 8991; i++ {
-		cpu.Step()
-		if cpuBus.Peek(0x02) != 0 {
-			t.Fatal(fmt.Sprintf("0x02 is not 0 (0x%02x)", cpuBus.Peek(0x02)))
+		n.Step()
+		if n.PeekMemory(0x02) != 0 {
+			t.Fatal(fmt.Sprintf("0x02 is not 0 (0x%02x)", n.PeekMemory(0x02)))
 		}
-		if cpuBus.Peek(0x03) != 0 {
-			t.Fatal(fmt.Sprintf("0x03 is not 0 (0x%02x)", cpuBus.Peek(0x03)))
+		if n.PeekMemory(0x03) != 0 {
+			t.Fatal(fmt.Sprintf("0x03 is not 0 (0x%02x)", n.PeekMemory(0x03)))
 		}
 	}
-	assert.Equal(t, byte(0), cpuBus.Peek(0x02))
-	assert.Equal(t, byte(0), cpuBus.Peek(0x03))
+	assert.Equal(t, byte(0), n.PeekMemory(0x02))
+	assert.Equal(t, byte(0), n.PeekMemory(0x03))
 }

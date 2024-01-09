@@ -32,7 +32,7 @@ type Player interface {
 type APUOption func(*APU)
 
 type APU struct {
-	cpu          *Interrupter
+	cpu          *interrupter
 	player       Player
 	sampleRate   int
 	sampleTiming int
@@ -53,7 +53,7 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *Interrupter, p Player, opts ...APUOption) *APU {
+func NewAPU(cpu *interrupter, p Player, opts ...APUOption) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,

@@ -120,56 +120,21 @@ func realMain() error {
 		return err
 	}
 
-	trace := &nes.Trace{}
-	irp := &nes.Interrupter{}
-
-	m := mapper.MirroingType()
-	ppu := nes.NewPPU(renderer, mapper, m, irp)
-	joypad := nes.NewJoypad()
-	apu := nes.NewAPU(irp, player)
-	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
-
-	cpu := nes.NewCPU(cpuBus, irp, nes.WithTracer(trace))
-	apu.PowerUp()
-	cpu.PowerUp()
+	n := nes.New(mapper, renderer, player)
+	n.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
 		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
-			updateKey(win, cpu, joypad, k.Name, true)
+			updateKey(win, n, k.Name, true)
 		})
 		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
-			updateKey(win, cpu, joypad, k.Name, false)
+			updateKey(win, n, k.Name, false)
 		})
 	}
 
 	go func() {
 		for {
-			trace.Reset()
-
-			// ここでppuの状態を記録しておく
-			trace.SetPPUX(uint16(ppu.Cycle))
-			trace.SetPPUY(uint16(ppu.Scanline))
-			// v := ppu.FetchV()
-			// mp0 := mapper.Read(0)
-			// ppuBuf := ppu.FetchBuffer()
-			//beforeScanline := ppu.Scanline
-			cpu.Step()
-
-			// fmt.Printf("%s apuSteps:%d\tapuFrameMode:%d\tapuFrameSeqStep:%d\tapuPulse1LC:%d\tframeIRQFlag:%v\tnewfval:%v\twriteDelayFC:%v\n", trace.NESTestString(),
-			// 	apu.FetchFrameStep(),
-			// 	apu.FetchFrameMode(),
-			// 	apu.FetchFrameSeqStep(),
-			// 	apu.FetchPulse1LC(),
-			// 	apu.FetchFrameIRQFlag(),
-			// 	apu.FetchNewFrameCounterVal(),
-			// 	apu.FetchWriteDelayFC(),
-			// )
-			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
-			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
-
-			// if cpu.FetchCycles()*3 != ppu.Clock {
-			// 	panic("eeeeeeeeeeeeeeeeee")
-			// }
+			n.Step()
 		}
 	}()
 
@@ -178,27 +143,27 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, cpu *nes.CPU, j *nes.Joypad, k fyne.KeyName, pressed bool) {
+func updateKey(win fyne.Window, n *nes.NES, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
 		win.Close()
 	case fyne.KeyR:
-		cpu.Reset()
+		n.Reset()
 	case fyne.KeySpace:
-		j.SetButtonStatus(nes.ButtonSelect, pressed)
+		n.SetButtonStatus(nes.ButtonSelect, pressed)
 	case fyne.KeyReturn:
-		j.SetButtonStatus(nes.ButtonStart, pressed)
+		n.SetButtonStatus(nes.ButtonStart, pressed)
 	case fyne.KeyUp:
-		j.SetButtonStatus(nes.ButtonUP, pressed)
+		n.SetButtonStatus(nes.ButtonUP, pressed)
 	case fyne.KeyDown:
-		j.SetButtonStatus(nes.ButtonDown, pressed)
+		n.SetButtonStatus(nes.ButtonDown, pressed)
 	case fyne.KeyLeft:
-		j.SetButtonStatus(nes.ButtonLeft, pressed)
+		n.SetButtonStatus(nes.ButtonLeft, pressed)
 	case fyne.KeyRight:
-		j.SetButtonStatus(nes.ButtonRight, pressed)
+		n.SetButtonStatus(nes.ButtonRight, pressed)
 	case fyne.KeyZ:
-		j.SetButtonStatus(nes.ButtonA, pressed)
+		n.SetButtonStatus(nes.ButtonA, pressed)
 	case fyne.KeyX:
-		j.SetButtonStatus(nes.ButtonB, pressed)
+		n.SetButtonStatus(nes.ButtonB, pressed)
 	}
 }

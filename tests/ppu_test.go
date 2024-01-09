@@ -85,22 +85,15 @@ func Test_PPU_OUT_6000(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m := mapper.MirroingType()
-			irp := &nes.Interrupter{}
-			fake := &fakeRenderer{}
-			fakePlayer := &fakePlayer{}
-			ppu := nes.NewPPU(fake, mapper, m, irp)
-			apu := nes.NewAPU(irp, fakePlayer)
-			joypad := nes.NewJoypad()
-			cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
-			cpu := nes.NewCPU(cpuBus, irp)
-			cpu.PowerUp()
+
+			n := nes.New(mapper, &fakeRenderer{}, &fakePlayer{})
+			n.PowerUp()
 
 			ready := false
 			done := false
 			for {
-				cpu.Step()
-				got := cpuBus.Peek(0x6000)
+				n.Step()
+				got := n.PeekMemory(0x6000)
 				switch got {
 				case 0x80:
 					ready = true

@@ -16,13 +16,13 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  processorStatus
 
-	I   *Interrupter
+	I   *interrupter
 	bus *Bus
 	t   *Trace
 	mu  *sync.Mutex
 }
 
-func NewCPU(bus *Bus, i *Interrupter, opts ...CPUOption) *CPU {
+func NewCPU(bus *Bus, i *interrupter, opts ...CPUOption) *CPU {
 	cpu := &CPU{
 		I:   i,
 		bus: bus,
