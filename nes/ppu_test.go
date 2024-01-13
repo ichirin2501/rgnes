@@ -322,7 +322,7 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:  ppuStatusRegister(0x88),
 				openbus: ppuDecayRegister{val: 0x31},
-				cpu:     &Interrupter{},
+				cpu:     &interrupter{},
 				w:       true,
 			},
 			0x99,
@@ -336,7 +336,7 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				openbus:  ppuDecayRegister{val: 0x01},
-				cpu:      &Interrupter{},
+				cpu:      &interrupter{},
 				Scanline: 241,
 				Cycle:    0,
 				nmiDelay: 3,
@@ -352,7 +352,7 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				openbus:  ppuDecayRegister{val: 0x01},
-				cpu:      &Interrupter{},
+				cpu:      &interrupter{},
 				Scanline: 241,
 				Cycle:    1,
 				nmiDelay: 3,
@@ -368,7 +368,7 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				openbus:  ppuDecayRegister{val: 0x01},
-				cpu:      &Interrupter{},
+				cpu:      &interrupter{},
 				Scanline: 241,
 				Cycle:    2,
 				nmiDelay: 3,
@@ -384,7 +384,7 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				openbus:  ppuDecayRegister{val: 0x01},
-				cpu:      &Interrupter{},
+				cpu:      &interrupter{},
 				Scanline: 241,
 				Cycle:    3,
 				nmiDelay: 3,

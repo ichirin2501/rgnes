@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/hajimehoshi/oto"
+	"github.com/gordonklaus/portaudio"
 	"github.com/ichirin2501/rgnes/nes"
 )
 
@@ -56,28 +56,65 @@ func (r *renderer) Refresh() {
 	r.currImg.Refresh()
 }
 
-type player struct {
-	p   *oto.Player
-	buf []byte
+// ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
+type Player struct {
+	stream         *portaudio.Stream
+	sampleRate     float64
+	outputChannels int
+	channel        chan float32
 }
 
-func newPlayer() (*player, error) {
-	c, err := oto.NewContext(44100, 1, 1, 1)
+func newPlayer() (*Player, error) {
+	host, err := portaudio.DefaultHostApi()
 	if err != nil {
 		return nil, err
 	}
-	p := c.NewPlayer()
-	return &player{
-		p:   p,
-		buf: make([]byte, 1),
-	}, nil
+	parameters := portaudio.HighLatencyParameters(nil, host.DefaultOutputDevice)
+
+	p := Player{
+		sampleRate:     parameters.SampleRate,
+		outputChannels: parameters.Output.Channels,
+		// If this channel size is too large (e.g. 44100), the BGM will be delayed. Make the size not too big
+		channel: make(chan float32, 3000),
+	}
+
+	cbFunc := func(out []float32) {
+		var output float32
+		for i := range out {
+			if i%p.outputChannels == 0 {
+				select {
+				case sample := <-p.channel:
+					output = sample
+				default:
+					output = 0
+				}
+			}
+			out[i] = output
+		}
+	}
+	stream, err := portaudio.OpenStream(parameters, cbFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	p.stream = stream
+	return &p, nil
 }
 
-func (p *player) Sample(v float32) {
-	p.buf[0] = byte(v * 0xFF)
-	if _, err := p.p.Write(p.buf); err != nil {
-		fmt.Println("why: ", err)
-	}
+func (p *Player) Start() error {
+	return p.stream.Start()
+}
+
+func (p *Player) Stop() error {
+	return p.stream.Close()
+}
+
+func (p *Player) Sample(v float32) {
+	p.channel <- v
+}
+
+func (p *Player) SampleRate() float64 {
+	return p.sampleRate
 }
 
 func realMain() error {
@@ -94,8 +131,9 @@ func realMain() error {
 
 	canvasImg1 := canvas.NewImageFromImage(img1)
 	canvasImg2 := canvas.NewImageFromImage(img2)
-	canvasImg1.SetMinSize(fyne.NewSize(256, 240))
-	canvasImg2.SetMinSize(fyne.NewSize(256, 240))
+	canvasImg1.SetMinSize(fyne.NewSize(256*2, 240*2))
+	canvasImg2.SetMinSize(fyne.NewSize(256*2, 240*2))
+
 	canvasImg1.ScaleMode = canvas.ImageScalePixels
 	canvasImg2.ScaleMode = canvas.ImageScalePixels
 
@@ -115,61 +153,32 @@ func realMain() error {
 		return err
 	}
 
-	player, err := newPlayer()
+	portaudio.Initialize()
+	defer portaudio.Terminate()
+	player, nil := newPlayer()
 	if err != nil {
 		return err
 	}
+	if err := player.Start(); err != nil {
+		return err
+	}
+	defer player.Stop()
 
-	trace := &nes.Trace{}
-	irp := &nes.Interrupter{}
-
-	m := mapper.MirroingType()
-	ppu := nes.NewPPU(renderer, mapper, m, irp)
-	joypad := nes.NewJoypad()
-	apu := nes.NewAPU(irp, player)
-	cpuBus := nes.NewBus(ppu, apu, mapper, joypad)
-
-	cpu := nes.NewCPU(cpuBus, irp, nes.WithTracer(trace))
-	apu.PowerUp()
-	cpu.PowerUp()
+	n := nes.New(mapper, renderer, player)
+	n.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
 		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
-			updateKey(win, cpu, joypad, k.Name, true)
+			updateKey(win, n, k.Name, true)
 		})
 		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
-			updateKey(win, cpu, joypad, k.Name, false)
+			updateKey(win, n, k.Name, false)
 		})
 	}
 
 	go func() {
 		for {
-			trace.Reset()
-
-			// ここでppuの状態を記録しておく
-			trace.SetPPUX(uint16(ppu.Cycle))
-			trace.SetPPUY(uint16(ppu.Scanline))
-			// v := ppu.FetchV()
-			// mp0 := mapper.Read(0)
-			// ppuBuf := ppu.FetchBuffer()
-			//beforeScanline := ppu.Scanline
-			cpu.Step()
-
-			// fmt.Printf("%s apuSteps:%d\tapuFrameMode:%d\tapuFrameSeqStep:%d\tapuPulse1LC:%d\tframeIRQFlag:%v\tnewfval:%v\twriteDelayFC:%v\n", trace.NESTestString(),
-			// 	apu.FetchFrameStep(),
-			// 	apu.FetchFrameMode(),
-			// 	apu.FetchFrameSeqStep(),
-			// 	apu.FetchPulse1LC(),
-			// 	apu.FetchFrameIRQFlag(),
-			// 	apu.FetchNewFrameCounterVal(),
-			// 	apu.FetchWriteDelayFC(),
-			// )
-			//fmt.Printf("%s ppu.v:0x%04X ppu.buf:0x%02X mapper[0]:0x%02X\n", trace.NESTestString(), v, ppuBuf, mp0)
-			//fmt.Printf("0x6000 = 0x%02X\n", cpuBus.ReadForTest(0x6000))
-
-			// if cpu.FetchCycles()*3 != ppu.Clock {
-			// 	panic("eeeeeeeeeeeeeeeeee")
-			// }
+			n.Step()
 		}
 	}()
 
@@ -178,27 +187,27 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, cpu *nes.CPU, j *nes.Joypad, k fyne.KeyName, pressed bool) {
+func updateKey(win fyne.Window, n *nes.NES, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
 		win.Close()
 	case fyne.KeyR:
-		cpu.Reset()
+		n.Reset()
 	case fyne.KeySpace:
-		j.SetButtonStatus(nes.ButtonSelect, pressed)
+		n.SetButtonStatus(nes.ButtonSelect, pressed)
 	case fyne.KeyReturn:
-		j.SetButtonStatus(nes.ButtonStart, pressed)
+		n.SetButtonStatus(nes.ButtonStart, pressed)
 	case fyne.KeyUp:
-		j.SetButtonStatus(nes.ButtonUP, pressed)
+		n.SetButtonStatus(nes.ButtonUP, pressed)
 	case fyne.KeyDown:
-		j.SetButtonStatus(nes.ButtonDown, pressed)
+		n.SetButtonStatus(nes.ButtonDown, pressed)
 	case fyne.KeyLeft:
-		j.SetButtonStatus(nes.ButtonLeft, pressed)
+		n.SetButtonStatus(nes.ButtonLeft, pressed)
 	case fyne.KeyRight:
-		j.SetButtonStatus(nes.ButtonRight, pressed)
+		n.SetButtonStatus(nes.ButtonRight, pressed)
 	case fyne.KeyZ:
-		j.SetButtonStatus(nes.ButtonA, pressed)
+		n.SetButtonStatus(nes.ButtonA, pressed)
 	case fyne.KeyX:
-		j.SetButtonStatus(nes.ButtonB, pressed)
+		n.SetButtonStatus(nes.ButtonB, pressed)
 	}
 }

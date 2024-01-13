@@ -5,6 +5,11 @@ import (
 	"image/color"
 )
 
+const (
+	ScreenWidth  = 256
+	ScreenHeight = 240
+)
+
 type Renderer interface {
 	Render(x, y int, c color.Color)
 	Refresh()
@@ -109,7 +114,7 @@ type PPU struct {
 	patternAttributeLowBit  uint16
 	patternAttributeHighBit uint16
 
-	cpu *Interrupter
+	cpu *interrupter
 
 	nmiDelay int
 	Clock    int
@@ -128,7 +133,7 @@ func (ppu *PPU) FetchBuffer() byte {
 	return ppu.buf
 }
 
-func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *Interrupter) *PPU {
+func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *interrupter) *PPU {
 	ppu := &PPU{
 		vram:     newVRAM(mirror),
 		mapper:   mapper,
