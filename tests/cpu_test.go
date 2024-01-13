@@ -17,7 +17,8 @@ func (f *fakeRenderer) Refresh()                       {}
 
 type fakePlayer struct{}
 
-func (f *fakePlayer) Sample(v float32) {}
+func (f *fakePlayer) Sample(v float32)    {}
+func (f *fakePlayer) SampleRate() float64 { return 44100 }
 
 func Test_CPU_OUT_6000(t *testing.T) {
 	t.Parallel()

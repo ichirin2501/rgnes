@@ -64,51 +64,57 @@ type Player struct {
 	channel        chan float32
 }
 
-func newPlayer() *Player {
-	a := Player{}
-	a.channel = make(chan float32, 44100)
-	return &a
-}
-
-func (a *Player) Start() error {
+func newPlayer() (*Player, error) {
 	host, err := portaudio.DefaultHostApi()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	parameters := portaudio.HighLatencyParameters(nil, host.DefaultOutputDevice)
-	stream, err := portaudio.OpenStream(parameters, a.Callback)
-	if err != nil {
-		return err
-	}
-	if err := stream.Start(); err != nil {
-		return err
-	}
-	a.stream = stream
-	a.sampleRate = parameters.SampleRate
-	a.outputChannels = parameters.Output.Channels
-	return nil
-}
 
-func (a *Player) Stop() error {
-	return a.stream.Close()
-}
+	p := Player{
+		sampleRate:     parameters.SampleRate,
+		outputChannels: parameters.Output.Channels,
+		// If this channel size is too large (e.g. 44100), the BGM will be delayed. Make the size not too big
+		channel: make(chan float32, 3000),
+	}
 
-func (a *Player) Callback(out []float32) {
-	var output float32
-	for i := range out {
-		if i%a.outputChannels == 0 {
-			select {
-			case sample := <-a.channel:
-				output = sample
-			default:
-				output = 0
+	cbFunc := func(out []float32) {
+		var output float32
+		for i := range out {
+			if i%p.outputChannels == 0 {
+				select {
+				case sample := <-p.channel:
+					output = sample
+				default:
+					output = 0
+				}
 			}
+			out[i] = output
 		}
-		out[i] = output
 	}
+	stream, err := portaudio.OpenStream(parameters, cbFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	p.stream = stream
+	return &p, nil
 }
-func (a *Player) Sample(v float32) {
-	a.channel <- v
+
+func (p *Player) Start() error {
+	return p.stream.Start()
+}
+
+func (p *Player) Stop() error {
+	return p.stream.Close()
+}
+
+func (p *Player) Sample(v float32) {
+	p.channel <- v
+}
+
+func (p *Player) SampleRate() float64 {
+	return p.sampleRate
 }
 
 func realMain() error {
@@ -149,7 +155,10 @@ func realMain() error {
 
 	portaudio.Initialize()
 	defer portaudio.Terminate()
-	player := newPlayer()
+	player, nil := newPlayer()
+	if err != nil {
+		return err
+	}
 	if err := player.Start(); err != nil {
 		return err
 	}

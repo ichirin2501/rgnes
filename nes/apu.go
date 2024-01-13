@@ -27,14 +27,13 @@ func init() {
 
 type Player interface {
 	Sample(float32)
+	SampleRate() float64
 }
-
-type APUOption func(*APU)
 
 type APU struct {
 	cpu          *interrupter
 	player       Player
-	sampleRate   int
+	sampleRate   float64
 	sampleTiming int
 	clock        int
 	pulse1       *pulse
@@ -53,11 +52,11 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *interrupter, p Player, opts ...APUOption) *APU {
+func NewAPU(cpu *interrupter, p Player) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,
-		sampleRate: 44100,
+		sampleRate: p.SampleRate(),
 
 		clock:  -1,
 		pulse1: newPulse(1),
@@ -69,17 +68,8 @@ func NewAPU(cpu *interrupter, p Player, opts ...APUOption) *APU {
 		frameStep:          -1,
 		newFrameCounterVal: -1,
 	}
-	for _, opt := range opts {
-		opt(apu)
-	}
-	apu.sampleTiming = 1789773 / apu.sampleRate
+	apu.sampleTiming = int(1789773 / apu.sampleRate)
 	return apu
-}
-
-func WithSampleRate(sampleRate int) APUOption {
-	return func(apu *APU) {
-		apu.sampleRate = sampleRate
-	}
 }
 
 func (apu *APU) PowerUp() {
