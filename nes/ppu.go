@@ -5,6 +5,11 @@ import (
 	"image/color"
 )
 
+const (
+	ScreenWidth  = 256
+	ScreenHeight = 240
+)
+
 type Renderer interface {
 	Render(x, y int, c color.Color)
 	Refresh()

@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/hajimehoshi/oto"
+	"github.com/gordonklaus/portaudio"
 	"github.com/ichirin2501/rgnes/nes"
 )
 
@@ -56,28 +56,59 @@ func (r *renderer) Refresh() {
 	r.currImg.Refresh()
 }
 
-type player struct {
-	p   *oto.Player
-	buf []byte
+// ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
+type Player struct {
+	stream         *portaudio.Stream
+	sampleRate     float64
+	outputChannels int
+	channel        chan float32
 }
 
-func newPlayer() (*player, error) {
-	c, err := oto.NewContext(44100, 1, 1, 1)
+func newPlayer() *Player {
+	a := Player{}
+	a.channel = make(chan float32, 44100)
+	return &a
+}
+
+func (a *Player) Start() error {
+	host, err := portaudio.DefaultHostApi()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	p := c.NewPlayer()
-	return &player{
-		p:   p,
-		buf: make([]byte, 1),
-	}, nil
+	parameters := portaudio.HighLatencyParameters(nil, host.DefaultOutputDevice)
+	stream, err := portaudio.OpenStream(parameters, a.Callback)
+	if err != nil {
+		return err
+	}
+	if err := stream.Start(); err != nil {
+		return err
+	}
+	a.stream = stream
+	a.sampleRate = parameters.SampleRate
+	a.outputChannels = parameters.Output.Channels
+	return nil
 }
 
-func (p *player) Sample(v float32) {
-	p.buf[0] = byte(v * 0xFF)
-	if _, err := p.p.Write(p.buf); err != nil {
-		fmt.Println("why: ", err)
+func (a *Player) Stop() error {
+	return a.stream.Close()
+}
+
+func (a *Player) Callback(out []float32) {
+	var output float32
+	for i := range out {
+		if i%a.outputChannels == 0 {
+			select {
+			case sample := <-a.channel:
+				output = sample
+			default:
+				output = 0
+			}
+		}
+		out[i] = output
 	}
+}
+func (a *Player) Sample(v float32) {
+	a.channel <- v
 }
 
 func realMain() error {
@@ -94,8 +125,9 @@ func realMain() error {
 
 	canvasImg1 := canvas.NewImageFromImage(img1)
 	canvasImg2 := canvas.NewImageFromImage(img2)
-	canvasImg1.SetMinSize(fyne.NewSize(256, 240))
-	canvasImg2.SetMinSize(fyne.NewSize(256, 240))
+	canvasImg1.SetMinSize(fyne.NewSize(256*2, 240*2))
+	canvasImg2.SetMinSize(fyne.NewSize(256*2, 240*2))
+
 	canvasImg1.ScaleMode = canvas.ImageScalePixels
 	canvasImg2.ScaleMode = canvas.ImageScalePixels
 
@@ -115,10 +147,13 @@ func realMain() error {
 		return err
 	}
 
-	player, err := newPlayer()
-	if err != nil {
+	portaudio.Initialize()
+	defer portaudio.Terminate()
+	player := newPlayer()
+	if err := player.Start(); err != nil {
 		return err
 	}
+	defer player.Stop()
 
 	n := nes.New(mapper, renderer, player)
 	n.PowerUp()
