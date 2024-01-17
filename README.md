@@ -48,7 +48,7 @@ It's great because it's written so simple.
 | blargg_apu_2005.07.30 | 05.len_timing_mode0.nes | ✅ |
 | blargg_apu_2005.07.30 | 06.len_timing_mode1.nes | ✅ |
 | blargg_apu_2005.07.30 | 07.irq_flag_timing.nes | ✅ |
-| blargg_apu_2005.07.30 | 08.irq_timing.nes | ❌ |
+| blargg_apu_2005.07.30 | 08.irq_timing.nes | ✅ |
 | blargg_apu_2005.07.30 | 09.reset_timing.nes | ✅ |
 | blargg_apu_2005.07.30 | 10.len_halt_timing.nes | ❌ |
 | blargg_apu_2005.07.30 | 11.len_reload_timing.nes | ❌ |
