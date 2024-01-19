@@ -41,6 +41,12 @@ It's great because it's written so simple.
 | apu_test | 6-irq_flag_timing.nes | ✅ |
 | apu_test | 7-dmc_basics.nes | ❌ |
 | apu_test | 8-dmc_rates.nes | ❌ |
+| apu_reset | 4015_cleared.nes | ✅ |
+| apu_reset | 4017_timing.nes  | ❌ |
+| apu_reset | 4017_written.nes  | ❌ |
+| apu_reset | irq_flag_cleared.nes | ✅ |
+| apu_reset | len_ctrs_enabled.nes | ✅ |
+| apu_reset | works_immediately.nes | ❌ |
 | blargg_apu_2005.07.30 | 01.len_ctr.nes | ✅ |
 | blargg_apu_2005.07.30 | 02.len_table.nes  | ✅ |
 | blargg_apu_2005.07.30 | 03.irq_flag.nes | ✅ |
@@ -64,6 +70,8 @@ It's great because it's written so simple.
 | cpu_dummy_writes | cpu_dummy_writes_ppumem.nes | ✅ |
 | cpu_exec_space | test_cpu_exec_space_apu.nes | ❌ |
 | cpu_exec_space | test_cpu_exec_space_ppuio.nes | ✅ |
+| cpu_reset | ram_after_reset.nes | ❌ |
+| cpu_reset | registers.nes | ❌ |
 | cpu_timing_test6 | cpu_timing_test.nes | ✅ |
 | instr_misc | 01-abs_x_wrap.nes | ✅ |
 | instr_misc | 02-branch_wrap.nes | ✅ |
