@@ -1,12 +1,18 @@
 package nes
 
-// https://www.nesdev.org/wiki/APU_Frame_Counter
+// ref: https://www.nesdev.org/wiki/APU_Frame_Counter
 // > The sequencer is clocked on every other CPU cycle, so 2 CPU cycles = 1 APU cycle.
-// > The sequencer keeps track of how many APU cycles have elapsed in total,
-// > and each step of the sequence will occur once that total has reached the indicated amount (with an additional delay of one CPU cycle for the quarter and half frame signals).
-// > Once the last step has executed, the count resets to 0 on the next APU cycle.
-// apu cyclesを保持するとあるけど、timerはcpu cycleで動くので、ここでもcpu cyclesで統一してテーブルを用意する
+// > (with an additional delay of one CPU cycle for the quarter and half frame signals).
+// e.g. APU Cycle 3728.5 => Envelopes & triangle's linear counter
+//
+// ref: https://www.nesdev.org/wiki/APU#Glossary
+// > The triangle channel's timer is clocked on every CPU cycle
+//
+// For the above two reasons, I will design the system to move the APU one step when the CPU moves one step.
+// Furthermore, the frame sequence value written on the wiki(APU_Frame_Counter) is doubled and stored in the following frame table.
+
 // NTSC
+// 4-step seq: 0,1,2,.....29829,29830(0),1,2,...
 var frameTable = [][]int{
 	{7457, 14913, 22371, 29828, 29829, 29830}, // 4-step seq
 	{7457, 14913, 22371, 29829, 37281, 37282}, // 5-step seq
@@ -47,7 +53,6 @@ type APU struct {
 	frameInterruptInhibit  bool
 	frameInterruptFlag     bool
 	frameStep              int
-	frameSequenceStep      int
 	newFrameCounterVal     int // for delay
 	writeDelayFrameCounter byte
 }
@@ -85,10 +90,14 @@ func (apu *APU) Reset() {
 
 func (apu *APU) Step() {
 	apu.clock++
-	apu.tickTimers()
-	apu.tickFrameCounter()
 
-	// test
+	// e.g. https://www.nesdev.org/wiki/APU_Pulse
+	// Looking at the diagram output to mixer via Gate, there are dependencies of components.
+	// For example, in Pulse, timer depends on sweep, so my understanding is that the value of sweep must be determined before timer.
+	// So, call tickFrameCounter() before tickTimers()
+	apu.tickFrameCounter()
+	apu.tickTimers()
+
 	if apu.clock%apu.sampleTiming == 0 {
 		out := apu.output()
 		apu.player.Sample(out)
@@ -309,18 +318,35 @@ func (apu *APU) writeStatus(val byte) {
 
 // $4017
 func (apu *APU) writeFrameCounter(val byte) {
-	// https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
+	// ref: https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
 	// > Writing to $4017 resets the frame counter and the quarter/half frame triggers happen simultaneously,
 	// > but only on "odd" cycles (and only after the first "even" cycle after the write occurs)
 	// > - thus, it happens either 2 or 3 cycles after the write (i.e. on the 2nd or 3rd cycle of the next instruction).
-	// > After 2 or 3 clock cycles (depending on when the write is performed), the timer is reset.
-	// 2 or 3 って書いてるけど、別のFrameCounterのページ見たら 3 or 4 って書いてたりしてよくわからん
-	// テストROMで適当に試したら3 or 4っぽかったのでこれでfixとする
+	// ref: https://www.nesdev.org/wiki/APU_Frame_Counter
+	// > * If the write occurs during an APU cycle, the effects occur 3 CPU cycles after the $4017 write cycle,
+	// > and if the write occurs between APU cycles, the effects occurs 4 CPU cycles after the write cycle.
+
+	// ref: https://forums.nesdev.org/viewtopic.php?t=454
+	// > The APU's master clock is at 1.79 MHz, same as the CPU clock. This can be divided into even and odd clocks
+	// > Quick summary: A write to $4017 changes the APU mode (and restart it). Depending on when the write occurs,
+	// > the mode change might be delayed by a single CPU clock, as if you wrote to $4017 one clock later.
+
+	// Depending on a page, it was written as "2 or 3 cycles" or "3 or 4 cycles", so I couldn't understand it.
+	// I'm not sure if the table below is correct, but my understanding is as follows
+	//       apu.clock:   0,   1,   2,   3,   4,   5,   6,   7, ...
+	// real APU Cycles:   0,   0,   1,   1,   2,   2,   3,   3, ...
+	//                  0.0, 0.5, 1.0, 1.5, 2.0, 2.0, 2.5, 3.0, ...
+	//         trigger:   t,    ,   t,    ,   t,    ,   t,    , ...
+	//        even/odd:   e,   o,   e,   o,   e,   o,   e,   o, ...
+	// Determine even/odd cycles with APU's master clock(=apu.clock) and delay by a single CPU (at least apu.clock >= 2).
+	// And, the frame counter(sequencer) is clocked on every other CPU cycle(2 CPU cycles = 1 APU cycle, ^ trigger row in the above table).
+	// I decided to adjust it according to the above timing of the trigger.
+
 	apu.newFrameCounterVal = int(val)
 	if apu.clock%2 == 0 {
-		apu.writeDelayFrameCounter = 3
+		apu.writeDelayFrameCounter = 2
 	} else {
-		apu.writeDelayFrameCounter = 4
+		apu.writeDelayFrameCounter = 3
 	}
 	if (val & 0x40) == 0x40 {
 		apu.frameInterruptInhibit = true
@@ -377,9 +403,6 @@ func (apu *APU) FetchFrameStep() int {
 func (apu *APU) FetchFrameMode() int {
 	return int(apu.frameMode)
 }
-func (apu *APU) FetchFrameSeqStep() int {
-	return apu.frameSequenceStep
-}
 func (apu *APU) FetchPulse1LC() int {
 	return int(apu.pulse1.lc.value)
 }
@@ -395,10 +418,11 @@ func (apu *APU) FetchWriteDelayFC() byte {
 
 func (apu *APU) resetFrameCounter() {
 	apu.frameStep = 0
-	apu.frameSequenceStep = 0
 }
 
 func (apu *APU) tickFrameCounter() {
+	apu.frameStep++
+
 	if apu.newFrameCounterVal >= 0 {
 		if apu.writeDelayFrameCounter > 0 {
 			apu.writeDelayFrameCounter--
@@ -416,58 +440,52 @@ func (apu *APU) tickFrameCounter() {
 		}
 	}
 
-	apu.frameStep++
-	if apu.frameStep >= frameTable[apu.frameMode][apu.frameSequenceStep] {
-		if apu.frameMode == 0 {
-			// 4 step
-			switch apu.frameSequenceStep {
-			case 0:
-				apu.tickQuarterFrameCounter()
-			case 1:
-				apu.tickQuarterFrameCounter()
-				apu.tickHalfFrameCounter()
-			case 2:
-				apu.tickQuarterFrameCounter()
-			case 3:
-				if !apu.frameInterruptInhibit {
-					apu.frameInterruptFlag = true
-					apu.cpu.SetIRQ(true)
-				}
-			case 4:
-				apu.tickQuarterFrameCounter()
-				apu.tickHalfFrameCounter()
-				if !apu.frameInterruptInhibit {
-					apu.frameInterruptFlag = true
-					apu.cpu.SetIRQ(true)
-				}
-			case 5:
-				if !apu.frameInterruptInhibit {
-					apu.frameInterruptFlag = true
-					apu.cpu.SetIRQ(true)
-				}
+	if apu.frameMode == 0 {
+		// 4 step
+		switch apu.frameStep {
+		case frameTable[apu.frameMode][0]:
+			apu.tickQuarterFrameCounter()
+		case frameTable[apu.frameMode][1]:
+			apu.tickQuarterFrameCounter()
+			apu.tickHalfFrameCounter()
+		case frameTable[apu.frameMode][2]:
+			apu.tickQuarterFrameCounter()
+		case frameTable[apu.frameMode][3]:
+			if !apu.frameInterruptInhibit {
+				apu.frameInterruptFlag = true
 			}
-		} else {
-			// 5 step
-			switch apu.frameSequenceStep {
-			case 0:
-				apu.tickQuarterFrameCounter()
-			case 1:
-				apu.tickQuarterFrameCounter()
-				apu.tickHalfFrameCounter()
-			case 2:
-				apu.tickQuarterFrameCounter()
-			case 4:
-				apu.tickQuarterFrameCounter()
-				apu.tickHalfFrameCounter()
+		case frameTable[apu.frameMode][4]:
+			apu.tickQuarterFrameCounter()
+			apu.tickHalfFrameCounter()
+			if !apu.frameInterruptInhibit {
+				apu.frameInterruptFlag = true
+				apu.cpu.SetIRQ(true)
 			}
+		case frameTable[apu.frameMode][5]:
+			if !apu.frameInterruptInhibit {
+				apu.frameInterruptFlag = true
+			}
+			apu.frameStep = 0
 		}
-
-		apu.frameSequenceStep++
-		if apu.frameSequenceStep >= 6 {
-			apu.resetFrameCounter()
+	} else {
+		// 5 step
+		switch apu.frameStep {
+		case frameTable[apu.frameMode][0]:
+			apu.tickQuarterFrameCounter()
+		case frameTable[apu.frameMode][1]:
+			apu.tickQuarterFrameCounter()
+			apu.tickHalfFrameCounter()
+		case frameTable[apu.frameMode][2]:
+			apu.tickQuarterFrameCounter()
+		case frameTable[apu.frameMode][3]:
+			// nothing
+		case frameTable[apu.frameMode][4]:
+			apu.tickQuarterFrameCounter()
+			apu.tickHalfFrameCounter()
+		case frameTable[apu.frameMode][5]:
+			apu.frameStep = 0
 		}
 	}
-
 }
 
 type timer struct {

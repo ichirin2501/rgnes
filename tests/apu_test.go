@@ -16,35 +16,35 @@ func Test_APU_OUT_6000(t *testing.T) {
 	}{
 		{
 			"apu_test/rom_singles/1-len_ctr.nes",
-			"../roms/apu_test/rom_singles/1-len_ctr.nes",
+			"../nes-test-roms/apu_test/rom_singles/1-len_ctr.nes",
 		},
 		{
 			"apu_test/rom_singles/2-len_table.nes",
-			"../roms/apu_test/rom_singles/2-len_table.nes",
+			"../nes-test-roms/apu_test/rom_singles/2-len_table.nes",
 		},
 		{
 			"apu_test/rom_singles/3-irq_flag.nes",
-			"../roms/apu_test/rom_singles/3-irq_flag.nes",
+			"../nes-test-roms/apu_test/rom_singles/3-irq_flag.nes",
 		},
 		{
 			"apu_test/rom_singles/4-jitter.nes",
-			"../roms/apu_test/rom_singles/4-jitter.nes",
+			"../nes-test-roms/apu_test/rom_singles/4-jitter.nes",
 		},
 		{
 			"apu_test/rom_singles/5-len_timing.nes",
-			"../roms/apu_test/rom_singles/5-len_timing.nes",
+			"../nes-test-roms/apu_test/rom_singles/5-len_timing.nes",
 		},
 		{
 			"apu_test/rom_singles/6-irq_flag_timing.nes",
-			"../roms/apu_test/rom_singles/6-irq_flag_timing.nes",
+			"../nes-test-roms/apu_test/rom_singles/6-irq_flag_timing.nes",
 		},
 		// {
 		// 	"apu_test/rom_singles/7-dmc_basics.nes",
-		// 	"../roms/apu_test/rom_singles/7-dmc_basics.nes",
+		// 	"../nes-test-roms/apu_test/rom_singles/7-dmc_basics.nes",
 		// },
 		// {
 		// 	"apu_test/rom_singles/8-dmc_rates.nes",
-		// 	"../roms/apu_test/rom_singles/8-dmc_rates.nes",
+		// 	"../nes-test-roms/apu_test/rom_singles/8-dmc_rates.nes",
 		// },
 	}
 

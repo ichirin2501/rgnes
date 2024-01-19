@@ -85,8 +85,8 @@ func (p *pulse) tickSweep() {
 	// > If the shift count is zero, the pulse channel's period is never updated, but muting logic still applies.
 	tick := p.sweepDivider.tick()
 	if tick && p.sweepEnabled && !p.isMuteSweep() && p.sweepShiftCount > 0 {
-		p.timer.period = p.targetPeriod
 		p.updateTargetPeriod()
+		p.timer.period = p.targetPeriod
 	}
 	if tick || p.sweepReload {
 		p.sweepReload = false
