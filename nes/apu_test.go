@@ -60,25 +60,25 @@ func Test_APU_TickFrameCounter(t *testing.T) {
 		{
 			"1",
 			0,
-			29829,
+			29830,
 			29829,
 		},
 		{
 			"2",
 			0,
-			29830,
+			29830 + 1,
 			0,
 		},
 		{
 			"3",
 			1,
-			37281,
+			37282,
 			37281,
 		},
 		{
 			"4",
 			1,
-			37282,
+			37282 + 1,
 			0,
 		},
 	}
@@ -94,7 +94,17 @@ func Test_APU_TickFrameCounter(t *testing.T) {
 			for i := 0; i < tt.steps; i++ {
 				apu.tickFrameCounter()
 			}
+			assert.Equal(t, tt.want, apu.frameStep)
 
+			if tt.mode == 0 {
+				for i := 0; i < 29830; i++ {
+					apu.tickFrameCounter()
+				}
+			} else {
+				for i := 0; i < 37282; i++ {
+					apu.tickFrameCounter()
+				}
+			}
 			assert.Equal(t, tt.want, apu.frameStep)
 		})
 	}

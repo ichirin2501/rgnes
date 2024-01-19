@@ -2,7 +2,7 @@ package nes
 
 // ref: https://www.nesdev.org/wiki/APU_Frame_Counter
 // > The sequencer is clocked on every other CPU cycle, so 2 CPU cycles = 1 APU cycle.
-// Also, checking the steps above, an event will occur during the APU Cycle.
+// > (with an additional delay of one CPU cycle for the quarter and half frame signals).
 // e.g. APU Cycle 3728.5 => Envelopes & triangle's linear counter
 //
 // ref: https://www.nesdev.org/wiki/APU#Glossary
@@ -12,6 +12,7 @@ package nes
 // Furthermore, the frame sequence value written on the wiki(APU_Frame_Counter) is doubled and stored in the following frame table.
 
 // NTSC
+// 4-step seq: 0,1,2,.....29829,29830(0),1,2,...
 var frameTable = [][]int{
 	{7457, 14913, 22371, 29828, 29829, 29830}, // 4-step seq
 	{7457, 14913, 22371, 29829, 37281, 37282}, // 5-step seq
@@ -69,6 +70,7 @@ func NewAPU(cpu *interrupter, p Player) *APU {
 		noise:  newNoise(),
 		dmc:    newDMC(),
 
+		frameStep:          -1,
 		newFrameCounterVal: -1,
 	}
 	apu.sampleTiming = int(1789773 / apu.sampleRate)
@@ -316,18 +318,35 @@ func (apu *APU) writeStatus(val byte) {
 
 // $4017
 func (apu *APU) writeFrameCounter(val byte) {
-	// https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
+	// ref: https://www.nesdev.org/wiki/APU#Frame_Counter_($4017)
 	// > Writing to $4017 resets the frame counter and the quarter/half frame triggers happen simultaneously,
 	// > but only on "odd" cycles (and only after the first "even" cycle after the write occurs)
 	// > - thus, it happens either 2 or 3 cycles after the write (i.e. on the 2nd or 3rd cycle of the next instruction).
-	// > After 2 or 3 clock cycles (depending on when the write is performed), the timer is reset.
-	// 2 or 3 って書いてるけど、別のFrameCounterのページ見たら 3 or 4 って書いてたりしてよくわからん
-	// テストROMで適当に試したら3 or 4っぽかったのでこれでfixとする
+	// ref: https://www.nesdev.org/wiki/APU_Frame_Counter
+	// > * If the write occurs during an APU cycle, the effects occur 3 CPU cycles after the $4017 write cycle,
+	// > and if the write occurs between APU cycles, the effects occurs 4 CPU cycles after the write cycle.
+
+	// ref: https://forums.nesdev.org/viewtopic.php?t=454
+	// > The APU's master clock is at 1.79 MHz, same as the CPU clock. This can be divided into even and odd clocks
+	// > Quick summary: A write to $4017 changes the APU mode (and restart it). Depending on when the write occurs,
+	// > the mode change might be delayed by a single CPU clock, as if you wrote to $4017 one clock later.
+
+	// Depending on a page, it was written as "2 or 3 cycles" or "3 or 4 cycles", so I couldn't understand it.
+	// I'm not sure if the table below is correct, but my understanding is as follows
+	//       apu.clock:   0,   1,   2,   3,   4,   5,   6,   7, ...
+	// real APU Cycles:   0,   0,   1,   1,   2,   2,   3,   3, ...
+	//                  0.0, 0.5, 1.0, 1.5, 2.0, 2.0, 2.5, 3.0, ...
+	//         trigger:   t,    ,   t,    ,   t,    ,   t,    , ...
+	//        even/odd:   e,   o,   e,   o,   e,   o,   e,   o, ...
+	// Determine even/odd cycles with APU's master clock(=apu.clock) and delay by a single CPU (at least apu.clock >= 2).
+	// And, the frame counter(sequencer) is clocked on every other CPU cycle(2 CPU cycles = 1 APU cycle, ^ trigger row in the above table).
+	// I decided to adjust it according to the above timing of the trigger.
+
 	apu.newFrameCounterVal = int(val)
 	if apu.clock%2 == 0 {
-		apu.writeDelayFrameCounter = 3
+		apu.writeDelayFrameCounter = 2
 	} else {
-		apu.writeDelayFrameCounter = 4
+		apu.writeDelayFrameCounter = 3
 	}
 	if (val & 0x40) == 0x40 {
 		apu.frameInterruptInhibit = true
@@ -402,6 +421,8 @@ func (apu *APU) resetFrameCounter() {
 }
 
 func (apu *APU) tickFrameCounter() {
+	apu.frameStep++
+
 	if apu.newFrameCounterVal >= 0 {
 		if apu.writeDelayFrameCounter > 0 {
 			apu.writeDelayFrameCounter--
@@ -418,8 +439,6 @@ func (apu *APU) tickFrameCounter() {
 			apu.newFrameCounterVal = -1
 		}
 	}
-
-	apu.frameStep++
 
 	if apu.frameMode == 0 {
 		// 4 step
