@@ -28,99 +28,99 @@ func Test_CPU_OUT_6000(t *testing.T) {
 	}{
 		{
 			"instr_test-v5/rom_singles/01-basics.nes",
-			"../roms/instr_test-v5/rom_singles/01-basics.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/01-basics.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/02-implied.nes",
-			"../roms/instr_test-v5/rom_singles/02-implied.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/02-implied.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/03-immediate.nes",
-			"../roms/instr_test-v5/rom_singles/03-immediate.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/03-immediate.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/04-zero_page.nes",
-			"../roms/instr_test-v5/rom_singles/04-zero_page.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/04-zero_page.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/05-zp_xy.nes",
-			"../roms/instr_test-v5/rom_singles/05-zp_xy.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/05-zp_xy.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/06-absolute.nes",
-			"../roms/instr_test-v5/rom_singles/06-absolute.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/06-absolute.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/07-abs_xy.nes",
-			"../roms/instr_test-v5/rom_singles/07-abs_xy.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/07-abs_xy.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/08-ind_x.nes",
-			"../roms/instr_test-v5/rom_singles/08-ind_x.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/08-ind_x.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/09-ind_y.nes",
-			"../roms/instr_test-v5/rom_singles/09-ind_y.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/09-ind_y.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/10-branches.nes",
-			"../roms/instr_test-v5/rom_singles/10-branches.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/10-branches.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/11-stack.nes",
-			"../roms/instr_test-v5/rom_singles/11-stack.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/11-stack.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/12-jmp_jsr.nes",
-			"../roms/instr_test-v5/rom_singles/12-jmp_jsr.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/12-jmp_jsr.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/13-rts.nes",
-			"../roms/instr_test-v5/rom_singles/13-rts.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/13-rts.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/14-rti.nes",
-			"../roms/instr_test-v5/rom_singles/14-rti.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/14-rti.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/15-brk.nes",
-			"../roms/instr_test-v5/rom_singles/15-brk.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/15-brk.nes",
 		},
 		{
 			"instr_test-v5/rom_singles/16-special.nes",
-			"../roms/instr_test-v5/rom_singles/16-special.nes",
+			"../nes-test-roms/instr_test-v5/rom_singles/16-special.nes",
 		},
 		{
 			"instr_misc/rom_singles/01-abs_x_wrap.nes",
-			"../roms/instr_misc/rom_singles/01-abs_x_wrap.nes",
+			"../nes-test-roms/instr_misc/rom_singles/01-abs_x_wrap.nes",
 		},
 		{
 			"instr_misc/rom_singles/02-branch_wrap.nes",
-			"../roms/instr_misc/rom_singles/02-branch_wrap.nes",
+			"../nes-test-roms/instr_misc/rom_singles/02-branch_wrap.nes",
 		},
 		{
 			"instr_misc/rom_singles/03-dummy_reads.nes",
-			"../roms/instr_misc/rom_singles/03-dummy_reads.nes",
+			"../nes-test-roms/instr_misc/rom_singles/03-dummy_reads.nes",
 		},
 		// {
 		// 	"instr_misc/rom_singles/04-dummy_reads_apu.nes",
-		// 	"../roms/instr_misc/rom_singles/04-dummy_reads_apu.nes",
+		// 	"../nes-test-roms/instr_misc/rom_singles/04-dummy_reads_apu.nes",
 		// },
 		{
 			"cpu_dummy_writes/cpu_dummy_writes_ppumem.nes",
-			"../roms/cpu_dummy_writes/cpu_dummy_writes_ppumem.nes",
+			"../nes-test-roms/cpu_dummy_writes/cpu_dummy_writes_ppumem.nes",
 		},
 		{
 			"cpu_dummy_writes/cpu_dummy_writes_oam.nes",
-			"../roms/cpu_dummy_writes/cpu_dummy_writes_oam.nes",
+			"../nes-test-roms/cpu_dummy_writes/cpu_dummy_writes_oam.nes",
 		},
 		{
 			"cpu_exec_space/test_cpu_exec_space_ppuio.nes",
-			"../roms/cpu_exec_space/test_cpu_exec_space_ppuio.nes",
+			"../nes-test-roms/cpu_exec_space/test_cpu_exec_space_ppuio.nes",
 		},
 		// {
 		// 	"cpu_exec_space/test_cpu_exec_space_apu.nes",
-		// 	"../roms/cpu_exec_space/test_cpu_exec_space_apu.nes",
+		// 	"../nes-test-roms/cpu_exec_space/test_cpu_exec_space_apu.nes",
 		// },
 	}
 
@@ -168,7 +168,7 @@ func Test_NESTest(t *testing.T) {
 	// > This test program, when run on "automation", (i.e. set your program counter
 	// > to 0c000h) will perform all tests in sequence and shove the results of
 	// > the tests into locations 02h and 03h.
-	f, err := os.Open("../roms/nestest/nestest.nes")
+	f, err := os.Open("../nes-test-roms/other/nestest.nes")
 	if err != nil {
 		t.Fatal(err)
 	}

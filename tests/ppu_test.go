@@ -16,59 +16,59 @@ func Test_PPU_OUT_6000(t *testing.T) {
 	}{
 		{
 			"oam_read/oam_read.nes",
-			"../roms/oam_read/oam_read.nes",
+			"../nes-test-roms/oam_read/oam_read.nes",
 		},
 		{
 			"oam_stress/oam_stress.nes",
-			"../roms/oam_stress/oam_stress.nes",
+			"../nes-test-roms/oam_stress/oam_stress.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/04-nmi_control.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/04-nmi_control.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/04-nmi_control.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/05-nmi_timing.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/06-suppression.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/06-suppression.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/06-suppression.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes",
 		},
 		{
 			"ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes",
-			"../roms/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes",
+			"../nes-test-roms/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes",
 		},
 		// {
 		// 	"ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
-		// 	"../roms/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
+		// 	"../nes-test-roms/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
 		// },
 		{
 			"ppu_read_buffer/test_ppu_read_buffer.nes",
-			"../roms/ppu_read_buffer/test_ppu_read_buffer.nes",
+			"../nes-test-roms/ppu_read_buffer/test_ppu_read_buffer.nes",
 		},
 		{
 			"ppu_open_bus/ppu_open_bus.nes",
-			"../roms/ppu_open_bus/ppu_open_bus.nes",
+			"../nes-test-roms/ppu_open_bus/ppu_open_bus.nes",
 		},
 	}
 
