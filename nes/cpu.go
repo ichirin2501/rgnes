@@ -112,13 +112,8 @@ func (cpu *CPU) Step() {
 		cpu.t.SetCPURegisterP(cpu.P.Byte())
 	}
 
-	//fmt.Printf("[debug] before fetch(): cpu.PC = 0x%04X  _____ %s\n", cpu.PC, cpu.t.NESTestString())
-
 	opcodeByte := cpu.fetch()
 	opcode := opcodeMap[opcodeByte]
-
-	//fmt.Printf("[debug] after fetch(): %s\n", cpu.t.NESTestString())
-	//fmt.Println(opcode)
 
 	if cpu.t != nil {
 		cpu.t.SetCPUOpcode(*opcode)
@@ -127,11 +122,6 @@ func (cpu *CPU) Step() {
 	addr, pageCrossed := cpu.fetchOperand(opcode)
 	if pageCrossed {
 		additionalCycle += opcode.PageCycle
-		// fetchOperand()内のdummyReadでppu 3step回ってるからここで回す必要はない
-		// cpu.cycles += opcode.PageCycle
-		// for i := 0; i < opcode.PageCycle*3; i++ {
-		// 	cpu.bus.ppu.Step()
-		// }
 	}
 
 	switch opcode.Name {
@@ -262,6 +252,13 @@ func (cpu *CPU) Step() {
 	case BRK:
 		cpu.brk()
 	case NOP:
+		// ref: https://www.nesdev.org/6502_cpu.txt
+		// It seems to be processed in the same way as LDA and LDX, etc,
+		// So one dummy read operation is required in addition to fetch opcode and addressing process.
+		// However, NOP also has Implied addressing cases, so ignore the case only.
+		if opcode.Mode != implied {
+			cpu.bus.Read(addr) // dummy read
+		}
 	// case KIL:
 	// 	// TODO
 	// 	cpu.kil()
