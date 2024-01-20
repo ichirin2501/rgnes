@@ -15,6 +15,11 @@ type triangle struct {
 	linearCounterReload bool
 
 	timer timer
+
+	// My understanding is that when we want to mute the triangle channel, we keep playing the previous sound.
+	// Also, I don't want to make unintended sounds immediately after startup.
+	// For that purpose, prepare a buffer variable.
+	outVal byte
 }
 
 func newTriangle() *triangle {
@@ -22,18 +27,21 @@ func newTriangle() *triangle {
 }
 
 func (t *triangle) output() byte {
-	// > Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
-	// > Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
-	if t.timer.period < 2 {
-		return 7
-	}
-	return triangleTable[t.seqPos]
+	return t.outVal
 }
 
 func (t *triangle) tickTimer() {
 	if t.timer.tick() {
 		if t.lc.value > 0 && t.linearCounter > 0 {
 			t.seqPos = (t.seqPos + 1) % 32
+
+			if t.timer.period < 2 {
+				// > Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
+				// > Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
+				t.outVal = 7
+			} else {
+				t.outVal = triangleTable[t.seqPos]
+			}
 		}
 	}
 }
