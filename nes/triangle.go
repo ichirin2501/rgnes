@@ -22,11 +22,10 @@ func newTriangle() *triangle {
 }
 
 func (t *triangle) output() byte {
-	if t.lc.value == 0 {
-		return 0
-	}
-	if t.linearCounter == 0 {
-		return 0
+	// > Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
+	// > Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
+	if t.timer.period < 2 {
+		return 7
 	}
 	return triangleTable[t.seqPos]
 }

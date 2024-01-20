@@ -2,7 +2,7 @@ package nes
 
 // ref: https://www.nesdev.org/wiki/APU_Frame_Counter
 // > The sequencer is clocked on every other CPU cycle, so 2 CPU cycles = 1 APU cycle.
-// > (with an additional delay of one CPU cycle for the quarter and half frame signals).
+// > ... (with an additional delay of one CPU cycle for the quarter and half frame signals).
 // e.g. APU Cycle 3728.5 => Envelopes & triangle's linear counter
 //
 // ref: https://www.nesdev.org/wiki/APU#Glossary
@@ -119,7 +119,7 @@ func writePulseSweep(p *pulse, val byte) {
 	p.sweepEnabled = (val & 0x80) == 0x80
 	// > The divider's period is P + 1 half-frames
 	p.sweepDivider.period = (uint16((val >> 4) & 0b111)) + 1
-	p.sweepNegate = (val & 0x04) == 0x04
+	p.sweepNegate = (val & 0x08) == 0x08
 	p.sweepShiftCount = val & 0b111
 	// > Side effects	Sets the reload flag
 	p.sweepReload = true
@@ -338,7 +338,7 @@ func (apu *APU) writeFrameCounter(val byte) {
 	//                  0.0, 0.5, 1.0, 1.5, 2.0, 2.0, 2.5, 3.0, ...
 	//         trigger:   t,    ,   t,    ,   t,    ,   t,    , ...
 	//        even/odd:   e,   o,   e,   o,   e,   o,   e,   o, ...
-	// Determine even/odd cycles with APU's master clock(=apu.clock) and delay by a single CPU (at least apu.clock >= 2).
+	// Determine even/odd cycles with APU's master clock(=apu.clock) and delay by a single CPU.
 	// And, the frame counter(sequencer) is clocked on every other CPU cycle(2 CPU cycles = 1 APU cycle, ^ trigger row in the above table).
 	// I decided to adjust it according to the above timing of the trigger.
 
