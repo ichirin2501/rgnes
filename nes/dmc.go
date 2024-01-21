@@ -9,13 +9,18 @@ var dmcPeriodTable = []uint16{
 }
 
 type dmc struct {
-	enabled      bool
-	irqEnabled   bool
-	loop         bool
-	freq         byte
-	counter      byte
-	sampleAddr   byte
-	sampleLength byte
+	enabled       bool
+	irqEnabled    bool
+	interruptFlag bool
+	loop          bool
+	//freq          byte
+	rateIndex byte
+	direct    byte
+	//counter      byte
+	sampleAddr   uint16
+	sampleLength uint16
+
+	timer timer
 }
 
 func newDMC() *dmc {
@@ -32,4 +37,8 @@ func (d *dmc) setEnabled(v bool) {
 func (d *dmc) output() byte {
 	// todo
 	return 0
+}
+
+func (d *dmc) tickTimer() {
+	d.timer.tick()
 }

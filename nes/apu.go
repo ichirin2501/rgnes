@@ -47,6 +47,7 @@ type APU struct {
 	tnd          *triangle
 	noise        *noise
 	dmc          *dmc
+	dma          *DMA
 
 	// frame counter
 	frameMode              byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
@@ -57,7 +58,7 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *interrupter, p Player) *APU {
+func NewAPU(cpu *interrupter, p Player, dma *DMA) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,
@@ -69,6 +70,7 @@ func NewAPU(cpu *interrupter, p Player) *APU {
 		tnd:    newTriangle(),
 		noise:  newNoise(),
 		dmc:    newDMC(),
+		dma:    dma,
 
 		frameStep:          -1,
 		newFrameCounterVal: -1,
@@ -235,26 +237,30 @@ func (apu *APU) writeNoiseLength(val byte) {
 // IL-- RRRR	IRQ enable (I), loop (L), frequency (R)
 func (apu *APU) writeDMCController(val byte) {
 	apu.dmc.irqEnabled = (val & 0x80) == 0x80
+	// 必要？
+	// if !apu.dmc.irqEnabled {
+	// 	apu.dmc.interruptFlag = false
+	// }
 	apu.dmc.loop = (val & 0x40) == 0x40
-	apu.dmc.freq = val & 0x0F
+	apu.dmc.rateIndex = val & 0x0F
 }
 
 // $4011
 // -DDD DDDD	load counter (D)
 func (apu *APU) writeDMCLoadCounter(val byte) {
-	apu.dmc.counter = val & 0x7F
+	apu.dmc.direct = val & 0x7F
 }
 
 // $4012
 // AAAA AAAA	Sample address (A)
 func (apu *APU) writeDMCSampleAddr(val byte) {
-	apu.dmc.sampleAddr = val
+	apu.dmc.sampleAddr = 0xC000 + (uint16(val) * 64)
 }
 
 // $4013
 // LLLL LLLL	Sample length (L)
 func (apu *APU) writeDMCSampleLength(val byte) {
-	apu.dmc.sampleLength = val
+	apu.dmc.sampleLength = (uint16(val) * 16) + 1
 }
 
 // $4015 read
@@ -376,6 +382,7 @@ func (apu *APU) tickTimers() {
 		apu.pulse1.tickTimer()
 		apu.pulse2.tickTimer()
 		apu.noise.tickTimer()
+		apu.dmc.tickTimer()
 	}
 	apu.tnd.tickTimer()
 }

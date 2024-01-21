@@ -10,6 +10,7 @@ type Bus struct {
 	apu    *APU
 	mapper Mapper
 	joypad *Joypad
+	dma    *DMA
 
 	// This clock is used to adjust the clock difference for each instruction,
 	// so keep the state separate from the $4014 dma stall.
@@ -17,17 +18,19 @@ type Bus struct {
 	stall int
 }
 
-func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad) *Bus {
+func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *Bus {
 	return &Bus{
 		ram:    make([]byte, 2048),
 		ppu:    ppu,
 		apu:    apu,
 		mapper: mapper,
 		joypad: joypad,
+		dma:    dma,
 	}
 }
 
 func (bus *Bus) Read(addr uint16) byte {
+	bus.RunDMAIfOccurred()
 	bus.tick(1)
 	return bus._read(addr)
 }
@@ -165,10 +168,7 @@ func (bus *Bus) _write(addr uint16, val byte) {
 			bus.apu.writeDMCSampleLength(val)
 		case addr == 0x4014:
 			a := uint16(val) << 8
-			for i := uint16(0); i < 256; i++ {
-				bus.ppu.writeOAMDMAByte(bus._read(a + i))
-			}
-			bus.tickStall(513 + bus.realClock()%2)
+			bus.dma.SignalOAMDMA(a)
 		case addr == 0x4015:
 			bus.apu.writeStatus(val)
 		case addr == 0x4016:
@@ -266,4 +266,26 @@ func (bus *Bus) Peek(addr uint16) byte {
 		panic(fmt.Sprintf("Unable to reach addr:0x%0x in Bus.Peek", addr))
 	}
 
+}
+
+func (bus *Bus) RunDMAIfOccurred() {
+	if !(bus.dma.dcmDMAOccurred || bus.dma.oamDMAOccurred) {
+		return
+	}
+
+	if bus.dma.oamDMAOccurred {
+		bus.tickStall(1)
+		if bus.realClock()%2 != 0 {
+			bus.tickStall(1)
+		}
+		for i := uint16(0); i < 256; i++ {
+			bus.tickStall(1)
+			t := bus._read(bus.dma.oamTargetAddr + i)
+			bus.tickStall(1)
+			bus.ppu.writeOAMDMAByte(t)
+		}
+		bus.dma.oamDMAOccurred = false
+	}
+
+	// TODO: DMC
 }
