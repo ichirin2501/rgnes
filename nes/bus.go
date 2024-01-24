@@ -269,6 +269,15 @@ func (bus *Bus) RunDMAIfOccurred() {
 		return
 	}
 
+	// TODO: DMC
+	if bus.dma.dcmDMAOccurred {
+		//fmt.Printf("debug: call DCM RunDMAIfOccurred(): apu.dmc.bytesRemaining:0x%04X\n", bus.apu.dmc.bytesRemaining)
+		bus.tickStall(1)
+		val := bus._read(bus.dma.dcmTargetAddr)
+		bus.apu.dmc.setSampleBuffer(val)
+		bus.dma.dcmDMAOccurred = false
+	}
+
 	if bus.dma.oamDMAOccurred {
 		bus.tickStall(1)
 		if bus.realClock()%2 != 0 {
@@ -282,6 +291,4 @@ func (bus *Bus) RunDMAIfOccurred() {
 		}
 		bus.dma.oamDMAOccurred = false
 	}
-
-	// TODO: DMC
 }

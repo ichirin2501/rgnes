@@ -47,7 +47,6 @@ type APU struct {
 	tnd          *triangle
 	noise        *noise
 	dmc          *dmc
-	dma          *DMA
 
 	// frame counter
 	frameMode              byte // Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
@@ -69,8 +68,7 @@ func NewAPU(cpu *interrupter, p Player, dma *DMA) *APU {
 		pulse2: newPulse(2),
 		tnd:    newTriangle(),
 		noise:  newNoise(),
-		dmc:    newDMC(),
-		dma:    dma,
+		dmc:    newDMC(dma),
 
 		frameStep:          -1,
 		newFrameCounterVal: -1,
@@ -83,11 +81,18 @@ func (apu *APU) PowerUp() {
 	// todo
 	apu.writeStatus(0)
 	apu.noise.shiftRegister = 1
+
+	// debug
+	apu.writeDMCController(0)
+	apu.writeDMCLoadCounter(0)
+	apu.writeDMCSampleAddr(0)
+	apu.writeDMCSampleLength(0)
 }
 
 func (apu *APU) Reset() {
 	// todo
 	apu.writeStatus(0)
+	apu.tnd.seqPos = 0
 }
 
 func (apu *APU) Step() {
@@ -242,25 +247,25 @@ func (apu *APU) writeDMCController(val byte) {
 	// 	apu.dmc.interruptFlag = false
 	// }
 	apu.dmc.loop = (val & 0x40) == 0x40
-	apu.dmc.rateIndex = val & 0x0F
+	apu.dmc.loadRate(val & 0x0F)
 }
 
 // $4011
 // -DDD DDDD	load counter (D)
 func (apu *APU) writeDMCLoadCounter(val byte) {
-	apu.dmc.direct = val & 0x7F
+	apu.dmc.outputUnit.level = val & 0x7F
 }
 
 // $4012
 // AAAA AAAA	Sample address (A)
 func (apu *APU) writeDMCSampleAddr(val byte) {
-	apu.dmc.sampleAddr = 0xC000 + (uint16(val) * 64)
+	apu.dmc.memoryReader.sampleAddr = 0xC000 + (uint16(val) * 64)
 }
 
 // $4013
 // LLLL LLLL	Sample length (L)
 func (apu *APU) writeDMCSampleLength(val byte) {
-	apu.dmc.sampleLength = (uint16(val) * 16) + 1
+	apu.dmc.memoryReader.sampleLength = (uint16(val) * 16) + 1
 }
 
 // $4015 read
@@ -278,6 +283,9 @@ func (apu *APU) readStatus() byte {
 	}
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
+	}
+	if apu.dmc.memoryReader.bytesRemaining > 0 {
+		res |= 0x10
 	}
 	if apu.frameInterruptFlag {
 		res |= 0x40
@@ -304,6 +312,9 @@ func (apu *APU) PeekStatus() byte {
 	}
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
+	}
+	if apu.dmc.memoryReader.bytesRemaining > 0 {
+		res |= 0x10
 	}
 	if apu.frameInterruptFlag {
 		res |= 0x40

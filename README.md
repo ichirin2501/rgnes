@@ -150,6 +150,7 @@ scanline.nes (This test ROM was created by Quietust)
 - [Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook/chapter_1.html)
 - [ｷﾞｺ猫でもわかるファミコンプログラミング](http://gikofami.fc2web.com/index.html)
 - [NES研究室](http://hp.vector.co.jp/authors/VA042397/nes/index.html)
+- [NES on FPGA](https://pgate1.at-ninja.jp/NES_on_FPGA/index.html)
 
 ## License
 rgnes is licensed under the MIT license
