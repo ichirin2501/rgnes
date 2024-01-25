@@ -167,7 +167,7 @@ func (bus *Bus) _write(addr uint16, val byte) {
 		bus.apu.writeDMCSampleLength(val)
 	case addr == 0x4014:
 		a := uint16(val) << 8
-		bus.dma.SignalOAMDMA(a)
+		bus.dma.TriggerOnOAM(a)
 	case addr == 0x4015:
 		bus.apu.writeStatus(val)
 	case addr == 0x4016:

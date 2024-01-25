@@ -8,12 +8,18 @@ type DMA struct {
 	dcmTargetAddr  uint16
 }
 
-func (d *DMA) SignalOAMDMA(addr uint16) {
+func (d *DMA) TriggerOnOAM(addr uint16) {
 	d.oamDMAOccurred = true
 	d.oamTargetAddr = addr
 }
 
-func (d *DMA) SignalDCMDMA(addr uint16) {
+func (d *DMA) TriggerOnDCMLoad(addr uint16) {
+	d.dcmDMAOccurred = true
+	d.dcmTargetAddr = addr
+}
+
+func (d *DMA) TriggerOnDCMReload(addr uint16) {
+	// TODO: delay
 	d.dcmDMAOccurred = true
 	d.dcmTargetAddr = addr
 }

@@ -253,19 +253,19 @@ func (apu *APU) writeDMCController(val byte) {
 // $4011
 // -DDD DDDD	load counter (D)
 func (apu *APU) writeDMCLoadCounter(val byte) {
-	apu.dmc.outputUnit.level = val & 0x7F
+	apu.dmc.level = val & 0x7F
 }
 
 // $4012
 // AAAA AAAA	Sample address (A)
 func (apu *APU) writeDMCSampleAddr(val byte) {
-	apu.dmc.memoryReader.sampleAddr = 0xC000 + (uint16(val) * 64)
+	apu.dmc.sampleAddr = 0xC000 + (uint16(val) * 64)
 }
 
 // $4013
 // LLLL LLLL	Sample length (L)
 func (apu *APU) writeDMCSampleLength(val byte) {
-	apu.dmc.memoryReader.sampleLength = (uint16(val) * 16) + 1
+	apu.dmc.sampleLength = (uint16(val) * 16) + 1
 }
 
 // $4015 read
@@ -284,7 +284,7 @@ func (apu *APU) readStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
-	if apu.dmc.memoryReader.bytesRemaining > 0 {
+	if apu.dmc.bytesRemaining > 0 {
 		res |= 0x10
 	}
 	if apu.frameInterruptFlag {
@@ -313,7 +313,7 @@ func (apu *APU) PeekStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
-	if apu.dmc.memoryReader.bytesRemaining > 0 {
+	if apu.dmc.bytesRemaining > 0 {
 		res |= 0x10
 	}
 	if apu.frameInterruptFlag {
