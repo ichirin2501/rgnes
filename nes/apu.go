@@ -242,10 +242,9 @@ func (apu *APU) writeNoiseLength(val byte) {
 // IL-- RRRR	IRQ enable (I), loop (L), frequency (R)
 func (apu *APU) writeDMCController(val byte) {
 	apu.dmc.irqEnabled = (val & 0x80) == 0x80
-	// 必要？
-	// if !apu.dmc.irqEnabled {
-	// 	apu.dmc.interruptFlag = false
-	// }
+	if !apu.dmc.irqEnabled {
+		apu.dmc.interruptFlag = false
+	}
 	apu.dmc.loop = (val & 0x40) == 0x40
 	apu.dmc.loadRate(val & 0x0F)
 }
@@ -290,10 +289,11 @@ func (apu *APU) readStatus() byte {
 	if apu.frameInterruptFlag {
 		res |= 0x40
 	}
+	if apu.dmc.interruptFlag {
+		res |= 0x80
+	}
 	apu.frameInterruptFlag = false
 	apu.cpu.SetIRQ(false)
-
-	// todo: dmc, F
 
 	return res
 }
@@ -319,7 +319,9 @@ func (apu *APU) PeekStatus() byte {
 	if apu.frameInterruptFlag {
 		res |= 0x40
 	}
-	// todo
+	if apu.dmc.interruptFlag {
+		res |= 0x80
+	}
 	return res
 }
 
@@ -327,6 +329,7 @@ func (apu *APU) PeekStatus() byte {
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) writeStatus(val byte) {
 	apu.dmc.setEnabled((val & 0x10) == 0x10)
+	apu.dmc.interruptFlag = false
 	apu.noise.lc.setEnabled((val & 0x08) == 0x08)
 	apu.tnd.lc.setEnabled((val & 0x04) == 0x04)
 	apu.pulse2.lc.setEnabled((val & 0x02) == 0x02)

@@ -1,11 +1,9 @@
 package nes
 
 // https://www.nesdev.org/wiki/APU_DMC
-// > These periods are all even numbers because there are 2 CPU cycles in an APU cycle.
-// > A rate of 428 means the output level changes every 214 APU cycles.
-// NTSC
+// The dmc timer is clocked only on every second CPU cycle
 var dmcPeriodTable = []uint16{
-	428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54,
+	214, 190, 170, 160, 143, 127, 113, 107, 95, 80, 71, 64, 53, 42, 36, 27,
 }
 
 type dmc struct {
