@@ -125,7 +125,8 @@ func writePulseController(p *pulse, val byte) {
 func writePulseSweep(p *pulse, val byte) {
 	p.sweepEnabled = (val & 0x80) == 0x80
 	// > The divider's period is P + 1 half-frames
-	p.sweepDivider.period = (uint16((val >> 4) & 0b111)) + 1
+	// The divider in this implementation works at a cycle of P+1 by default, so plus 1 is not necessary
+	p.sweepDivider.period = (uint16((val >> 4) & 0b111))
 	p.sweepNegate = (val & 0x08) == 0x08
 	p.sweepShiftCount = val & 0b111
 	// > Side effects	Sets the reload flag
