@@ -57,7 +57,7 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *interrupter, p Player) *APU {
+func NewAPU(cpu *interrupter, p Player, dma *DMA) *APU {
 	apu := &APU{
 		player:     p,
 		cpu:        cpu,
@@ -68,7 +68,7 @@ func NewAPU(cpu *interrupter, p Player) *APU {
 		pulse2: newPulse(2),
 		tnd:    newTriangle(),
 		noise:  newNoise(),
-		dmc:    newDMC(),
+		dmc:    newDMC(dma),
 
 		frameStep:          -1,
 		newFrameCounterVal: -1,
@@ -81,11 +81,18 @@ func (apu *APU) PowerUp() {
 	// todo
 	apu.writeStatus(0)
 	apu.noise.shiftRegister = 1
+
+	// debug
+	apu.writeDMCController(0)
+	apu.writeDMCLoadCounter(0)
+	apu.writeDMCSampleAddr(0)
+	apu.writeDMCSampleLength(0)
 }
 
 func (apu *APU) Reset() {
 	// todo
 	apu.writeStatus(0)
+	apu.tnd.seqPos = 0
 }
 
 func (apu *APU) Step() {
@@ -235,26 +242,29 @@ func (apu *APU) writeNoiseLength(val byte) {
 // IL-- RRRR	IRQ enable (I), loop (L), frequency (R)
 func (apu *APU) writeDMCController(val byte) {
 	apu.dmc.irqEnabled = (val & 0x80) == 0x80
+	if !apu.dmc.irqEnabled {
+		apu.dmc.interruptFlag = false
+	}
 	apu.dmc.loop = (val & 0x40) == 0x40
-	apu.dmc.freq = val & 0x0F
+	apu.dmc.loadRate(val & 0x0F)
 }
 
 // $4011
 // -DDD DDDD	load counter (D)
 func (apu *APU) writeDMCLoadCounter(val byte) {
-	apu.dmc.counter = val & 0x7F
+	apu.dmc.level = val & 0x7F
 }
 
 // $4012
 // AAAA AAAA	Sample address (A)
 func (apu *APU) writeDMCSampleAddr(val byte) {
-	apu.dmc.sampleAddr = val
+	apu.dmc.sampleAddr = 0xC000 + (uint16(val) * 64)
 }
 
 // $4013
 // LLLL LLLL	Sample length (L)
 func (apu *APU) writeDMCSampleLength(val byte) {
-	apu.dmc.sampleLength = val
+	apu.dmc.sampleLength = (uint16(val) * 16) + 1
 }
 
 // $4015 read
@@ -273,13 +283,17 @@ func (apu *APU) readStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
+	if apu.dmc.bytesRemaining > 0 {
+		res |= 0x10
+	}
 	if apu.frameInterruptFlag {
 		res |= 0x40
 	}
+	if apu.dmc.interruptFlag {
+		res |= 0x80
+	}
 	apu.frameInterruptFlag = false
 	apu.cpu.SetIRQ(false)
-
-	// todo: dmc, F
 
 	return res
 }
@@ -299,10 +313,15 @@ func (apu *APU) PeekStatus() byte {
 	if apu.noise.lc.value > 0 {
 		res |= 0x08
 	}
+	if apu.dmc.bytesRemaining > 0 {
+		res |= 0x10
+	}
 	if apu.frameInterruptFlag {
 		res |= 0x40
 	}
-	// todo
+	if apu.dmc.interruptFlag {
+		res |= 0x80
+	}
 	return res
 }
 
@@ -310,6 +329,7 @@ func (apu *APU) PeekStatus() byte {
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) writeStatus(val byte) {
 	apu.dmc.setEnabled((val & 0x10) == 0x10)
+	apu.dmc.interruptFlag = false
 	apu.noise.lc.setEnabled((val & 0x08) == 0x08)
 	apu.tnd.lc.setEnabled((val & 0x04) == 0x04)
 	apu.pulse2.lc.setEnabled((val & 0x02) == 0x02)
@@ -376,7 +396,10 @@ func (apu *APU) tickTimers() {
 		apu.pulse1.tickTimer()
 		apu.pulse2.tickTimer()
 		apu.noise.tickTimer()
+		//apu.dmc.tickTimer()
 	}
+	// Since the DMC table is defined in units of CPU cycles, I will run the dmc timer every time for now
+	apu.dmc.tickTimer()
 	apu.tnd.tickTimer()
 }
 

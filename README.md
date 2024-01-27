@@ -39,8 +39,8 @@ It's great because it's written so simple.
 | apu_test | 4-jitter.nes | ✅ |
 | apu_test | 5-len_timing.nes | ✅ |
 | apu_test | 6-irq_flag_timing.nes | ✅ |
-| apu_test | 7-dmc_basics.nes | ❌ |
-| apu_test | 8-dmc_rates.nes | ❌ |
+| apu_test | 7-dmc_basics.nes | ✅ |
+| apu_test | 8-dmc_rates.nes | ✅ |
 | apu_reset | 4015_cleared.nes | ✅ |
 | apu_reset | 4017_timing.nes  | ❌ |
 | apu_reset | 4017_written.nes  | ❌ |
@@ -150,6 +150,7 @@ scanline.nes (This test ROM was created by Quietust)
 - [Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook/chapter_1.html)
 - [ｷﾞｺ猫でもわかるファミコンプログラミング](http://gikofami.fc2web.com/index.html)
 - [NES研究室](http://hp.vector.co.jp/authors/VA042397/nes/index.html)
+- [NES on FPGA](https://pgate1.at-ninja.jp/NES_on_FPGA/index.html)
 
 ## License
 rgnes is licensed under the MIT license
