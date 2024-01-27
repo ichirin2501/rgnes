@@ -78,11 +78,8 @@ func NewAPU(cpu *interrupter, p Player, dma *DMA) *APU {
 }
 
 func (apu *APU) PowerUp() {
-	// todo
 	apu.writeStatus(0)
 	apu.noise.shiftRegister = 1
-
-	// debug
 	apu.writeDMCController(0)
 	apu.writeDMCLoadCounter(0)
 	apu.writeDMCSampleAddr(0)
@@ -90,7 +87,6 @@ func (apu *APU) PowerUp() {
 }
 
 func (apu *APU) Reset() {
-	// todo
 	apu.writeStatus(0)
 	apu.tnd.seqPos = 0
 }
@@ -396,10 +392,11 @@ func (apu *APU) tickTimers() {
 	if apu.clock%2 == 0 {
 		apu.pulse1.tickTimer()
 		apu.pulse2.tickTimer()
-		apu.noise.tickTimer()
+		//apu.noise.tickTimer()
 		//apu.dmc.tickTimer()
 	}
-	// Since the DMC table is defined in units of CPU cycles, I will run the dmc timer every time for now
+	// Since the DMC/Noise tables are defined in units of CPU cycles, I will run the timers every time for now
+	apu.noise.tickTimer()
 	apu.dmc.tickTimer()
 	apu.tnd.tickTimer()
 }
