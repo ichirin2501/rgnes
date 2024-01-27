@@ -396,8 +396,10 @@ func (apu *APU) tickTimers() {
 		apu.pulse1.tickTimer()
 		apu.pulse2.tickTimer()
 		apu.noise.tickTimer()
-		apu.dmc.tickTimer()
+		//apu.dmc.tickTimer()
 	}
+	// Since the DMC table is defined in units of CPU cycles, I will run the dmc timer every time for now
+	apu.dmc.tickTimer()
 	apu.tnd.tickTimer()
 }
 

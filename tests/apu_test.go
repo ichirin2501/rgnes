@@ -38,14 +38,14 @@ func Test_APU_OUT_6000(t *testing.T) {
 			"apu_test/rom_singles/6-irq_flag_timing.nes",
 			"../nes-test-roms/apu_test/rom_singles/6-irq_flag_timing.nes",
 		},
-		// {
-		// 	"apu_test/rom_singles/7-dmc_basics.nes",
-		// 	"../nes-test-roms/apu_test/rom_singles/7-dmc_basics.nes",
-		// },
-		// {
-		// 	"apu_test/rom_singles/8-dmc_rates.nes",
-		// 	"../nes-test-roms/apu_test/rom_singles/8-dmc_rates.nes",
-		// },
+		{
+			"apu_test/rom_singles/7-dmc_basics.nes",
+			"../nes-test-roms/apu_test/rom_singles/7-dmc_basics.nes",
+		},
+		{
+			"apu_test/rom_singles/8-dmc_rates.nes",
+			"../nes-test-roms/apu_test/rom_singles/8-dmc_rates.nes",
+		},
 	}
 
 	for _, tt := range tests {

@@ -39,8 +39,8 @@ It's great because it's written so simple.
 | apu_test | 4-jitter.nes | ✅ |
 | apu_test | 5-len_timing.nes | ✅ |
 | apu_test | 6-irq_flag_timing.nes | ✅ |
-| apu_test | 7-dmc_basics.nes | ❌ |
-| apu_test | 8-dmc_rates.nes | ❌ |
+| apu_test | 7-dmc_basics.nes | ✅ |
+| apu_test | 8-dmc_rates.nes | ✅ |
 | apu_reset | 4015_cleared.nes | ✅ |
 | apu_reset | 4017_timing.nes  | ❌ |
 | apu_reset | 4017_written.nes  | ❌ |

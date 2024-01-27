@@ -1,9 +1,8 @@
 package nes
 
 // https://www.nesdev.org/wiki/APU_DMC
-// The dmc timer is clocked only on every second CPU cycle
 var dmcPeriodTable = []uint16{
-	214, 190, 170, 160, 143, 127, 113, 107, 95, 80, 71, 64, 53, 42, 36, 27,
+	428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54,
 }
 
 type dmc struct {
@@ -11,7 +10,6 @@ type dmc struct {
 	irqEnabled    bool
 	interruptFlag bool
 	loop          bool
-	rateIndex     byte
 	timer         timer
 
 	// memory reader
@@ -72,7 +70,9 @@ func (d *dmc) output() byte {
 }
 
 func (d *dmc) loadRate(rateIndex byte) {
-	d.timer.period = dmcPeriodTable[rateIndex]
+	// TODO:
+	// For some reason, when I set it to -1, the test passed successfully.....
+	d.timer.period = dmcPeriodTable[rateIndex] - 1
 }
 
 func (d *dmc) setSampleBuffer(val byte) {

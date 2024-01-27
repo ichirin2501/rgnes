@@ -30,10 +30,7 @@ func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *Bus {
 }
 
 func (bus *Bus) Read(addr uint16) byte {
-	// ref: https://www.nesdev.org/wiki/DMA#Behavior
-	// > When DMA is scheduled, the associated DMA unit attempts to halt the CPU. The CPU only allows this on read cycles.
-	// > If the CPU is writing, it ignores the halt and the DMA unit waits until the next cycle to try again, repeating until successful.
-	bus.RunDMAIfOccurred()
+	bus.RunDMAIfOccurred(true)
 	bus.tick(1)
 	return bus._read(addr)
 }
@@ -93,6 +90,7 @@ func (bus *Bus) _read(addr uint16) byte {
 }
 
 func (bus *Bus) Write(addr uint16, val byte) {
+	bus.RunDMAIfOccurred(false)
 	bus.tick(1)
 	bus._write(addr, val)
 }
@@ -264,24 +262,45 @@ func (bus *Bus) Peek(addr uint16) byte {
 
 }
 
-func (bus *Bus) RunDMAIfOccurred() {
+func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
+	if bus.dma.dcmDelay > 0 {
+		bus.dma.dcmDelay--
+		if bus.dma.dcmDelay == 0 {
+			bus.dma.dcmDMAOccurred = true
+		}
+	}
 	if !(bus.dma.dcmDMAOccurred || bus.dma.oamDMAOccurred) {
 		return
 	}
 
-	// TODO: DMC
+	// ref: https://www.nesdev.org/wiki/DMA#Behavior
+	// > When DMA is scheduled, the associated DMA unit attempts to halt the CPU. The CPU only allows this on read cycles.
+	// > If the CPU is writing, it ignores the halt and the DMA unit waits until the next cycle to try again, repeating until successful.
+	if !readCycle {
+		// DMA attempts to halt
+		return
+	}
+
+	if bus.dma.dcmDMAOccurred || bus.dma.oamDMAOccurred {
+		bus.tickStall(1) // DMA halt cycle
+	}
+
+	// TODO: implement DMC DMA during OAM DMA
+
 	if bus.dma.dcmDMAOccurred {
-		//fmt.Printf("debug: call DCM RunDMAIfOccurred(): apu.dmc.bytesRemaining:0x%04X\n", bus.apu.dmc.bytesRemaining)
-		bus.tickStall(1)
+		bus.dma.dcmDMAOccurred = false
+		bus.tickStall(1) // DMA dummy cycle
+		if bus.realClock()%2 != 0 {
+			bus.tickStall(1) // DMA alignment cycle
+		}
 		val := bus._read(bus.dma.dcmTargetAddr)
 		bus.apu.dmc.setSampleBuffer(val)
-		bus.dma.dcmDMAOccurred = false
 	}
 
 	if bus.dma.oamDMAOccurred {
-		bus.tickStall(1)
+		bus.dma.oamDMAOccurred = false
 		if bus.realClock()%2 != 0 {
-			bus.tickStall(1)
+			bus.tickStall(1) // DMA alignment cycle
 		}
 		for i := uint16(0); i < 256; i++ {
 			bus.tickStall(1)
@@ -289,6 +308,5 @@ func (bus *Bus) RunDMAIfOccurred() {
 			bus.tickStall(1)
 			bus.ppu.writeOAMDMAByte(t)
 		}
-		bus.dma.oamDMAOccurred = false
 	}
 }
