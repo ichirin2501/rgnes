@@ -78,11 +78,8 @@ func NewAPU(cpu *interrupter, p Player, dma *DMA) *APU {
 }
 
 func (apu *APU) PowerUp() {
-	// todo
 	apu.writeStatus(0)
 	apu.noise.shiftRegister = 1
-
-	// debug
 	apu.writeDMCController(0)
 	apu.writeDMCLoadCounter(0)
 	apu.writeDMCSampleAddr(0)
@@ -90,7 +87,6 @@ func (apu *APU) PowerUp() {
 }
 
 func (apu *APU) Reset() {
-	// todo
 	apu.writeStatus(0)
 	apu.tnd.seqPos = 0
 }
@@ -125,7 +121,8 @@ func writePulseController(p *pulse, val byte) {
 func writePulseSweep(p *pulse, val byte) {
 	p.sweepEnabled = (val & 0x80) == 0x80
 	// > The divider's period is P + 1 half-frames
-	p.sweepDivider.period = (uint16((val >> 4) & 0b111)) + 1
+	// The divider in this implementation works at a cycle of P+1 by default, so plus 1 is not necessary
+	p.sweepDivider.period = (uint16((val >> 4) & 0b111))
 	p.sweepNegate = (val & 0x08) == 0x08
 	p.sweepShiftCount = val & 0b111
 	// > Side effects	Sets the reload flag
@@ -395,10 +392,11 @@ func (apu *APU) tickTimers() {
 	if apu.clock%2 == 0 {
 		apu.pulse1.tickTimer()
 		apu.pulse2.tickTimer()
-		apu.noise.tickTimer()
+		//apu.noise.tickTimer()
 		//apu.dmc.tickTimer()
 	}
-	// Since the DMC table is defined in units of CPU cycles, I will run the dmc timer every time for now
+	// Since the DMC/Noise tables are defined in units of CPU cycles, I will run the timers every time for now
+	apu.noise.tickTimer()
 	apu.dmc.tickTimer()
 	apu.tnd.tickTimer()
 }

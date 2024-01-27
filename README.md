@@ -33,6 +33,10 @@ It's great because it's written so simple.
 
 | Test | SingleRom | Result |
 | - | - | - |
+| apu_mixer | dmc.nes | ✅ |
+| apu_mixer | noise.nes | ✅ |
+| apu_mixer | square.nes | ✅ |
+| apu_mixer | triangle.nes | ✅ |
 | apu_test | 1-len_ctr.nes | ✅ |
 | apu_test | 2-len_table.nes | ✅ |
 | apu_test | 3-irq_flag.nes | ✅ |

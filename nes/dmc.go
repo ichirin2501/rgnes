@@ -70,8 +70,9 @@ func (d *dmc) output() byte {
 }
 
 func (d *dmc) loadRate(rateIndex byte) {
-	// TODO:
-	// For some reason, when I set it to -1, the test passed successfully.....
+	// > The rate determines for how many CPU cycles happen between changes in the output level during automatic delta-encoded sample playback.
+	// The timer in this implementation works at a cycle of P+1 by default.
+	// So, in the timer implementation, subtract 1 to achieve a number equal to the above defined CPU cycles
 	d.timer.period = dmcPeriodTable[rateIndex] - 1
 }
 
