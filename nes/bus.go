@@ -29,12 +29,7 @@ func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *Bus {
 	}
 }
 
-func (bus *Bus) Read(addr uint16) byte {
-	bus.RunDMAIfOccurred(true)
-	bus.tick(1)
-	return bus._read(addr)
-}
-func (bus *Bus) _read(addr uint16) byte {
+func (bus *Bus) read(addr uint16) byte {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -60,7 +55,7 @@ func (bus *Bus) _read(addr uint16) byte {
 
 	// Mirrors of $2000-2007 (repeats every 8 bytes)
 	case 0x2008 <= addr && addr <= 0x3FFF:
-		return bus._read(0x2000 + addr%0x08)
+		return bus.read(0x2000 + addr%0x08)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
@@ -89,12 +84,7 @@ func (bus *Bus) _read(addr uint16) byte {
 	}
 }
 
-func (bus *Bus) Write(addr uint16, val byte) {
-	bus.RunDMAIfOccurred(false)
-	bus.tick(1)
-	bus._write(addr, val)
-}
-func (bus *Bus) _write(addr uint16, val byte) {
+func (bus *Bus) write(addr uint16, val byte) {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -120,7 +110,7 @@ func (bus *Bus) _write(addr uint16, val byte) {
 
 	// Mirrors of $2000-2007 (repeats every 8 bytes)
 	case 0x2008 <= addr && addr <= 0x3FFF:
-		bus._write(0x2000+addr%0x08, val)
+		bus.write(0x2000+addr%0x08, val)
 
 	// NES APU and I/O registers
 	case addr == 0x4000:
@@ -293,7 +283,7 @@ func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
 		if bus.realClock()%2 != 0 {
 			bus.tickStall(1) // DMA alignment cycle
 		}
-		val := bus._read(bus.dma.dcmTargetAddr)
+		val := bus.read(bus.dma.dcmTargetAddr)
 		bus.apu.dmc.setSampleBuffer(val)
 	}
 
@@ -304,7 +294,7 @@ func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
 		}
 		for i := uint16(0); i < 256; i++ {
 			bus.tickStall(1)
-			t := bus._read(bus.dma.oamTargetAddr + i)
+			t := bus.read(bus.dma.oamTargetAddr + i)
 			bus.tickStall(1)
 			bus.ppu.writeOAMDMAByte(t)
 		}

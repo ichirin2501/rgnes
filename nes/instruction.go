@@ -1,33 +1,33 @@
 package nes
 
 func (cpu *CPU) lda(addr uint16) {
-	a := cpu.bus.Read(addr)
+	a := cpu.Read(addr)
 	cpu.A = a
 	cpu.P.SetZN(cpu.A)
 }
 
 func (cpu *CPU) ldx(addr uint16) {
-	a := cpu.bus.Read(addr)
+	a := cpu.Read(addr)
 	cpu.X = a
 	cpu.P.SetZN(cpu.X)
 }
 
 func (cpu *CPU) ldy(addr uint16) {
-	a := cpu.bus.Read(addr)
+	a := cpu.Read(addr)
 	cpu.Y = a
 	cpu.P.SetZN(cpu.Y)
 }
 
 func (cpu *CPU) sta(addr uint16) {
-	cpu.bus.Write(addr, cpu.A)
+	cpu.Write(addr, cpu.A)
 }
 
 func (cpu *CPU) stx(addr uint16) {
-	cpu.bus.Write(addr, cpu.X)
+	cpu.Write(addr, cpu.X)
 }
 
 func (cpu *CPU) sty(addr uint16) {
-	cpu.bus.Write(addr, cpu.Y)
+	cpu.Write(addr, cpu.Y)
 }
 
 func (cpu *CPU) tax() {
@@ -61,7 +61,7 @@ func (cpu *CPU) tya() {
 
 func (cpu *CPU) adc(addr uint16) {
 	a := cpu.A
-	b := cpu.bus.Read(addr)
+	b := cpu.Read(addr)
 	c := byte(0)
 	if cpu.P.IsCarry() {
 		c = 1
@@ -74,7 +74,7 @@ func (cpu *CPU) adc(addr uint16) {
 }
 
 func (cpu *CPU) and(addr uint16) {
-	cpu.A &= cpu.bus.Read(addr)
+	cpu.A &= cpu.Read(addr)
 	cpu.P.SetZN(cpu.A)
 }
 
@@ -85,41 +85,41 @@ func (cpu *CPU) aslAcc() {
 }
 
 func (cpu *CPU) asl(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.P.SetCarry((v & 0x80) == 0x80)
-	cpu.bus.Write(addr, v) // dummy write
+	cpu.Write(addr, v) // dummy write
 	v <<= 1
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
 func (cpu *CPU) bit(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.P.SetOverflow((v & 0x40) == 0x40)
 	cpu.P.SetNegative(v&0x80 != 0)
 	cpu.P.SetZero((v & cpu.A) == 0x00)
 }
 
 func (cpu *CPU) cmp(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.compare(cpu.A, v)
 }
 
 func (cpu *CPU) cpx(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.compare(cpu.X, v)
 }
 
 func (cpu *CPU) cpy(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.compare(cpu.Y, v)
 }
 
 func (cpu *CPU) dec(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	v--
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
@@ -134,15 +134,15 @@ func (cpu *CPU) dey() {
 }
 
 func (cpu *CPU) eor(addr uint16) {
-	cpu.A ^= cpu.bus.Read(addr)
+	cpu.A ^= cpu.Read(addr)
 	cpu.P.SetZN(cpu.A)
 }
 
 func (cpu *CPU) inc(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	v++
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
@@ -163,16 +163,16 @@ func (cpu *CPU) lsrAcc() {
 }
 
 func (cpu *CPU) lsr(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
 func (cpu *CPU) ora(addr uint16) {
-	cpu.A |= cpu.bus.Read(addr)
+	cpu.A |= cpu.Read(addr)
 	cpu.P.SetZN(cpu.A)
 }
 
@@ -191,11 +191,11 @@ func (cpu *CPU) rol(addr uint16) {
 	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
@@ -214,17 +214,17 @@ func (cpu *CPU) ror(addr uint16) {
 	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v = (v >> 1) | (c << 7)
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 	cpu.P.SetZN(v)
 }
 
 func (cpu *CPU) sbc(addr uint16) {
 	a := cpu.A
-	b := cpu.bus.Read(addr)
+	b := cpu.Read(addr)
 	c := byte(0)
 	if cpu.P.IsCarry() {
 		c = 1
@@ -249,11 +249,11 @@ ref: https://www.nesdev.org/6502_cpu.txt
 ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
 */
 func (cpu *CPU) pha() {
-	//cpu.bus.Read(cpu.PC) // dummy read
+	//cpu.Read(cpu.PC) // dummy read
 	cpu.push(cpu.A)
 }
 func (cpu *CPU) php() {
-	//cpu.bus.Read(cpu.PC) // dummy read
+	//cpu.Read(cpu.PC) // dummy read
 	cpu.push(cpu.P.Byte() | 0x30)
 }
 
@@ -269,12 +269,12 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	4  $0100,S  R  pull register from stack
 */
 func (cpu *CPU) pla() {
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	cpu.A = cpu.pop()
 	cpu.P.SetZN(cpu.A)
 }
 func (cpu *CPU) plp() {
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 }
 
@@ -300,7 +300,7 @@ ref: https://www.nesdev.org/6502_cpu.txt
 func (cpu *CPU) jsr(addr uint16) {
 	cpu.push16(cpu.PC - 1)
 	// dummy read
-	cpu.bus.Read(cpu.PC)
+	cpu.Read(cpu.PC)
 	cpu.PC = addr
 }
 
@@ -319,11 +319,11 @@ ref: https://www.nesdev.org/6502_cpu.txt
 */
 func (cpu *CPU) rts() {
 	// 3  $0100,S  R  increment S
-	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
+	cpu.Read(0x100 | uint16(cpu.S)) // dummy read
 
 	cpu.PC = cpu.pop16()
 	// 6    PC     R  increment PC
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 
 	cpu.PC++
 }
@@ -342,7 +342,7 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	6  $0100,S  R  pull PCH from stack
 */
 func (cpu *CPU) rti() {
-	cpu.bus.Read(0x100 | uint16(cpu.S)) // dummy read
+	cpu.Read(0x100 | uint16(cpu.S)) // dummy read
 	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 	cpu.PC = cpu.pop16()
 }
@@ -450,11 +450,24 @@ BRK
 ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
 */
 func (cpu *CPU) brk() {
-	// cpu.bus.Read(cpu.PC) // dummy read
+	// cpu.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC + 1)
-	cpu.push(cpu.P.Byte() | 0x30)
-	cpu.P.SetInterruptDisable(true)
-	cpu.PC = cpu.read16(0xFFFE)
+
+	// ref: https://www.nesdev.org/wiki/CPU_interrupts#Interrupt_hijacking
+	// > For example, if NMI is asserted during the first four ticks of a BRK instruction,
+	// > the BRK instruction will execute normally at first (PC increments will occur and the status word will be pushed with the B flag set),
+	// > but execution will branch to the NMI vector instead of the IRQ/BRK vector:
+	if cpu.nmiNeeded {
+		cpu.nmiNeeded = false
+		//cpu.nmiDetected = false
+		cpu.push(cpu.P.Byte() | 0x30)
+		cpu.P.SetInterruptDisable(true)
+		cpu.PC = cpu.read16(0xFFFA)
+	} else {
+		cpu.push(cpu.P.Byte() | 0x30)
+		cpu.P.SetInterruptDisable(true)
+		cpu.PC = cpu.read16(0xFFFE)
+	}
 }
 
 /*
@@ -478,8 +491,8 @@ ref: https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_executi
 	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
 */
 func (cpu *CPU) nmi() {
-	cpu.bus.Read(cpu.PC) // dummy read
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte() | 0x20)
 	cpu.P.SetInterruptDisable(true)
@@ -487,11 +500,11 @@ func (cpu *CPU) nmi() {
 }
 
 func (cpu *CPU) irq() {
-	cpu.bus.Read(cpu.PC) // dummy read
-	cpu.bus.Read(cpu.PC) // dummy read
-	cpu.P.SetBreak1(false)
+	cpu.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
+	//cpu.P.SetBreak1(false)
 	cpu.push16(cpu.PC)
-	cpu.push(cpu.P.Byte())
+	cpu.push(cpu.P.Byte() | 0x20)
 	cpu.P.SetInterruptDisable(true)
 	cpu.PC = cpu.read16(0xFFFE)
 }
@@ -502,13 +515,13 @@ func (cpu *CPU) compare(a byte, b byte) {
 }
 
 func (cpu *CPU) push(val byte) {
-	cpu.bus.Write(0x100|uint16(cpu.S), val)
+	cpu.Write(0x100|uint16(cpu.S), val)
 	cpu.S--
 }
 
 func (cpu *CPU) pop() byte {
 	cpu.S++
-	return cpu.bus.Read(0x100 | uint16(cpu.S))
+	return cpu.Read(0x100 | uint16(cpu.S))
 }
 
 func (cpu *CPU) push16(val uint16) {
@@ -526,9 +539,9 @@ func (cpu *CPU) pop16() uint16 {
 
 func (cpu *CPU) branch(addr uint16) int {
 	cycle := 1
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	if pagesCross(cpu.PC, addr) {
-		cpu.bus.Read(cpu.PC) // dummy read
+		cpu.Read(cpu.PC) // dummy read
 		cycle++
 	}
 	cpu.PC = addr
@@ -544,18 +557,18 @@ func pagesCross(a uint16, b uint16) bool {
 func (cpu *CPU) kil() {}
 
 func (cpu *CPU) slo(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v <<= 1
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 
 	cpu.A |= v
 	cpu.P.SetZN(cpu.A)
 }
 
 func (cpu *CPU) anc(addr uint16) {
-	a := cpu.bus.Read(addr)
+	a := cpu.Read(addr)
 	cpu.A &= a
 	cpu.P.SetZN(cpu.A)
 	cpu.P.SetCarry(cpu.P.IsNegative())
@@ -566,22 +579,22 @@ func (cpu *CPU) rla(addr uint16) {
 	if cpu.P.IsCarry() {
 		c = 1
 	}
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 
 	cpu.A &= v
 	cpu.P.SetZN(cpu.A)
 }
 
 func (cpu *CPU) sre(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 
 	cpu.A ^= v
 	cpu.P.SetZN(cpu.A)
@@ -590,7 +603,7 @@ func (cpu *CPU) sre(addr uint16) {
 func (cpu *CPU) alr(addr uint16) {
 	// A =(A&#{imm})/2
 	// N, Z, C
-	v := cpu.A & cpu.bus.Read(addr)
+	v := cpu.A & cpu.Read(addr)
 	cpu.P.SetCarry((v & 1) == 1)
 	v >>= 1
 	cpu.P.SetZN(v)
@@ -602,11 +615,11 @@ func (cpu *CPU) rra(addr uint16) {
 	if cpu.P.IsCarry() {
 		c = 1
 	}
-	k := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, k) // dummy write
+	k := cpu.Read(addr)
+	cpu.Write(addr, k) // dummy write
 	cpu.P.SetCarry((k & 1) == 1)
 	k = (k >> 1) | (c << 7)
-	cpu.bus.Write(addr, k)
+	cpu.Write(addr, k)
 
 	a := cpu.A
 	b := k
@@ -629,7 +642,7 @@ func (cpu *CPU) arr(addr uint16) {
 	if cpu.P.IsCarry() {
 		c = 0x80
 	}
-	v := ((cpu.A & cpu.bus.Read(addr)) >> 1) | c
+	v := ((cpu.A & cpu.Read(addr)) >> 1) | c
 	cpu.P.SetZN(v)
 	cpu.P.SetCarry((v & 0x40) == 0x40)
 	cpu.P.SetOverflow(((v & 0x40) ^ ((v & 0x20) << 1)) == 0x40)
@@ -637,7 +650,7 @@ func (cpu *CPU) arr(addr uint16) {
 }
 
 func (cpu *CPU) sax(addr uint16) {
-	cpu.bus.Write(addr, cpu.A&cpu.X)
+	cpu.Write(addr, cpu.A&cpu.X)
 }
 
 func (cpu *CPU) xaa() {}
@@ -651,7 +664,7 @@ func (cpu *CPU) shy(addr uint16) {
 		addr &= uint16(cpu.Y) << 8
 	}
 	res := cpu.Y & (byte(addr>>8) + 1)
-	cpu.bus.Write(addr, res)
+	cpu.Write(addr, res)
 }
 
 func (cpu *CPU) shx(addr uint16) {
@@ -659,11 +672,11 @@ func (cpu *CPU) shx(addr uint16) {
 		addr &= uint16(cpu.X) << 8
 	}
 	res := cpu.X & (byte(addr>>8) + 1)
-	cpu.bus.Write(addr, res)
+	cpu.Write(addr, res)
 }
 
 func (cpu *CPU) lax(addr uint16) {
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.X = v
 	cpu.A = v
 	cpu.P.SetZN(v)
@@ -672,28 +685,28 @@ func (cpu *CPU) lax(addr uint16) {
 func (cpu *CPU) las() {}
 
 func (cpu *CPU) dcp(addr uint16) {
-	v := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, v) // dummy write
+	v := cpu.Read(addr)
+	cpu.Write(addr, v) // dummy write
 	v--
 	cpu.compare(cpu.A, v)
-	cpu.bus.Write(addr, v)
+	cpu.Write(addr, v)
 }
 
 func (cpu *CPU) axs(addr uint16) {
 	// X:=A&X-#{imm}
 	// N, Z, C
 	t := cpu.A & cpu.X
-	v := cpu.bus.Read(addr)
+	v := cpu.Read(addr)
 	cpu.X = t - v
 	cpu.P.SetCarry(int(t)-int(v) >= 0)
 	cpu.P.SetZN(cpu.X)
 }
 
 func (cpu *CPU) isb(addr uint16) {
-	k := cpu.bus.Read(addr)
-	cpu.bus.Write(addr, k) // dummy write
+	k := cpu.Read(addr)
+	cpu.Write(addr, k) // dummy write
 	k++
-	cpu.bus.Write(addr, k)
+	cpu.Write(addr, k)
 
 	a := cpu.A
 	b := k

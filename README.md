@@ -29,7 +29,7 @@ It's great because it's written so simple.
 | A | Z |
 | B | X |
 
-## Tests
+## Test ROM Results
 
 | Test | SingleRom | Result |
 | - | - | - |
@@ -63,6 +63,7 @@ It's great because it's written so simple.
 | blargg_apu_2005.07.30 | 10.len_halt_timing.nes | ❌ |
 | blargg_apu_2005.07.30 | 11.len_reload_timing.nes | ❌ |
 | blargg_ppu_tests_2005.09.15b | palette_ram.nes | ✅ |
+| blargg_ppu_tests_2005.09.15b | power_up_palette.nes | ❌ |
 | blargg_ppu_tests_2005.09.15b | sprite_ram.nes  | ✅ |
 | blargg_ppu_tests_2005.09.15b | vbl_clear_time.nes | ✅ |
 | blargg_ppu_tests_2005.09.15b | vram_access.nes  | ✅ |
@@ -74,6 +75,11 @@ It's great because it's written so simple.
 | cpu_dummy_writes | cpu_dummy_writes_ppumem.nes | ✅ |
 | cpu_exec_space | test_cpu_exec_space_apu.nes | ❌ |
 | cpu_exec_space | test_cpu_exec_space_ppuio.nes | ✅ |
+| cpu_interrupts_v2 | 1-cli_latency.nes | ✅ |
+| cpu_interrupts_v2 | 2-nmi_and_brk.nes | ❌ |
+| cpu_interrupts_v2 | 3-nmi_and_irq.nes | ❌ |
+| cpu_interrupts_v2 | 4-irq_and_dma.nes | ❌ |
+| cpu_interrupts_v2 | 5-branch_delays_irq.nes | ❌ |
 | cpu_reset | ram_after_reset.nes | ❌ |
 | cpu_reset | registers.nes | ❌ |
 | cpu_timing_test6 | cpu_timing_test.nes | ✅ |
@@ -135,6 +141,8 @@ It's great because it's written so simple.
 | vbl_nmi_timing | 5.nmi_suppression.nes | ✅ |
 | vbl_nmi_timing | 6.nmi_disable.nes | ✅ |
 | vbl_nmi_timing | 7.nmi_timing.nes | ✅ |
+
+## Screenshots
 
 https://github.com/christopherpow/nes-test-roms/blob/master/other/RasterDemo.NES  
 ![RasterDemo.nes](/images/RasterDemo.gif)  

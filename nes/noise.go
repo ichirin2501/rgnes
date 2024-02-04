@@ -29,7 +29,7 @@ func (n *noise) output() byte {
 }
 
 func (n *noise) loadPeriod(p byte) {
-	n.timer.period = noisePeriodTable[p]
+	n.timer.period = noisePeriodTable[p] - 1
 }
 
 func (n *noise) tickTimer() {

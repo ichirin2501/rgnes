@@ -16,13 +16,19 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  processorStatus
 
-	I   *interrupter
+	I   *interruptLines
 	bus *Bus
 	t   *Trace
 	mu  *sync.Mutex
+
+	irqNeeded     bool
+	prevIRQNeeded bool
+	nmiNeeded     bool
+	prevNMINeeded bool
+	prevNMILine   interruptLineStatus
 }
 
-func NewCPU(bus *Bus, i *interrupter, opts ...CPUOption) *CPU {
+func NewCPU(bus *Bus, i *interruptLines, opts ...CPUOption) *CPU {
 	cpu := &CPU{
 		I:   i,
 		bus: bus,
@@ -87,21 +93,16 @@ func (cpu *CPU) Step() {
 
 	additionalCycle := 0
 
-	if cpu.I.nmi {
-		if !cpu.I.delayNMI {
-			cpu.nmi()
-			cpu.I.nmi = false
-			return
-		}
-	} else if cpu.I.irq {
-		//cpu.I.irq = false
-		if !cpu.P.IsInterruptDisable() {
-			cpu.irq()
-			return
-		}
+	if cpu.prevNMINeeded {
+		cpu.nmiNeeded = false
+		cpu.nmi()
+		return
+	} else if cpu.prevIRQNeeded {
+		// In the internal processing of IRQ(), read is executed twice after turning the InterruptDisable ON,
+		// so prevIRQNeeded is false at the beginning of the next Step().
+		cpu.irq()
+		return
 	}
-
-	cpu.I.delayNMI = false
 
 	if cpu.t != nil {
 		cpu.t.SetCPURegisterA(cpu.A)
@@ -257,7 +258,7 @@ func (cpu *CPU) Step() {
 		// So one dummy read operation is required in addition to fetch opcode and addressing process.
 		// However, NOP also has Implied addressing cases, so ignore the case only.
 		if opcode.Mode != implied {
-			cpu.bus.Read(addr) // dummy read
+			cpu.Read(addr) // dummy read
 		}
 	// case KIL:
 	// 	// TODO
@@ -327,17 +328,60 @@ func (cpu *CPU) Step() {
 	// 		opcode.Unofficial,
 	// 	)
 	// }
+
+}
+
+// https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
+// > As can be deduced from above, it's really the status of the interrupt lines at the end of the second-to-last cycle that matters.
+// The polling process for interrupt status occurs during φ2 of each CPU cycle, but the actual generation of the interrupt is delayed by one instruction.
+func (cpu *CPU) pollInterruptLines() {
+	// > The NMI input is connected to an edge detector.
+	cpu.prevNMINeeded = cpu.nmiNeeded
+	if cpu.I.nmiLine == interruptLineLow && cpu.prevNMILine == interruptLineHigh {
+		cpu.nmiNeeded = true
+	}
+	cpu.prevNMILine = cpu.I.nmiLine
+
+	// > The IRQ input is connected to a level detector.
+	cpu.prevIRQNeeded = cpu.irqNeeded
+	cpu.irqNeeded = false
+	if cpu.I.irqLine == interruptLineLow && !cpu.P.IsInterruptDisable() {
+		cpu.irqNeeded = true
+	}
+}
+
+func (cpu *CPU) Read(addr uint16) byte {
+	cpu.bus.RunDMAIfOccurred(true)
+	cpu.bus.clock++
+	cpu.bus.ppu.Step()
+	cpu.bus.ppu.Step()
+	cpu.bus.apu.Step()
+	ret := cpu.bus.read(addr)
+	cpu.bus.ppu.Step()
+	cpu.pollInterruptLines()
+	return ret
+}
+
+func (cpu *CPU) Write(addr uint16, val byte) {
+	cpu.bus.RunDMAIfOccurred(false)
+	cpu.bus.clock++
+	cpu.bus.ppu.Step()
+	cpu.bus.ppu.Step()
+	cpu.bus.apu.Step()
+	cpu.bus.write(addr, val)
+	cpu.bus.ppu.Step()
+	cpu.pollInterruptLines()
 }
 
 func (cpu *CPU) fetch() byte {
-	v := cpu.bus.Read(cpu.PC)
+	v := cpu.Read(cpu.PC)
 	cpu.PC++
 	return v
 }
 
 func (cpu *CPU) read16(addr uint16) uint16 {
-	l := cpu.bus.Read(addr)
-	h := cpu.bus.Read(addr + 1)
+	l := cpu.Read(addr)
+	h := cpu.Read(addr + 1)
 	return (uint16(h) << 8) | uint16(l)
 }
 
@@ -404,7 +448,7 @@ func (cpu *CPU) addressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
-		cpu.bus.Read(dummyAddr)
+		cpu.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
@@ -422,7 +466,7 @@ func (cpu *CPU) addressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
-		cpu.bus.Read(dummyAddr)
+		cpu.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
@@ -443,14 +487,14 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	2    PC     R  read next instruction byte (and throw it away)
 */
 func (cpu *CPU) addressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	if cpu.t != nil {
 		cpu.t.SetCPUAddressingResult("A")
 	}
 	return 0, false
 }
 func (cpu *CPU) addressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.bus.Read(cpu.PC) // dummy read
+	cpu.Read(cpu.PC) // dummy read
 	return 0, false
 }
 
@@ -469,11 +513,11 @@ func (cpu *CPU) addressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed 
 	k := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > pointer    R  read from the address, add X to it
-	cpu.bus.Read(uint16(k)) // dummy read
+	cpu.Read(uint16(k)) // dummy read
 
 	a := uint16(k + cpu.X)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
+	addr = uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(k)
 		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.Peek(addr)))
@@ -486,7 +530,7 @@ func (cpu *CPU) addressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
+	addr = uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
@@ -498,14 +542,14 @@ func (cpu *CPU) addressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 func (cpu *CPU) addressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	a := uint16(cpu.fetch())
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	baseAddr := uint16(cpu.bus.Read(b))<<8 | uint16(cpu.bus.Read(a))
+	baseAddr := uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
 	addr = baseAddr + uint16(cpu.Y)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		h := baseAddr & 0xFF00
 		l := baseAddr & 0x00FF
 		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
-		cpu.bus.Read(dummyAddr)
+		cpu.Read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(byte(a))
@@ -541,7 +585,7 @@ func (cpu *CPU) addressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) 
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it
-	cpu.bus.Read(uint16(a)) // dummy read
+	cpu.Read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.X) & 0xFF
 	if cpu.t != nil {
@@ -555,7 +599,7 @@ func (cpu *CPU) addressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) 
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it
-	cpu.bus.Read(uint16(a)) // dummy read
+	cpu.Read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.Y) & 0xFF
 	if cpu.t != nil {
