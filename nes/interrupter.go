@@ -1,17 +1,21 @@
 package nes
 
-type interrupter struct {
-	delayNMI bool
-	nmi      bool
-	irq      bool
+type interruptLineStatus int
+
+const (
+	interruptLineHigh interruptLineStatus = iota
+	interruptLineLow
+)
+
+type interruptLines struct {
+	nmiLine interruptLineStatus
+	irqLine interruptLineStatus
 }
 
-func (i *interrupter) SetNMI(v bool) {
-	i.nmi = v
+func (i *interruptLines) setIRQLine(v interruptLineStatus) {
+	i.irqLine = v
 }
-func (i *interrupter) SetDelayNMI() {
-	i.delayNMI = true
-}
-func (i *interrupter) SetIRQ(v bool) {
-	i.irq = v
+
+func (i *interruptLines) setNMILine(v interruptLineStatus) {
+	i.nmiLine = v
 }

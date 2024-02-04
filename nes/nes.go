@@ -9,7 +9,7 @@ type NES struct {
 }
 
 func New(mapper Mapper, renderer Renderer, player Player) *NES {
-	irp := &interrupter{}
+	irp := &interruptLines{}
 	m := mapper.MirroingType()
 	dma := &DMA{}
 

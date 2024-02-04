@@ -114,17 +114,13 @@ type PPU struct {
 	patternAttributeLowBit  uint16
 	patternAttributeHighBit uint16
 
-	cpu *interrupter
+	cpu *interruptLines
 
-	nmiDelay int
-	Clock    int
+	Clock int
 }
 
 func (ppu *PPU) FetchVBlankStarted() bool {
 	return ppu.status.VBlankStarted()
-}
-func (ppu *PPU) FetchNMIDelay() int {
-	return ppu.nmiDelay
 }
 func (ppu *PPU) FetchV() uint16 {
 	return ppu.v
@@ -133,7 +129,7 @@ func (ppu *PPU) FetchBuffer() byte {
 	return ppu.buf
 }
 
-func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *interrupter) *PPU {
+func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *interruptLines) *PPU {
 	ppu := &PPU{
 		vram:     newVRAM(mirror),
 		mapper:   mapper,
@@ -174,20 +170,18 @@ func (ppu *PPU) writeController(val byte) {
 	ppu.updateOpenBus(val)
 	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
 	ppu.ctrl = ppuControlRegister(val)
-	if beforeGeneratedVBlankNMI && !ppu.ctrl.GenerateVBlankNMI() {
-		if ppu.Scanline == 241 && (ppu.Cycle == 1 || ppu.Cycle == 2) {
-			ppu.cpu.SetNMI(false)
-			ppu.nmiDelay = 0
+
+	// https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
+	// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
+	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
+	if ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
+		if !beforeGeneratedVBlankNMI {
+			ppu.cpu.setNMILine(interruptLineLow)
 		}
-	} else if 241 <= ppu.Scanline && ppu.Scanline <= 260 && !beforeGeneratedVBlankNMI && ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
-		// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
-		// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
-		// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-		// vblank flagがoffになるのは Scanline=261,cycle=1 のときだけど、(261,0)でもnmiは発生させないようにする for ppu_vbl_nmi/07-nmi_on_timing.nes
-		ppu.cpu.SetNMI(true)
-		// https://archive.nes.science/nesdev-forums/f3/t10006.xhtml#p111038
-		ppu.cpu.SetDelayNMI()
+	} else {
+		ppu.cpu.setNMILine(interruptLineHigh)
 	}
+
 	// t: ...GH.. ........ <- d: ......GH
 	// <used elsewhere>    <- d: ABCDEF..
 	ppu.t = (ppu.t & 0xF3FF) | (uint16(val)&0x03)<<10
@@ -211,18 +205,20 @@ func (ppu *PPU) writeMask(val byte) {
 
 // $2002: PPUSTATUS
 func (ppu *PPU) readStatus() byte {
-	st := ppu.status.Get()
-	ppu.status.SetVBlankStarted(false)
-
-	// https://www.nesdev.org/wiki/NMI#Race_condition
 	// https://www.nesdev.org/wiki/PPU_frame_timing#VBL_Flag_Timing
-	if ppu.Scanline == 241 {
-		if ppu.Cycle == 0 {
-			ppu.suppressVBlankFlag = true
-		} else if ppu.Cycle == 1 || ppu.Cycle == 2 {
-			ppu.cpu.SetNMI(false)
-			ppu.nmiDelay = 0
-		}
+	// > Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
+	// > Reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame.
+	// > Reading on the same PPU clock or one later reads it as set, clears it, and suppresses the NMI for that frame.
+	// > Reading two or more PPU clocks before/after it's set behaves normally (reads flag's value, clears it, and doesn't affect NMI operation).
+	var st byte
+	if ppu.Scanline == 241 && ppu.Cycle == 0 {
+		ppu.status.SetVBlankStarted(false)
+		st = ppu.status.Get()
+		ppu.suppressVBlankFlag = true
+	} else {
+		st = ppu.status.Get()
+		ppu.status.SetVBlankStarted(false)
+		ppu.cpu.setNMILine(interruptLineHigh)
 	}
 
 	// w:                  <- 0
@@ -741,13 +737,6 @@ func (ppu *PPU) renderPixel() {
 func (ppu *PPU) Step() {
 	ppu.Clock++
 
-	if ppu.nmiDelay > 0 {
-		ppu.nmiDelay--
-		if ppu.nmiDelay == 0 && ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-			ppu.cpu.SetNMI(true)
-		}
-	}
-
 	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
 		if ppu.f == 1 && ppu.Scanline == 261 && ppu.Cycle == 339 {
 			// skip 1 cycle
@@ -868,14 +857,17 @@ func (ppu *PPU) Step() {
 		ppu.renderer.Refresh()
 		if !ppu.suppressVBlankFlag {
 			ppu.status.SetVBlankStarted(true)
-			// hack for vbl_nmi_timing/7.nmi_timing.nes and ppu_vbl_nmi/05-nmi_timing.nes
-			ppu.nmiDelay = 2
+			if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
+				ppu.cpu.setNMILine(interruptLineLow)
+			}
 		}
 	}
 
 	// Pre-render line
 	if preLine && ppu.Cycle == 1 {
 		ppu.status.SetVBlankStarted(false)
+		ppu.cpu.setNMILine(interruptLineHigh)
+
 		ppu.status.SetSprite0Hit(false)
 		ppu.status.SetSpriteOverflow(false)
 	}
