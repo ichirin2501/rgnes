@@ -447,19 +447,30 @@ BRK
 	6   $FFFE   R  fetch PCL
 	7   $FFFF   R  fetch PCH
 
-ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
+The addressing mode of the BRK instruction is the Implied.
+The first 2 CPU clocks are already working in advance addressing mode processing, so dummy read is not necessary.
 */
 func (cpu *CPU) brk() {
-	// cpu.Read(cpu.PC) // dummy read
+	cpu.interrupting = true
 	cpu.push16(cpu.PC + 1)
 
 	// ref: https://www.nesdev.org/wiki/CPU_interrupts#Interrupt_hijacking
 	// > For example, if NMI is asserted during the first four ticks of a BRK instruction,
 	// > the BRK instruction will execute normally at first (PC increments will occur and the status word will be pushed with the B flag set),
 	// > but execution will branch to the NMI vector instead of the IRQ/BRK vector:
-	if cpu.nmiNeeded {
-		cpu.nmiNeeded = false
-		//cpu.nmiDetected = false
+
+	// > Each [] is a CPU tick. [...] is whatever tick precedes the BRK opcode fetch.
+	// > Asserting NMI during the interval marked with * causes a branch to the NMI routine instead of the IRQ/BRK routine:
+	// >      ********************
+	// > [...][BRK][BRK][BRK][BRK][BRK][BRK][BRK]
+
+	// It's not clear to me what timing "Asserting NMI" refers to.
+	// Is it the timing when the NMI edge detector detects it, the timing when the NMI internal signal turns ON,
+	// or the timing when the decision is made to actually execute the NMI?
+	// As far as I checked with cpu_interrupts_v2/2-nmi_and_brk.nes,
+	// it seems to be expecting the NMI edge detector timing.
+	if cpu.nmiSignal || cpu.nmiTriggered {
+		cpu.nmiSignal = false
 		cpu.push(cpu.P.Byte() | 0x30)
 		cpu.P.SetInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFA)
@@ -468,6 +479,7 @@ func (cpu *CPU) brk() {
 		cpu.P.SetInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFE)
 	}
+	cpu.interrupting = false
 }
 
 /*
@@ -491,22 +503,35 @@ ref: https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_executi
 	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
 */
 func (cpu *CPU) nmi() {
+	cpu.interrupting = true
+	cpu.nmiSignal = false
+
 	cpu.Read(cpu.PC) // dummy read
 	cpu.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
 	cpu.push(cpu.P.Byte() | 0x20)
 	cpu.P.SetInterruptDisable(true)
 	cpu.PC = cpu.read16(0xFFFA)
+
+	cpu.interrupting = false
 }
 
 func (cpu *CPU) irq() {
+	cpu.interrupting = true
 	cpu.Read(cpu.PC) // dummy read
 	cpu.Read(cpu.PC) // dummy read
-	//cpu.P.SetBreak1(false)
 	cpu.push16(cpu.PC)
-	cpu.push(cpu.P.Byte() | 0x20)
-	cpu.P.SetInterruptDisable(true)
-	cpu.PC = cpu.read16(0xFFFE)
+	if cpu.nmiSignal || cpu.nmiTriggered {
+		cpu.nmiSignal = false
+		cpu.push(cpu.P.Byte() | 0x20)
+		cpu.P.SetInterruptDisable(true)
+		cpu.PC = cpu.read16(0xFFFA)
+	} else {
+		cpu.push(cpu.P.Byte() | 0x20)
+		cpu.P.SetInterruptDisable(true)
+		cpu.PC = cpu.read16(0xFFFE)
+	}
+	cpu.interrupting = false
 }
 
 func (cpu *CPU) compare(a byte, b byte) {

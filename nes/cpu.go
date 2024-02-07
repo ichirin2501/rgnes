@@ -5,6 +5,14 @@ import (
 	"sync"
 )
 
+type pendingInterruptType int
+
+const (
+	pendingInterruptNone pendingInterruptType = iota
+	pendingInterruptIRQ
+	pendingInterruptNMI
+)
+
 type CPUOption func(*CPU)
 
 type CPU struct {
@@ -21,11 +29,18 @@ type CPU struct {
 	t   *Trace
 	mu  *sync.Mutex
 
-	irqNeeded     bool
-	prevIRQNeeded bool
-	nmiNeeded     bool
-	prevNMINeeded bool
-	prevNMILine   interruptLineStatus
+	irqTriggered bool
+	irqSignal    bool
+	nmiTriggered bool
+	nmiSignal    bool
+	prevNMILine  interruptLineStatus
+
+	pendingInterrupt pendingInterruptType
+
+	// https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
+	// > The interrupt sequences themselves do not perform interrupt polling,
+	// > meaning at least one instruction from the interrupt handler will execute before another interrupt is serviced.
+	interrupting bool
 }
 
 func NewCPU(bus *Bus, i *interruptLines, opts ...CPUOption) *CPU {
@@ -93,13 +108,10 @@ func (cpu *CPU) Step() {
 
 	additionalCycle := 0
 
-	if cpu.prevNMINeeded {
-		cpu.nmiNeeded = false
+	if cpu.pendingInterrupt == pendingInterruptNMI {
 		cpu.nmi()
 		return
-	} else if cpu.prevIRQNeeded {
-		// In the internal processing of IRQ(), read is executed twice after turning the InterruptDisable ON,
-		// so prevIRQNeeded is false at the beginning of the next Step().
+	} else if cpu.pendingInterrupt == pendingInterruptIRQ {
 		cpu.irq()
 		return
 	}
@@ -328,49 +340,70 @@ func (cpu *CPU) Step() {
 	// 		opcode.Unofficial,
 	// 	)
 	// }
+}
 
+func (cpu *CPU) pollInterruptSignals() {
+	// https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
+	// The internal signals of NMI/IRQ inputs are detected in the φ1 of each CPU cycle, so I emulate that.
+	// Once NMI internal signal is turned ON, it will not turn OFF until NMI is executed.
+	if cpu.nmiTriggered {
+		cpu.nmiSignal = true
+	}
+	cpu.irqSignal = cpu.irqTriggered
 }
 
 // https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
 // > As can be deduced from above, it's really the status of the interrupt lines at the end of the second-to-last cycle that matters.
 // The polling process for interrupt status occurs during φ2 of each CPU cycle, but the actual generation of the interrupt is delayed by one instruction.
-func (cpu *CPU) pollInterruptLines() {
-	// > The NMI input is connected to an edge detector.
-	cpu.prevNMINeeded = cpu.nmiNeeded
+func (cpu *CPU) pollInterrupts() {
+	// poll interrupt lines
+	// The NMI input is connected to an edge detector
+	cpu.nmiTriggered = false
 	if cpu.I.nmiLine == interruptLineLow && cpu.prevNMILine == interruptLineHigh {
-		cpu.nmiNeeded = true
+		cpu.nmiTriggered = true
 	}
 	cpu.prevNMILine = cpu.I.nmiLine
 
-	// > The IRQ input is connected to a level detector.
-	cpu.prevIRQNeeded = cpu.irqNeeded
-	cpu.irqNeeded = false
-	if cpu.I.irqLine == interruptLineLow && !cpu.P.IsInterruptDisable() {
-		cpu.irqNeeded = true
+	// The IRQ input is connected to a level detector
+	cpu.irqTriggered = false
+	if cpu.I.irqLine == interruptLineLow {
+		cpu.irqTriggered = true
+	}
+
+	// poll interrupt events
+	cpu.pendingInterrupt = pendingInterruptNone
+	if !cpu.interrupting {
+		if cpu.nmiSignal {
+			cpu.pendingInterrupt = pendingInterruptNMI
+		} else if cpu.irqSignal && !cpu.P.IsInterruptDisable() {
+			cpu.pendingInterrupt = pendingInterruptIRQ
+		}
 	}
 }
 
 func (cpu *CPU) Read(addr uint16) byte {
 	cpu.bus.RunDMAIfOccurred(true)
+	cpu.pollInterruptSignals()
 	cpu.bus.clock++
 	cpu.bus.ppu.Step()
 	cpu.bus.ppu.Step()
 	cpu.bus.apu.Step()
 	ret := cpu.bus.read(addr)
 	cpu.bus.ppu.Step()
-	cpu.pollInterruptLines()
+	cpu.pollInterrupts()
 	return ret
 }
 
 func (cpu *CPU) Write(addr uint16, val byte) {
 	cpu.bus.RunDMAIfOccurred(false)
+	cpu.pollInterruptSignals()
 	cpu.bus.clock++
 	cpu.bus.ppu.Step()
 	cpu.bus.ppu.Step()
 	cpu.bus.apu.Step()
 	cpu.bus.write(addr, val)
 	cpu.bus.ppu.Step()
-	cpu.pollInterruptLines()
+	cpu.pollInterrupts()
 }
 
 func (cpu *CPU) fetch() byte {

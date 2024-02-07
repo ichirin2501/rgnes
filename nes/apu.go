@@ -474,6 +474,7 @@ func (apu *APU) tickFrameCounter() {
 		case frameTable[apu.frameMode][3]:
 			if !apu.frameInterruptInhibit {
 				apu.frameInterruptFlag = true
+				apu.cpu.setIRQLine(interruptLineLow)
 			}
 		case frameTable[apu.frameMode][4]:
 			apu.tickQuarterFrameCounter()
@@ -485,6 +486,7 @@ func (apu *APU) tickFrameCounter() {
 		case frameTable[apu.frameMode][5]:
 			if !apu.frameInterruptInhibit {
 				apu.frameInterruptFlag = true
+				apu.cpu.setIRQLine(interruptLineLow)
 			}
 			apu.frameStep = 0
 		}
