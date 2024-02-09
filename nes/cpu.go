@@ -381,6 +381,11 @@ func (cpu *CPU) pollInterrupts() {
 	}
 }
 
+func (cpu *CPU) clearNMIInterruptState() {
+	cpu.nmiSignal = false
+	cpu.nmiTriggered = false
+}
+
 func (cpu *CPU) Read(addr uint16) byte {
 	cpu.bus.RunDMAIfOccurred(true)
 	cpu.pollInterruptSignals()

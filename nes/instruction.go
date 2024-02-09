@@ -470,10 +470,10 @@ func (cpu *CPU) brk() {
 	// As far as I checked with cpu_interrupts_v2/2-nmi_and_brk.nes,
 	// it seems to be expecting the NMI edge detector timing.
 	if cpu.nmiSignal || cpu.nmiTriggered {
-		cpu.nmiSignal = false
 		cpu.push(cpu.P.Byte() | 0x30)
 		cpu.P.SetInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFA)
+		cpu.clearNMIInterruptState()
 	} else {
 		cpu.push(cpu.P.Byte() | 0x30)
 		cpu.P.SetInterruptDisable(true)
@@ -504,7 +504,6 @@ ref: https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_executi
 */
 func (cpu *CPU) nmi() {
 	cpu.interrupting = true
-	cpu.nmiSignal = false
 
 	cpu.Read(cpu.PC) // dummy read
 	cpu.Read(cpu.PC) // dummy read
@@ -513,6 +512,7 @@ func (cpu *CPU) nmi() {
 	cpu.P.SetInterruptDisable(true)
 	cpu.PC = cpu.read16(0xFFFA)
 
+	cpu.clearNMIInterruptState()
 	cpu.interrupting = false
 }
 
@@ -522,10 +522,10 @@ func (cpu *CPU) irq() {
 	cpu.Read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
 	if cpu.nmiSignal || cpu.nmiTriggered {
-		cpu.nmiSignal = false
 		cpu.push(cpu.P.Byte() | 0x20)
 		cpu.P.SetInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFA)
+		cpu.clearNMIInterruptState()
 	} else {
 		cpu.push(cpu.P.Byte() | 0x20)
 		cpu.P.SetInterruptDisable(true)
