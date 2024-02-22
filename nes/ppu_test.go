@@ -300,7 +300,7 @@ func Test_ReadOAMData(t *testing.T) {
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.getOpenBus())
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus.get(tt.ppu.Clock))
 		})
 	}
 
@@ -321,13 +321,17 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:  ppuStatusRegister(0x88),
 				openbus: ppuDecayRegister{val: 0x31},
-				cpu:     &interruptLines{},
-				w:       true,
+				//    0x ---D DDDD
+				// -: 0x 1000 1000
+				// D: 0x 0011 0001
+				//    0x 1001 0001
+				cpu: &interruptLines{},
+				w:   true,
 			},
-			0x99,
+			0x91,
 			false,
 			false,
-			0x31,
+			0x91,
 		},
 		{
 			"2",
@@ -398,7 +402,7 @@ func Test_ReadStatus(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantw, tt.ppu.w)
 			assert.Equal(t, tt.wantSuppressVBlankFlag, tt.ppu.suppressVBlankFlag)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.getOpenBus())
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus.get(tt.ppu.Clock))
 		})
 	}
 }
