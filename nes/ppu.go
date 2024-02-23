@@ -878,7 +878,9 @@ func (ppu *PPU) Step() {
 		// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
 		if ppu.Cycle == 257 {
 			// init
-			ppu.oamAddr = 0
+			if ppu.isRenderingEnabled() {
+				ppu.oamAddr = 0
+			}
 			ppu.spriteFounds = 0
 		}
 
