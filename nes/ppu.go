@@ -274,7 +274,7 @@ func (ppu *PPU) writeOAMData(val byte) {
 
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
 	// > Writes to OAMDATA during rendering (on the pre-render line and the visible lines 0-239, provided either sprite or background rendering is enabled) do not modify values in OAM
-	if !((ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites())) {
+	if !(ppu.isRenderLine() && ppu.isRenderingEnabled()) {
 		// https://www.nesdev.org/wiki/PPU_OAM#Byte_2
 		// > The three unimplemented bits of each sprite's byte 2 do not exist in the PPU and always read back as 0 on PPU revisions that allow reading PPU OAM through OAMDATA ($2004).
 		// > This can be emulated by ANDing byte 2 with $E3 either when writing to or when reading from OAM.
@@ -366,7 +366,7 @@ func (ppu *PPU) writePPUAddr(val byte) {
 func (ppu *PPU) readPPUData() byte {
 	res := ppu._readPPUData(ppu.v)
 
-	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
@@ -443,7 +443,7 @@ func (ppu *PPU) writePPUData(val byte) {
 	ppu.openbus.refresh(val, 0xFF, ppu.Clock)
 	ppu._writePPUData(ppu.v, val)
 
-	if (ppu.Scanline < 240 || ppu.Scanline == 261) && (ppu.mask.ShowBackground() || ppu.mask.ShowSprites()) {
+	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
@@ -691,12 +691,20 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 	}
 }
 
-func (ppu *PPU) visibleFrame() bool {
-	return ppu.Scanline == 261 || ppu.Scanline < 240
+func (ppu *PPU) isRenderLine() bool {
+	return ppu.isPreLine() || ppu.isVisibleScanlines()
 }
 
-func (ppu *PPU) visibleScanline() bool {
+func (ppu *PPU) isVisibleScanlines() bool {
 	return ppu.Scanline < 240
+}
+
+func (ppu *PPU) isPreLine() bool {
+	return ppu.Scanline == 261
+}
+
+func (ppu *PPU) isRenderingEnabled() bool {
+	return ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 }
 
 func (ppu *PPU) loadNextPixelData() {
@@ -793,8 +801,8 @@ func (ppu *PPU) renderPixel() {
 func (ppu *PPU) Step() {
 	ppu.Clock++
 
-	if ppu.mask.ShowBackground() || ppu.mask.ShowSprites() {
-		if ppu.f == 1 && ppu.Scanline == 261 && ppu.Cycle == 339 {
+	if ppu.isRenderingEnabled() {
+		if ppu.f == 1 && ppu.isPreLine() && ppu.Cycle == 339 {
 			// skip 1 cycle
 			ppu.Cycle = 340
 		}
@@ -811,73 +819,70 @@ func (ppu *PPU) Step() {
 		}
 	}
 
-	rendering := ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
-	preLine := ppu.Scanline == 261
-	renderLine := preLine || ppu.visibleScanline()
 	visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	preFetchCycle := ppu.Cycle >= 321 && ppu.Cycle <= 336
 	fetchCycle := preFetchCycle || visibleCycle
 
-	if ppu.Cycle == 64 {
-		// init eval sprite state
-		ppu.spriteEvaluationState = InitSpriteEvaluationState
+	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
+	// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
+		// shift
+		ppu.patternAttributeHighBit <<= 1
+		ppu.patternAttributeLowBit <<= 1
+		ppu.patternTableHighBit <<= 1
+		ppu.patternTableLowBit <<= 1
+	}
+	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
+	// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
+		ppu.loadNextPixelData()
+	}
+	if ppu.isRenderingEnabled() && ppu.isVisibleScanlines() && visibleCycle {
+		ppu.renderPixel()
+	}
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() && fetchCycle {
+		switch ppu.Cycle % 8 {
+		case 1:
+			ppu.fetchNameTableByte()
+		case 3:
+			ppu.fetchAttributeTableByte()
+		case 5:
+			ppu.fetchPatternTableLowByte()
+		case 7:
+			ppu.fetchPatternTableHighByte()
+		}
 	}
 
-	if rendering {
-		// https://www.nesdev.org/wiki/File:Ntsc_timing.png
-		// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
-		if renderLine && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
-			// shift
-			ppu.patternAttributeHighBit <<= 1
-			ppu.patternAttributeLowBit <<= 1
-			ppu.patternTableHighBit <<= 1
-			ppu.patternTableLowBit <<= 1
+	// secondary OAM clear
+	if ppu.isRenderingEnabled() && 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.isVisibleScanlines() {
+		if ppu.Cycle%2 == 1 {
+			addr := ppu.Cycle / 2
+			ppu.secondaryOAM[addr] = 0xFF
 		}
-		// https://www.nesdev.org/wiki/File:Ntsc_timing.png
-		// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
-		if renderLine && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
-			ppu.loadNextPixelData()
-		}
-		if ppu.visibleScanline() && visibleCycle {
-			ppu.renderPixel()
-		}
-		if renderLine && fetchCycle {
-			switch ppu.Cycle % 8 {
-			case 1:
-				ppu.fetchNameTableByte()
-			case 3:
-				ppu.fetchAttributeTableByte()
-			case 5:
-				ppu.fetchPatternTableLowByte()
-			case 7:
-				ppu.fetchPatternTableHighByte()
-			}
-		}
+	}
 
-		// secondary OAM clear
-		if 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.visibleScanline() {
-			if ppu.Cycle%2 == 1 {
-				addr := ppu.Cycle / 2
-				ppu.secondaryOAM[addr] = 0xFF
-			}
+	// sprite eval for next Scanline
+	if 65 <= ppu.Cycle && ppu.Cycle <= 256 && ppu.isVisibleScanlines() {
+		if ppu.Cycle == 65 {
+			ppu.spriteEvaluationState = InitSpriteEvaluationState
 		}
-
-		// sprite eval for next Scanline
-		if 65 <= ppu.Cycle && ppu.Cycle <= 256 && ppu.visibleScanline() {
+		if ppu.isRenderingEnabled() {
 			ppu.evalSpriteForNextScanline()
 		}
+	}
 
-		// sprite fetch
-		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanline()) {
-			// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
-			// > Values during rendering
-			// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
+	// sprite fetch
+	if 257 <= ppu.Cycle && ppu.Cycle <= 320 && ppu.isRenderLine() {
+		// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
+		// > Values during rendering
+		// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
+		if ppu.Cycle == 257 {
+			// init
 			ppu.oamAddr = 0
+			ppu.spriteFounds = 0
+		}
 
-			if ppu.Cycle == 257 {
-				ppu.spriteFounds = 0
-			}
-
+		if ppu.isRenderingEnabled() {
 			switch ppu.Cycle % 8 {
 			case 1:
 				// garbage NT byte
@@ -890,26 +895,26 @@ func (ppu *PPU) Step() {
 				// fetch sprite pattern table high byte
 				// this process is included in fetchSpriteForNextScanline
 			case 0:
-				if ppu.visibleScanline() {
+				if ppu.isVisibleScanlines() {
 					ppu.fetchSpriteForNextScanline()
 				}
 			}
 		}
+	}
 
-		if preLine && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
-			ppu.copyY()
+	if ppu.isRenderingEnabled() && ppu.isPreLine() && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
+		ppu.copyY()
+	}
+
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() {
+		if fetchCycle && ppu.Cycle%8 == 0 {
+			ppu.incrementX()
 		}
-
-		if renderLine {
-			if fetchCycle && ppu.Cycle%8 == 0 {
-				ppu.incrementX()
-			}
-			if ppu.Cycle == 256 {
-				ppu.incrementY()
-			}
-			if ppu.Cycle == 257 {
-				ppu.copyX()
-			}
+		if ppu.Cycle == 256 {
+			ppu.incrementY()
+		}
+		if ppu.Cycle == 257 {
+			ppu.copyX()
 		}
 	}
 
@@ -925,7 +930,7 @@ func (ppu *PPU) Step() {
 	}
 
 	// Pre-render line
-	if preLine && ppu.Cycle == 1 {
+	if ppu.isPreLine() && ppu.Cycle == 1 {
 		ppu.status.SetVBlankStarted(false)
 		ppu.cpu.setNMILine(interruptLineHigh)
 
