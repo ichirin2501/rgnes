@@ -148,28 +148,28 @@ ref: https://www.nesdev.org/wiki/PPU_registers#PPUSTATUS
 */
 type ppuStatusRegister byte
 
-func (s *ppuStatusRegister) SetSpriteOverflow(val bool) {
-	if val {
-		*s |= 0x20
-	} else {
-		*s &= 0xDF
-	}
+func (s *ppuStatusRegister) SetSpriteOverflow() {
+	*s |= 0x20
 }
 
-func (s *ppuStatusRegister) SetSprite0Hit(val bool) {
-	if val {
-		*s |= 0x40
-	} else {
-		*s &= 0xBF
-	}
+func (s *ppuStatusRegister) ClearSpriteOverflow() {
+	*s &= 0xDF
 }
 
-func (s *ppuStatusRegister) SetVBlankStarted(val bool) {
-	if val {
-		*s |= 0x80
-	} else {
-		*s &= 0x7F
-	}
+func (s *ppuStatusRegister) SetSprite0Hit() {
+	*s |= 0x40
+}
+
+func (s *ppuStatusRegister) ClearSprite0Hit() {
+	*s &= 0xBF
+}
+
+func (s *ppuStatusRegister) SetVBlankStarted() {
+	*s |= 0x80
+}
+
+func (s *ppuStatusRegister) ClearVBlankStarted() {
+	*s &= 0x7F
 }
 
 func (s *ppuStatusRegister) VBlankStarted() bool {

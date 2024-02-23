@@ -212,12 +212,12 @@ func (ppu *PPU) readStatus() byte {
 	// > Reading two or more PPU clocks before/after it's set behaves normally (reads flag's value, clears it, and doesn't affect NMI operation).
 	var st byte
 	if ppu.Scanline == 241 && ppu.Cycle == 0 {
-		ppu.status.SetVBlankStarted(false)
+		ppu.status.ClearVBlankStarted()
 		st = ppu.status.Get()
 		ppu.suppressVBlankFlag = true
 	} else {
 		st = ppu.status.Get()
-		ppu.status.SetVBlankStarted(false)
+		ppu.status.ClearVBlankStarted()
 		ppu.cpu.setNMILine(interruptLineHigh)
 	}
 
@@ -630,7 +630,6 @@ const (
 	InitSpriteEvaluationState SpriteEvaluationState = iota
 	ReadPrimaryOAMState
 	EvalSpriteYCoordinateState
-	EvalOAMAsYCoordinateState
 	CheckSpriteOverflowState
 	DoneSpriteEvaluationState
 )
@@ -676,7 +675,7 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 			y1 := ppu.primaryOAM[4*ppu.primaryOAMIndex+int(ppu.oamMIdx)]
 			d := ppu.ctrl.SpriteSize()
 			if uint(y1) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y1)+uint(d) {
-				ppu.status.SetSpriteOverflow(true)
+				ppu.status.SetSpriteOverflow()
 				ppu.spriteEvaluationState = DoneSpriteEvaluationState
 			} else {
 				ppu.primaryOAMIndex++
@@ -778,7 +777,7 @@ func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
 		x := ppu.Cycle - 1
 
 		if x < 255 && s.idx == 0 {
-			ppu.status.SetSprite0Hit(true)
+			ppu.status.SetSprite0Hit()
 		}
 		if s.attr.BehindBackground() {
 			return bp
@@ -924,7 +923,7 @@ func (ppu *PPU) Step() {
 	if ppu.Scanline == 241 && ppu.Cycle == 1 {
 		ppu.renderer.Refresh()
 		if !ppu.suppressVBlankFlag {
-			ppu.status.SetVBlankStarted(true)
+			ppu.status.SetVBlankStarted()
 			if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
 				ppu.cpu.setNMILine(interruptLineLow)
 			}
@@ -933,11 +932,10 @@ func (ppu *PPU) Step() {
 
 	// Pre-render line
 	if ppu.isPreLine() && ppu.Cycle == 1 {
-		ppu.status.SetVBlankStarted(false)
+		ppu.status.ClearVBlankStarted()
 		ppu.cpu.setNMILine(interruptLineHigh)
-
-		ppu.status.SetSprite0Hit(false)
-		ppu.status.SetSpriteOverflow(false)
+		ppu.status.ClearSprite0Hit()
+		ppu.status.ClearSpriteOverflow()
 	}
 
 }
