@@ -279,7 +279,15 @@ func (ppu *PPU) writeOAMData(val byte) {
 		// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
 		// > but do perform a glitchy increment of OAMADDR, bumping only the high 6 bits (i.e., it bumps the [n] value in PPU sprite evaluation
 		// https://forums.nesdev.org/viewtopic.php?t=14140
-		// 今はeval spriteの処理をまとめてやってるのでこれは影響ないはず
+		// I' dont' understand the meaning of "bumping only the high 6 bits".
+		// On another page, OAM is expressed as follows:
+		// > OAM[n][m] below refers to the byte at offset 4*n + m within OAM, i.e. OAM byte m (0-3) of sprite n (0-63).
+		// So, I interpreted "bumps the [n] value" as an increase in the address equivalent to one sprite.
+		// OAMADDR: [ 0x00 ][ 0x01 ][ 0x02 ][ 0x03 ][ 0x04 ][ 0x05 ][ 0x06 ][ 0x07 ]
+		// OAMDATA: [Byte 0][Byte 1][Byte 2][Byte 3][Byte 0][Byte 1][Byte 2][Byte 3]
+		//  Sprite: [           Sprite 0           ][           Sprite 1           ]
+		// Also, the increase in address for one sprite is equivalent to 32 bits on OAMDATA bits.
+		// 32 = 0b100000, <- "bumping only the high 6 bits" ?
 		ppu.oamAddr += 4
 	}
 }
