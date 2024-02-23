@@ -96,11 +96,19 @@ type PPU struct {
 	suppressVBlankFlag bool
 
 	// sprites temp variables
-	primaryOAM        [256]byte
-	secondaryOAM      [32]byte
-	secondaryOAMIndex [8]byte
-	spriteSlots       [8]spriteSlot
-	spriteFounds      int
+	// https://www.nesdev.org/wiki/PPU_OAM
+	// > The OAM (Object Attribute Memory) is internal memory inside the PPU that contains a display list of up to 64 sprites,
+	// > where each sprite's information occupies 4 bytes.
+	primaryOAM                    [256]byte
+	secondaryOAM                  [32]byte
+	secondaryOAMToPrimaryOAMIndex [8]byte
+	spriteSlots                   [8]spriteSlot
+	spriteFounds                  int
+
+	primaryOAMIndex       int
+	secondaryOAMIndex     int
+	spriteEvaluationState SpriteEvaluationState
+	oamMIdx               int
 
 	// background temp variables
 	nameTableByte        byte
@@ -611,35 +619,75 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 		attr: sattr,
 		lo:   lo,
 		hi:   hi,
-		idx:  ppu.secondaryOAMIndex[byte(sidx)],
+		idx:  ppu.secondaryOAMToPrimaryOAMIndex[byte(sidx)],
 	}
 	ppu.spriteFounds++
 }
 
-func (ppu *PPU) evalSpriteForNextScanline() {
-	if ppu.Scanline >= 240 {
-		panic("uaaaaaaaaaaaaxxxxxaaaa")
-	}
+type SpriteEvaluationState byte
 
-	sidx := byte(0)
-	for i := byte(0); i < 64; i++ {
-		y, tile, attr, x := getSpriteFromOAM(ppu.primaryOAM[:], i)
-		// in y range
-		d := ppu.ctrl.SpriteSize()
-		if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {
-			if sidx < 8 {
-				ppu.secondaryOAM[4*sidx+0] = y
-				ppu.secondaryOAM[4*sidx+1] = tile
-				ppu.secondaryOAM[4*sidx+2] = byte(attr)
-				ppu.secondaryOAM[4*sidx+3] = x
-				ppu.secondaryOAMIndex[sidx] = i
+const (
+	InitSpriteEvaluationState SpriteEvaluationState = iota
+	ReadPrimaryOAMState
+	EvalSpriteYCoordinateState
+	EvalOAMAsYCoordinateState
+	CheckSpriteOverflowState
+	DoneSpriteEvaluationState
+)
+
+func (ppu *PPU) evalSpriteForNextScanline() {
+	switch ppu.spriteEvaluationState {
+	case InitSpriteEvaluationState:
+		ppu.primaryOAMIndex = 0
+		ppu.secondaryOAMIndex = 0
+		ppu.oamMIdx = 0
+		ppu.spriteEvaluationState = EvalSpriteYCoordinateState
+	case ReadPrimaryOAMState:
+		// actually, primaryOAM is read in the next state for simple implementation
+		if ppu.Cycle%2 == 1 {
+			ppu.spriteEvaluationState = EvalSpriteYCoordinateState
+		}
+	case EvalSpriteYCoordinateState:
+		if ppu.Cycle%2 == 0 {
+			y := ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
+			d := ppu.ctrl.SpriteSize()
+			// in y range
+			if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {
+				if ppu.secondaryOAMIndex < 8 {
+					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
+					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+1] = ppu.primaryOAM[4*ppu.primaryOAMIndex+1]
+					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+2] = ppu.primaryOAM[4*ppu.primaryOAMIndex+2]
+					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+3] = ppu.primaryOAM[4*ppu.primaryOAMIndex+3]
+					ppu.secondaryOAMToPrimaryOAMIndex[ppu.secondaryOAMIndex] = byte(ppu.primaryOAMIndex)
+				}
+				ppu.secondaryOAMIndex++
 			}
-			sidx++
+			ppu.primaryOAMIndex++
+			if ppu.primaryOAMIndex == 64 {
+				ppu.spriteEvaluationState = DoneSpriteEvaluationState
+			} else if ppu.secondaryOAMIndex < 8 {
+				ppu.spriteEvaluationState = ReadPrimaryOAMState
+			} else if ppu.secondaryOAMIndex == 8 {
+				ppu.spriteEvaluationState = CheckSpriteOverflowState
+			}
 		}
-		if sidx > 8 {
-			ppu.status.SetSpriteOverflow(true)
-			return
+	case CheckSpriteOverflowState:
+		if ppu.Cycle%2 == 1 {
+			y1 := ppu.primaryOAM[4*ppu.primaryOAMIndex+int(ppu.oamMIdx)]
+			d := ppu.ctrl.SpriteSize()
+			if uint(y1) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y1)+uint(d) {
+				ppu.status.SetSpriteOverflow(true)
+				ppu.spriteEvaluationState = DoneSpriteEvaluationState
+			} else {
+				ppu.primaryOAMIndex++
+				ppu.oamMIdx = (ppu.oamMIdx + 1) % 4
+				if ppu.primaryOAMIndex == 64 {
+					ppu.spriteEvaluationState = DoneSpriteEvaluationState
+				}
+			}
 		}
+	case DoneSpriteEvaluationState:
+		// nothing
 	}
 }
 
@@ -770,6 +818,11 @@ func (ppu *PPU) Step() {
 	preFetchCycle := ppu.Cycle >= 321 && ppu.Cycle <= 336
 	fetchCycle := preFetchCycle || visibleCycle
 
+	if ppu.Cycle == 64 {
+		// init eval sprite state
+		ppu.spriteEvaluationState = InitSpriteEvaluationState
+	}
+
 	if rendering {
 		// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 		// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
@@ -810,10 +863,10 @@ func (ppu *PPU) Step() {
 		}
 
 		// sprite eval for next Scanline
-		// 65 <= ppu.Cycle <= 256
-		if ppu.Cycle == 256 && ppu.visibleScanline() {
+		if 65 <= ppu.Cycle && ppu.Cycle <= 256 && ppu.visibleScanline() {
 			ppu.evalSpriteForNextScanline()
 		}
+
 		// sprite fetch
 		if 257 <= ppu.Cycle && ppu.Cycle <= 320 && (preLine || ppu.visibleScanline()) {
 			// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
