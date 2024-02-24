@@ -18,6 +18,17 @@ It's great because it's written so simple.
 
 .. and tons more
 
+## Screenshots
+
+<p>
+  <img src="images/smb.gif" alt="Super Mario Bros"/>
+  <img src="images/nestest.gif" alt="nestest.nes"/>
+  <img src="images/RasterDemo.gif" alt="RasterDemo.NES"/>
+  <img src="images/RasterTest1.gif" alt="RasterTest1.NES"/>
+  <img src="images/scanline.gif" alt="scanline.nes"/>
+  <img src="images/sprite.gif" alt="SPRITE.NES"/>
+</p>
+
 ## Controls
 
 | Nintendo | Emulator |
@@ -141,18 +152,6 @@ It's great because it's written so simple.
 | vbl_nmi_timing | 5.nmi_suppression.nes | ✅ |
 | vbl_nmi_timing | 6.nmi_disable.nes | ✅ |
 | vbl_nmi_timing | 7.nmi_timing.nes | ✅ |
-
-## Screenshots
-
-https://github.com/christopherpow/nes-test-roms/blob/master/other/RasterDemo.NES  
-![RasterDemo.nes](/images/RasterDemo.gif)  
-
-https://github.com/christopherpow/nes-test-roms/blob/master/other/RasterTest1.NES  
-![RasterTest1.nes](/images/RasterTest1.gif)  
-
-https://www.nesdev.org/wiki/Emulator_tests#PPU_Tests  
-scanline.nes (This test ROM was created by Quietust)  
-![scanline.nes](/images/scanline.gif)  
 
 ## References
 
