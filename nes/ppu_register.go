@@ -148,28 +148,28 @@ ref: https://www.nesdev.org/wiki/PPU_registers#PPUSTATUS
 */
 type ppuStatusRegister byte
 
-func (s *ppuStatusRegister) SetSpriteOverflow(val bool) {
-	if val {
-		*s |= 0x20
-	} else {
-		*s &= 0xDF
-	}
+func (s *ppuStatusRegister) SetSpriteOverflow() {
+	*s |= 0x20
 }
 
-func (s *ppuStatusRegister) SetSprite0Hit(val bool) {
-	if val {
-		*s |= 0x40
-	} else {
-		*s &= 0xBF
-	}
+func (s *ppuStatusRegister) ClearSpriteOverflow() {
+	*s &= 0xDF
 }
 
-func (s *ppuStatusRegister) SetVBlankStarted(val bool) {
-	if val {
-		*s |= 0x80
-	} else {
-		*s &= 0x7F
-	}
+func (s *ppuStatusRegister) SetSprite0Hit() {
+	*s |= 0x40
+}
+
+func (s *ppuStatusRegister) ClearSprite0Hit() {
+	*s &= 0xBF
+}
+
+func (s *ppuStatusRegister) SetVBlankStarted() {
+	*s |= 0x80
+}
+
+func (s *ppuStatusRegister) ClearVBlankStarted() {
+	*s &= 0x7F
 }
 
 func (s *ppuStatusRegister) VBlankStarted() bool {
@@ -181,11 +181,11 @@ func (s *ppuStatusRegister) Get() byte {
 }
 
 type ppuDecayRegister struct {
-	val byte
-	tc  int // updated time clock
+	val    byte
+	clocks [8]int // refreshed clock with a 1 per bit
 }
 
-func (d *ppuDecayRegister) Get(currClock int) byte {
+func (d *ppuDecayRegister) get(clock int) byte {
 	// ppu_open_bus/readme.txt
 	// > The PPU effectively has a "decay register", an 8-bit register. Each bit
 	// > can be refreshed with a 0 or 1. If a bit isn't refreshed with a 1 for
@@ -195,14 +195,29 @@ func (d *ppuDecayRegister) Get(currClock int) byte {
 	// 600ms / (1000/60)ms = 36 frame
 	// 1 frame = about 341*262 = 89342 PPU clocks
 	// 36 * 89342 = 3216312 ppu clocks
-	if currClock-d.tc < 3216312 {
-		return d.val
-	} else {
-		return 0
+
+	res := byte(0)
+	for i := 0; i < 8; i++ {
+		if clock-d.clocks[i] < 3216312 {
+			res |= d.val & (1 << i)
+		}
 	}
+	return res
 }
 
-func (d *ppuDecayRegister) Set(currClock int, val byte) {
-	d.tc = currClock
-	d.val = val
+// ppu_open_bus/readme.txt
+// > Writing to any PPU register sets the decay register to the value written.
+// So, basically, when writing, all bits are refreshed (= mask = 0xFF).
+// When reading, please see ppu_open_bus/readme.txt for details.
+func (d *ppuDecayRegister) refresh(v byte, mask byte, clock int) {
+	for i := 0; i < 8; i++ {
+		if ((1 << i) & mask) == (1 << i) {
+			if (v & (1 << i)) == (1 << i) {
+				d.val |= (1 << i)
+				d.clocks[i] = clock
+			} else {
+				d.val &= ^(1 << i)
+			}
+		}
+	}
 }
