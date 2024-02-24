@@ -21,10 +21,12 @@ It's great because it's written so simple.
 ## Screenshots
 
 <p>
-  <img src="images/smb.gif" alt="RasterDemo.NES"/>
+  <img src="images/smb.gif" alt="Super Mario Bros"/>
+  <img src="images/nestest.gif" alt="nestest.nes"/>
   <img src="images/RasterDemo.gif" alt="RasterDemo.NES"/>
   <img src="images/RasterTest1.gif" alt="RasterTest1.NES"/>
   <img src="images/scanline.gif" alt="scanline.nes"/>
+  <img src="images/sprite.gif" alt="SPRITE.NES"/>
 </p>
 
 ## Controls
