@@ -836,7 +836,8 @@ func (ppu *PPU) Step() {
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
 		ppu.loadNextPixelData()
 	}
-	if ppu.isRenderingEnabled() && ppu.isVisibleScanlines() && visibleCycle {
+	// The screen draws regardless of the PPU rendering mode
+	if ppu.isVisibleScanlines() && visibleCycle {
 		ppu.renderPixel()
 	}
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && fetchCycle {
