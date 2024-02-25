@@ -53,19 +53,22 @@ func (p *pulse) output() byte {
 func (p *pulse) updateTargetPeriod() {
 	// https://www.nesdev.org/wiki/APU_Sweep
 	// > 1. A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count, producing the change amount.
-	// wiki的にはchange amountって言ってるから差分だと思ったんだけど、他実装エミュ見てると、ただのshift結果のコードになってる...
 	delta := p.timer.period >> uint16(p.sweepShiftCount)
 
 	// > 2. If the negate flag is true, the change amount is made negative.
-	// > 3. The target period is the sum of the current period and the change amount.
+	// > 3. The target period is the sum of the current period and the change amount, clamped to zero if this sum is negative.
+	// [2024-02-25] I just looked and the wiki text has been updated, HAHAHA, GJ!
 	if p.sweepNegate {
 		// > The two pulse channels have their adders' carry inputs wired differently, which produces different results when each channel's change amount is made negative:
 		// > Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount of −21.
 		// > Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
-		if p.channel == 1 {
-			p.targetPeriod = p.timer.period - delta - 1
+		if p.timer.period <= delta {
+			p.targetPeriod = 0
 		} else {
 			p.targetPeriod = p.timer.period - delta
+			if p.channel == 1 {
+				p.targetPeriod--
+			}
 		}
 	} else {
 		p.targetPeriod = p.timer.period + delta
