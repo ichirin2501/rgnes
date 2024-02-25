@@ -142,7 +142,7 @@ It's great because it's written so simple.
 | sprite_hit_tests_2005.10.05 | 11.edge_timing.nes | ✅ |
 | sprite_overflow_tests | 1.Basics.nes | ✅ |
 | sprite_overflow_tests | 2.Details.nes | ✅ |
-| sprite_overflow_tests | 3.Timing.nes | ❌ |
+| sprite_overflow_tests | 3.Timing.nes | ✅ |
 | sprite_overflow_tests | 4.Obscure.nes | ✅ |
 | sprite_overflow_tests | 5.Emulator.nes | ✅ |
 | vbl_nmi_timing | 1.frame_basics.nes | ✅ |

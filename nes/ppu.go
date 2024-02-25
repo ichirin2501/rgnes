@@ -109,6 +109,7 @@ type PPU struct {
 	secondaryOAMIndex     int
 	spriteEvaluationState SpriteEvaluationState
 	oamMIdx               int
+	copySpriteStateCycle  int
 
 	// background temp variables
 	nameTableByte        byte
@@ -627,45 +628,60 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 type SpriteEvaluationState byte
 
 const (
-	InitSpriteEvaluationState SpriteEvaluationState = iota
-	ReadPrimaryOAMState
-	EvalSpriteYCoordinateState
+	InitAndScanPrimaryOAMState SpriteEvaluationState = iota
+	ScanPrimaryOAMState
+	CopySpriteState
 	CheckSpriteOverflowState
 	DoneSpriteEvaluationState
 )
 
 func (ppu *PPU) evalSpriteForNextScanline() {
 	switch ppu.spriteEvaluationState {
-	case InitSpriteEvaluationState:
+	case InitAndScanPrimaryOAMState:
 		ppu.primaryOAMIndex = 0
 		ppu.secondaryOAMIndex = 0
 		ppu.oamMIdx = 0
-		ppu.spriteEvaluationState = EvalSpriteYCoordinateState
-	case ReadPrimaryOAMState:
-		// actually, primaryOAM is read in the next state for simple implementation
-		if ppu.Cycle%2 == 1 {
-			ppu.spriteEvaluationState = EvalSpriteYCoordinateState
-		}
-	case EvalSpriteYCoordinateState:
+		ppu.copySpriteStateCycle = -1
+		ppu.spriteEvaluationState = ScanPrimaryOAMState
+		fallthrough
+	case ScanPrimaryOAMState:
 		if ppu.Cycle%2 == 0 {
+			// > On odd cycles, data is read from (primary) OAM
+			// > On even cycles, data is written to secondary OAM (unless secondary OAM is full, in which case it will read the value in secondary OAM instead)
+			// > 1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it to the next open slot in secondary OAM (unless 8 sprites have been found, in which case the write is ignored).
+			// Regardless of whether the OAM[n][0] is included in the y-axis range, if there is a secondaryOAM slot, it will be copied, so the process will perform in even ppu cycles.
 			y := ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
+			// Does not transition to this ScanPrimaryOAMState when 8 sprites are found
+			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
+
 			d := ppu.ctrl.SpriteSize()
-			// in y range
 			if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {
-				if ppu.secondaryOAMIndex < 8 {
-					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
-					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+1] = ppu.primaryOAM[4*ppu.primaryOAMIndex+1]
-					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+2] = ppu.primaryOAM[4*ppu.primaryOAMIndex+2]
-					ppu.secondaryOAM[4*ppu.secondaryOAMIndex+3] = ppu.primaryOAM[4*ppu.primaryOAMIndex+3]
-					ppu.secondaryOAMToPrimaryOAMIndex[ppu.secondaryOAMIndex] = byte(ppu.primaryOAMIndex)
+				ppu.spriteEvaluationState = CopySpriteState
+				// > 1a. If Y-coordinate is in range, copy remaining bytes of sprite data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
+				// It takes a total of 2 ppu cycles to read from primaryOAM(odd cycles) and write to secondaryOAM(even cycles).
+				// In other words, copying one sprite requires 8 ppu cycles. The remaining three copies will be completed after 6 ppu cycles
+				ppu.copySpriteStateCycle = ppu.Cycle + 6
+			} else {
+				ppu.primaryOAMIndex++
+				if ppu.primaryOAMIndex == 64 {
+					ppu.spriteEvaluationState = DoneSpriteEvaluationState
+				} else {
+					ppu.spriteEvaluationState = ScanPrimaryOAMState
 				}
-				ppu.secondaryOAMIndex++
 			}
+		}
+	case CopySpriteState:
+		if ppu.Cycle == ppu.copySpriteStateCycle {
+			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+1] = ppu.primaryOAM[4*ppu.primaryOAMIndex+1]
+			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+2] = ppu.primaryOAM[4*ppu.primaryOAMIndex+2]
+			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+3] = ppu.primaryOAM[4*ppu.primaryOAMIndex+3]
+			ppu.secondaryOAMToPrimaryOAMIndex[ppu.secondaryOAMIndex] = byte(ppu.primaryOAMIndex)
+			ppu.secondaryOAMIndex++
 			ppu.primaryOAMIndex++
 			if ppu.primaryOAMIndex == 64 {
 				ppu.spriteEvaluationState = DoneSpriteEvaluationState
 			} else if ppu.secondaryOAMIndex < 8 {
-				ppu.spriteEvaluationState = ReadPrimaryOAMState
+				ppu.spriteEvaluationState = ScanPrimaryOAMState
 			} else if ppu.secondaryOAMIndex == 8 {
 				ppu.spriteEvaluationState = CheckSpriteOverflowState
 			}
@@ -864,7 +880,7 @@ func (ppu *PPU) Step() {
 	// sprite eval for next Scanline
 	if 65 <= ppu.Cycle && ppu.Cycle <= 256 && ppu.isVisibleScanlines() {
 		if ppu.Cycle == 65 {
-			ppu.spriteEvaluationState = InitSpriteEvaluationState
+			ppu.spriteEvaluationState = InitAndScanPrimaryOAMState
 		}
 		if ppu.isRenderingEnabled() {
 			ppu.evalSpriteForNextScanline()
