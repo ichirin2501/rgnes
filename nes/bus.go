@@ -253,16 +253,18 @@ func (bus *Bus) Peek(addr uint16) byte {
 }
 
 func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
-	if bus.dma.dmcDelay > 0 {
-		bus.dma.dmcDelay--
-		if bus.dma.dmcDelay == 0 {
-			bus.dma.dmcState = DMCDMAHaltState
-		}
-	}
-	if readCycle == false {
-		return
-	}
 	for {
+		if bus.dma.dmcDelay > 0 {
+			bus.dma.dmcDelay--
+			if bus.dma.dmcDelay == 0 {
+				if bus.dma.dmcState == DMCDMANoneState {
+					bus.dma.dmcState = DMCDMAHaltState
+				}
+			}
+		}
+		if readCycle == false {
+			return
+		}
 		if bus.dma.oamState == OAMDMANoneState && bus.dma.dmcState == DMCDMANoneState {
 			break
 		}
