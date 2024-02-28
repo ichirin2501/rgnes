@@ -94,6 +94,11 @@ It's great because it's written so simple.
 | cpu_reset | ram_after_reset.nes | ❌ |
 | cpu_reset | registers.nes | ❌ |
 | cpu_timing_test6 | cpu_timing_test.nes | ✅ |
+| dmc_dma_during_read4 | dma_2007_read.nes | ❌ |
+| dmc_dma_during_read4 | dma_2007_write.nes | ✅ |
+| dmc_dma_during_read4 | dma_4016_read.nes | ❌ |
+| dmc_dma_during_read4 | double_2007_read.nes | ❌ |
+| dmc_dma_during_read4 | read_write_2007.nes | ✅ |
 | instr_misc | 01-abs_x_wrap.nes | ✅ |
 | instr_misc | 02-branch_wrap.nes | ✅ |
 | instr_misc | 03-dummy_reads.nes | ✅ |
@@ -129,6 +134,8 @@ It's great because it's written so simple.
 | ppu_vbl_nmi | 08-nmi_off_timing.nes | ✅ |
 | ppu_vbl_nmi | 09-even_odd_frames.nes | ✅ |
 | ppu_vbl_nmi | 10-even_odd_timing.nes | ❌ |
+| sprdma_and_dmc_dma | sprdma_and_dmc_dma.nes | ❌ |
+| sprdma_and_dmc_dma | sprdma_and_dmc_dma_512.nes | ❌ |
 | sprite_hit_tests_2005.10.05 | 01.basics.nes | ✅ |
 | sprite_hit_tests_2005.10.05 | 02.alignment.nes | ✅ |
 | sprite_hit_tests_2005.10.05 | 03.corners.nes | ✅ |
