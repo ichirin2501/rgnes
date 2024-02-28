@@ -253,50 +253,90 @@ func (bus *Bus) Peek(addr uint16) byte {
 }
 
 func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
-	if bus.dma.dcmDelay > 0 {
-		bus.dma.dcmDelay--
-		if bus.dma.dcmDelay == 0 {
-			bus.dma.dcmDMAOccurred = true
+	if bus.dma.dmcDelay > 0 {
+		bus.dma.dmcDelay--
+		if bus.dma.dmcDelay == 0 {
+			bus.dma.dmcState = DMCDMAHaltState
 		}
 	}
-	if !(bus.dma.dcmDMAOccurred || bus.dma.oamDMAOccurred) {
+	if readCycle == false {
 		return
 	}
-
-	// ref: https://www.nesdev.org/wiki/DMA#Behavior
-	// > When DMA is scheduled, the associated DMA unit attempts to halt the CPU. The CPU only allows this on read cycles.
-	// > If the CPU is writing, it ignores the halt and the DMA unit waits until the next cycle to try again, repeating until successful.
-	if !readCycle {
-		// DMA attempts to halt
-		return
-	}
-
-	if bus.dma.dcmDMAOccurred || bus.dma.oamDMAOccurred {
-		bus.tickStall(1) // DMA halt cycle
-	}
-
-	// TODO: implement DMC DMA during OAM DMA
-
-	if bus.dma.dcmDMAOccurred {
-		bus.dma.dcmDMAOccurred = false
-		bus.tickStall(1) // DMA dummy cycle
-		if bus.realClock()%2 != 0 {
-			bus.tickStall(1) // DMA alignment cycle
+	for {
+		if bus.dma.oamState == OAMDMANoneState && bus.dma.dmcState == DMCDMANoneState {
+			break
 		}
-		val := bus.read(bus.dma.dcmTargetAddr)
-		bus.apu.dmc.setSampleBuffer(val)
-	}
+		bus.tickStall(1)
 
-	if bus.dma.oamDMAOccurred {
-		bus.dma.oamDMAOccurred = false
-		if bus.realClock()%2 != 0 {
-			bus.tickStall(1) // DMA alignment cycle
+		// https://www.nesdev.org/wiki/DMA#Behavior
+		// > Get and put cycles are aligned to the first and second halves of the APU clock, respectively (called apu_clk1 and apu_clk2 in Visual2A03).
+		// > While these cycles are sometimes described as even and odd CPU cycles, this is not accurate because the CPU and APU randomly power into either of 2 alignments relative to each other.
+		// > Therefore, get and put may occur on different CPU cycle parities across different power cycles.
+		// Since get/put cycles are randomly determined when the power is turned on, this emulator implementation fixes it as follows.
+		// get = CPU even cycles
+		// put = CPU odd cycles
+		// And I don't know why, but it passed the cpu_interrupts_v2/4-irq_and_dma.nes test...
+
+		// OAM
+		switch {
+		case bus.dma.oamState == OAMDMAHaltState:
+			// init
+			bus.dma.oamCount = 0
+
+			if bus.realClock()%2 == 0 { // get cycle
+				bus.dma.oamState = OAMDMAAlignmentState
+			} else {
+				bus.dma.oamState = OAMDMAReadState
+			}
+		case bus.dma.oamState == OAMDMAAlignmentState:
+			bus.dma.oamState = OAMDMAReadState
+		case bus.dma.oamState == OAMDMAPauseState:
+			if bus.dma.dmcState == DMCDMANoneState {
+				bus.dma.oamState = bus.dma.oamSaveState
+			}
+		case bus.dma.oamState == OAMDMAReadState:
+			if bus.dma.dmcState == DMCDMARunState {
+				bus.dma.oamSaveState = OAMDMAReadState
+				bus.dma.oamState = OAMDMAPauseState
+			} else {
+				bus.dma.oamTempByte = bus.read(bus.dma.oamTargetAddr + bus.dma.oamCount)
+				bus.dma.oamState = OAMDMAWriteState
+			}
+		case bus.dma.oamState == OAMDMAWriteState:
+			if bus.dma.dmcState == DMCDMARunState {
+				bus.dma.oamSaveState = OAMDMAWriteState
+				bus.dma.oamState = OAMDMAPauseState
+			} else {
+				bus.ppu.writeOAMDMAByte(bus.dma.oamTempByte)
+				bus.dma.oamCount++
+				if bus.dma.oamCount < 256 {
+					bus.dma.oamState = OAMDMAReadState
+				} else {
+					if bus.dma.dmcState != DMCDMANoneState {
+						bus.dma.oamState = OAMDMAPauseState
+						bus.dma.oamSaveState = OAMDMANoneState
+					} else {
+						bus.dma.oamState = OAMDMANoneState
+					}
+				}
+			}
 		}
-		for i := uint16(0); i < 256; i++ {
-			bus.tickStall(1)
-			t := bus.read(bus.dma.oamTargetAddr + i)
-			bus.tickStall(1)
-			bus.ppu.writeOAMDMAByte(t)
+		// DMC
+		switch {
+		case bus.dma.dmcState == DMCDMAHaltState:
+			bus.dma.dmcState = DMCDMADummyState
+		case bus.dma.dmcState == DMCDMADummyState:
+			if bus.realClock()%2 == 0 { // get cycle
+				bus.dma.dmcState = DMCDMAAlignmentState
+			} else {
+				bus.dma.dmcState = DMCDMARunState
+			}
+		case bus.dma.dmcState == DMCDMAAlignmentState:
+			bus.dma.dmcState = DMCDMARunState
+		case bus.dma.dmcState == DMCDMARunState:
+			val := bus.read(bus.dma.dmcTargetAddr)
+			bus.apu.dmc.setSampleBuffer(val)
+			bus.dma.dmcState = DMCDMANoneState
 		}
 	}
 }

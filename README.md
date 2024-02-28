@@ -89,7 +89,7 @@ It's great because it's written so simple.
 | cpu_interrupts_v2 | 1-cli_latency.nes | ✅ |
 | cpu_interrupts_v2 | 2-nmi_and_brk.nes | ✅ |
 | cpu_interrupts_v2 | 3-nmi_and_irq.nes | ✅ |
-| cpu_interrupts_v2 | 4-irq_and_dma.nes | ❌ |
+| cpu_interrupts_v2 | 4-irq_and_dma.nes | ✅ |
 | cpu_interrupts_v2 | 5-branch_delays_irq.nes | ❌ |
 | cpu_reset | ram_after_reset.nes | ❌ |
 | cpu_reset | registers.nes | ❌ |

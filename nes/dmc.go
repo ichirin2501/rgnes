@@ -58,9 +58,9 @@ func (d *dmc) restart() {
 func (d *dmc) SignalDMA(reloadTiming bool) {
 	if d.enabled && d.bytesRemaining > 0 && len(d.sampleBuffer) == 0 {
 		if reloadTiming {
-			d.dma.TriggerOnDCMReload(d.currentAddr)
+			d.dma.TriggerOnDMCReload(d.currentAddr)
 		} else {
-			d.dma.TriggerOnDCMLoad(d.currentAddr)
+			d.dma.TriggerOnDMCLoad(d.currentAddr)
 		}
 	}
 }

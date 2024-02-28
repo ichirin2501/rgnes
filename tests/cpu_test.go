@@ -134,10 +134,10 @@ func Test_CPU_OUT_6000(t *testing.T) {
 			"cpu_interrupts_v2/3-nmi_and_irq.nes",
 			"../nes-test-roms/cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes",
 		},
-		// {
-		// 	"cpu_interrupts_v2/4-irq_and_dma.nes",
-		// 	"../nes-test-roms/cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes",
-		// },
+		{
+			"cpu_interrupts_v2/4-irq_and_dma.nes",
+			"../nes-test-roms/cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes",
+		},
 		// {
 		// 	"cpu_interrupts_v2/5-branch_delays_irq.nes",
 		// 	"../nes-test-roms/cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes",
