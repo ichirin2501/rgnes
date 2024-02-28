@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type Bus struct {
+type CPUBus struct {
 	ram    []byte
 	ppu    *PPU
 	apu    *APU
@@ -18,8 +18,8 @@ type Bus struct {
 	stall int
 }
 
-func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *Bus {
-	return &Bus{
+func NewCPUBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *CPUBus {
+	return &CPUBus{
 		ram:    make([]byte, 2048),
 		ppu:    ppu,
 		apu:    apu,
@@ -29,7 +29,7 @@ func NewBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *Bus {
 	}
 }
 
-func (bus *Bus) read(addr uint16) byte {
+func (bus *CPUBus) read(addr uint16) byte {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -84,7 +84,7 @@ func (bus *Bus) read(addr uint16) byte {
 	}
 }
 
-func (bus *Bus) write(addr uint16, val byte) {
+func (bus *CPUBus) write(addr uint16, val byte) {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -174,11 +174,11 @@ func (bus *Bus) write(addr uint16, val byte) {
 	}
 }
 
-func (bus *Bus) realClock() int {
+func (bus *CPUBus) realClock() int {
 	return bus.clock + bus.stall
 }
 
-func (bus *Bus) tick(cpuCycle int) {
+func (bus *CPUBus) tick(cpuCycle int) {
 	bus.clock += cpuCycle
 	for i := 0; i < cpuCycle; i++ {
 		bus.apu.Step()
@@ -189,7 +189,7 @@ func (bus *Bus) tick(cpuCycle int) {
 	}
 }
 
-func (bus *Bus) tickStall(cpuCycle int) {
+func (bus *CPUBus) tickStall(cpuCycle int) {
 	bus.stall += cpuCycle
 	for i := 0; i < cpuCycle; i++ {
 		bus.apu.Step()
@@ -201,7 +201,7 @@ func (bus *Bus) tickStall(cpuCycle int) {
 }
 
 // Peek is used for debugging
-func (bus *Bus) Peek(addr uint16) byte {
+func (bus *CPUBus) Peek(addr uint16) byte {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -252,7 +252,7 @@ func (bus *Bus) Peek(addr uint16) byte {
 
 }
 
-func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
+func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 	for {
 		if bus.dma.dmcDelay > 0 {
 			bus.dma.dmcDelay--
@@ -287,19 +287,16 @@ func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
 
 			if bus.realClock()%2 == 0 { // get cycle
 				bus.dma.oamState = OAMDMAAlignmentState
+				bus.dma.oamSaveState = OAMDMAReadState
 			} else {
 				bus.dma.oamState = OAMDMAReadState
 			}
 		case bus.dma.oamState == OAMDMAAlignmentState:
-			bus.dma.oamState = OAMDMAReadState
-		case bus.dma.oamState == OAMDMAPauseState:
-			if bus.dma.dmcState == DMCDMANoneState {
-				bus.dma.oamState = bus.dma.oamSaveState
-			}
+			bus.dma.oamState = bus.dma.oamSaveState
 		case bus.dma.oamState == OAMDMAReadState:
 			if bus.dma.dmcState == DMCDMARunState {
 				bus.dma.oamSaveState = OAMDMAReadState
-				bus.dma.oamState = OAMDMAPauseState
+				bus.dma.oamState = OAMDMAAlignmentState
 			} else {
 				bus.dma.oamTempByte = bus.read(bus.dma.oamTargetAddr + bus.dma.oamCount)
 				bus.dma.oamState = OAMDMAWriteState
@@ -307,19 +304,14 @@ func (bus *Bus) RunDMAIfOccurred(readCycle bool) {
 		case bus.dma.oamState == OAMDMAWriteState:
 			if bus.dma.dmcState == DMCDMARunState {
 				bus.dma.oamSaveState = OAMDMAWriteState
-				bus.dma.oamState = OAMDMAPauseState
+				bus.dma.oamState = OAMDMAAlignmentState
 			} else {
 				bus.ppu.writeOAMDMAByte(bus.dma.oamTempByte)
 				bus.dma.oamCount++
 				if bus.dma.oamCount < 256 {
 					bus.dma.oamState = OAMDMAReadState
 				} else {
-					if bus.dma.dmcState != DMCDMANoneState {
-						bus.dma.oamState = OAMDMAPauseState
-						bus.dma.oamSaveState = OAMDMANoneState
-					} else {
-						bus.dma.oamState = OAMDMANoneState
-					}
+					bus.dma.oamState = OAMDMANoneState
 				}
 			}
 		}

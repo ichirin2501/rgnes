@@ -4,7 +4,7 @@ type NES struct {
 	cpu    *CPU
 	apu    *APU
 	ppu    *PPU
-	bus    *Bus
+	bus    *CPUBus
 	joypad *Joypad
 }
 
@@ -16,7 +16,7 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 	ppu := NewPPU(renderer, mapper, m, irp)
 	joypad := NewJoypad()
 	apu := NewAPU(irp, player, dma)
-	bus := NewBus(ppu, apu, mapper, joypad, dma)
+	bus := NewCPUBus(ppu, apu, mapper, joypad, dma)
 
 	cpu := NewCPU(bus, irp)
 

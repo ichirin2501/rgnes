@@ -6,7 +6,6 @@ const (
 	OAMDMANoneState OAMDMAState = iota
 	OAMDMAHaltState
 	OAMDMAAlignmentState
-	OAMDMAPauseState
 	OAMDMAReadState
 	OAMDMAWriteState
 )
@@ -22,12 +21,9 @@ const (
 )
 
 type DMA struct {
-	oamDMAOccurred bool
-	oamTargetAddr  uint16
-
-	dmcDMAOccurred bool
-	dmcTargetAddr  uint16
-	dmcDelay       byte
+	oamTargetAddr uint16
+	dmcTargetAddr uint16
+	dmcDelay      byte
 
 	oamState     OAMDMAState
 	oamSaveState OAMDMAState
@@ -37,7 +33,6 @@ type DMA struct {
 }
 
 func (d *DMA) TriggerOnOAM(addr uint16) {
-	//d.oamDMAOccurred = true
 	d.oamState = OAMDMAHaltState
 	d.oamTargetAddr = addr
 }
@@ -48,7 +43,6 @@ func (d *DMA) TriggerOnDMCLoad(addr uint16) {
 }
 
 func (d *DMA) TriggerOnDMCReload(addr uint16) {
-	//d.dcmDMAOccurred = true
 	d.dmcState = DMCDMAHaltState
 	d.dmcTargetAddr = addr
 }

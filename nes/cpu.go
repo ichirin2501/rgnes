@@ -25,7 +25,7 @@ type CPU struct {
 	P  processorStatus
 
 	I   *interruptLines
-	bus *Bus
+	bus *CPUBus
 	t   *Trace
 	mu  *sync.Mutex
 
@@ -43,7 +43,7 @@ type CPU struct {
 	interrupting bool
 }
 
-func NewCPU(bus *Bus, i *interruptLines, opts ...CPUOption) *CPU {
+func NewCPU(bus *CPUBus, i *interruptLines, opts ...CPUOption) *CPU {
 	cpu := &CPU{
 		I:   i,
 		bus: bus,
