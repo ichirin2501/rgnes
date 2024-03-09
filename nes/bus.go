@@ -280,8 +280,8 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 		// And I don't know why, but it passed the cpu_interrupts_v2/4-irq_and_dma.nes test...
 
 		// OAM
-		switch {
-		case bus.dma.oamState == OAMDMAHaltState:
+		switch bus.dma.oamState {
+		case OAMDMAHaltState:
 			// init
 			bus.dma.oamCount = 0
 
@@ -291,9 +291,9 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 			} else {
 				bus.dma.oamState = OAMDMAReadState
 			}
-		case bus.dma.oamState == OAMDMAAlignmentState:
+		case OAMDMAAlignmentState:
 			bus.dma.oamState = bus.dma.oamSaveState
-		case bus.dma.oamState == OAMDMAReadState:
+		case OAMDMAReadState:
 			if bus.dma.dmcState == DMCDMARunState {
 				bus.dma.oamSaveState = OAMDMAReadState
 				bus.dma.oamState = OAMDMAAlignmentState
@@ -301,7 +301,7 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 				bus.dma.oamTempByte = bus.read(bus.dma.oamTargetAddr + bus.dma.oamCount)
 				bus.dma.oamState = OAMDMAWriteState
 			}
-		case bus.dma.oamState == OAMDMAWriteState:
+		case OAMDMAWriteState:
 			if bus.dma.dmcState == DMCDMARunState {
 				bus.dma.oamSaveState = OAMDMAWriteState
 				bus.dma.oamState = OAMDMAAlignmentState
@@ -316,18 +316,18 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 			}
 		}
 		// DMC
-		switch {
-		case bus.dma.dmcState == DMCDMAHaltState:
+		switch bus.dma.dmcState {
+		case DMCDMAHaltState:
 			bus.dma.dmcState = DMCDMADummyState
-		case bus.dma.dmcState == DMCDMADummyState:
+		case DMCDMADummyState:
 			if bus.realClock()%2 == 0 { // get cycle
 				bus.dma.dmcState = DMCDMAAlignmentState
 			} else {
 				bus.dma.dmcState = DMCDMARunState
 			}
-		case bus.dma.dmcState == DMCDMAAlignmentState:
+		case DMCDMAAlignmentState:
 			bus.dma.dmcState = DMCDMARunState
-		case bus.dma.dmcState == DMCDMARunState:
+		case DMCDMARunState:
 			val := bus.read(bus.dma.dmcTargetAddr)
 			bus.apu.dmc.setSampleBuffer(val)
 			bus.dma.dmcState = DMCDMANoneState

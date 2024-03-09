@@ -652,7 +652,7 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 			// Regardless of whether the OAM[n][0] is included in the y-axis range, if there is a secondaryOAM slot, it will be copied, so the process will perform in even ppu cycles.
 			y := ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
 			// Does not transition to this ScanPrimaryOAMState when 8 sprites are found
-			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = ppu.primaryOAM[4*ppu.primaryOAMIndex+0]
+			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = y
 
 			d := ppu.ctrl.SpriteSize()
 			if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {

@@ -1,11 +1,15 @@
 package nes
 
+import "time"
+
 type NES struct {
 	cpu    *CPU
 	apu    *APU
 	ppu    *PPU
 	bus    *CPUBus
 	joypad *Joypad
+
+	done chan struct{}
 }
 
 func New(mapper Mapper, renderer Renderer, player Player) *NES {
@@ -26,6 +30,8 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 		ppu:    ppu,
 		bus:    bus,
 		joypad: joypad,
+
+		done: make(chan struct{}),
 	}
 }
 
@@ -41,6 +47,32 @@ func (n *NES) Reset() {
 
 func (n *NES) Step() {
 	n.cpu.Step()
+}
+
+func (n *NES) Run() {
+	beforeTime := time.Now()
+	steps := float64(0)
+	for {
+		select {
+		case <-n.done:
+			return
+		default:
+			now := time.Now()
+			// du / (1sec/CPUClockFrequency)
+			du := float64(now.Sub(beforeTime)*CPUClockFrequency) / float64(time.Second)
+			if steps+du >= 1.0 {
+				beforeClock := n.cpu.bus.realClock()
+				n.cpu.Step()
+				afterClock := n.cpu.bus.realClock()
+				steps = steps + du - float64(afterClock-beforeClock)
+				beforeTime = now
+			}
+		}
+	}
+}
+
+func (n *NES) Close() {
+	close(n.done)
 }
 
 func (n *NES) SetButtonStatus(b byte, pressed bool) {

@@ -73,7 +73,7 @@ func NewAPU(cpu *interruptLines, p Player, dma *DMA) *APU {
 		frameStep:          -1,
 		newFrameCounterVal: -1,
 	}
-	apu.sampleTiming = int(1789773 / apu.sampleRate)
+	apu.sampleTiming = int(CPUClockFrequency / apu.sampleRate)
 	return apu
 }
 

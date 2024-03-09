@@ -31,29 +31,21 @@ func main() {
 
 type renderer struct {
 	fyne.Window
-	currImg *canvas.Image
-	nextImg *canvas.Image
-	ticker  *time.Ticker
+	img *canvas.Image
 }
 
-// todo: fix data race
-func newRenderer(win fyne.Window, curr, next *canvas.Image) *renderer {
+func newRenderer(win fyne.Window, img *canvas.Image) *renderer {
 	return &renderer{
-		Window:  win,
-		currImg: curr,
-		nextImg: next,
-		ticker:  time.NewTicker(16 * time.Millisecond),
+		Window: win,
+		img:    img,
 	}
 }
 
 func (r *renderer) Render(x, y int, c color.Color) {
-	r.nextImg.Image.(*image.RGBA).Set(x, y, c)
+	r.img.Image.(*image.RGBA).Set(x, y, c)
 }
 func (r *renderer) Refresh() {
-	<-r.ticker.C
-	r.currImg, r.nextImg = r.nextImg, r.currImg // swap
-	r.SetContent(container.NewMax(r.currImg))
-	r.currImg.Refresh()
+	r.img.Refresh()
 }
 
 // ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
@@ -126,21 +118,12 @@ func realMain() error {
 
 	myapp := app.New()
 	win := myapp.NewWindow("rgnes")
-	img1 := image.NewRGBA(image.Rect(0, 0, 256, 240))
-	img2 := image.NewRGBA(image.Rect(0, 0, 256, 240))
-
-	canvasImg1 := canvas.NewImageFromImage(img1)
-	canvasImg2 := canvas.NewImageFromImage(img2)
-	canvasImg1.SetMinSize(fyne.NewSize(256*2, 240*2))
-	canvasImg2.SetMinSize(fyne.NewSize(256*2, 240*2))
-
-	canvasImg1.ScaleMode = canvas.ImageScalePixels
-	canvasImg2.ScaleMode = canvas.ImageScalePixels
-
-	win.SetContent(container.NewMax(
-		canvasImg1,
-	))
-	renderer := newRenderer(win, canvasImg1, canvasImg2)
+	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	canvasImg := canvas.NewImageFromImage(img)
+	canvasImg.SetMinSize(fyne.NewSize(256*2, 240*2))
+	canvasImg.ScaleMode = canvas.ImageScalePixels
+	win.SetContent(container.NewStack(canvasImg))
+	renderer := newRenderer(win, canvasImg)
 
 	f, err := os.Open(rom)
 	if err != nil {
@@ -165,21 +148,23 @@ func realMain() error {
 	defer player.Stop()
 
 	n := nes.New(mapper, renderer, player)
-	n.PowerUp()
 
 	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
 		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
-			updateKey(win, n, k.Name, true)
+			updateKey(n, k.Name, true)
 		})
 		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
-			updateKey(win, n, k.Name, false)
+			updateKey(n, k.Name, false)
 		})
 	}
 
 	go func() {
-		for {
-			n.Step()
-		}
+		defer win.Close()
+		// win.ShowAndRun() is required to run in the main thread, but a data race occurs during initialization within ShowAndRun().
+		// So so wait a little while.
+		time.Sleep(2 * time.Second)
+		n.PowerUp()
+		n.Run()
 	}()
 
 	win.ShowAndRun()
@@ -187,10 +172,10 @@ func realMain() error {
 	return nil
 }
 
-func updateKey(win fyne.Window, n *nes.NES, k fyne.KeyName, pressed bool) {
+func updateKey(n *nes.NES, k fyne.KeyName, pressed bool) {
 	switch k {
 	case fyne.KeyEscape:
-		win.Close()
+		n.Close()
 	case fyne.KeyR:
 		n.Reset()
 	case fyne.KeySpace:

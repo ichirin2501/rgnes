@@ -8,6 +8,10 @@ import (
 type pendingInterruptType int
 
 const (
+	// ref: https://www.nesdev.org/wiki/CPU#Frequencies
+	// NTSC
+	CPUClockFrequency = 1789773
+
 	pendingInterruptNone pendingInterruptType = iota
 	pendingInterruptIRQ
 	pendingInterruptNMI
