@@ -25,6 +25,8 @@ func NewMapperFromCassette(c *Cassette) Mapper {
 	switch c.Mapper {
 	case 0:
 		return newMapper0(c)
+	case 2:
+		return newMapper2(c)
 	case 3:
 		return newMapper3(c)
 	}

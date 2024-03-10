@@ -43,7 +43,6 @@ type iNESHeader struct {
 type Cassette struct {
 	PRG    []byte
 	CHR    []byte
-	SRAM   []byte
 	Mapper byte
 	Mirror MirroringType
 }
@@ -96,7 +95,6 @@ func NewCassette(r io.Reader) (*Cassette, error) {
 	return &Cassette{
 		PRG:    prgRom,
 		CHR:    chrRom,
-		SRAM:   make([]byte, 0x2000),
 		Mapper: mapper,
 		Mirror: mirroringType,
 	}, nil
