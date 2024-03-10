@@ -198,28 +198,33 @@ func Test_PPU_WriteScroll(t *testing.T) {
 func Test_PeekWriteOnlyRegister(t *testing.T) {
 	t.Parallel()
 	ppu := &PPU{
-		openbus: ppuDecayRegister{
+		iobus: ppuDecayRegister{
 			val: 0x30,
 		},
 	}
-	got := ppu.PeekController()
-	want := ppu.readController()
+	// PPUCTRL
+	got := ppu.PeekMMIORegister(0x2000)
+	want := ppu.ReadMMIORegister(0x2000)
 	assert.Equal(t, want, got)
 
-	got = ppu.PeekMask()
-	want = ppu.readMask()
+	// PPUMASK
+	got = ppu.PeekMMIORegister(0x2001)
+	want = ppu.ReadMMIORegister(0x2001)
 	assert.Equal(t, want, got)
 
-	got = ppu.PeekOAMAddr()
-	want = ppu.readOAMAddr()
+	// PPUOAMADDR
+	got = ppu.PeekMMIORegister(0x2003)
+	want = ppu.ReadMMIORegister(0x2003)
 	assert.Equal(t, want, got)
 
-	got = ppu.PeekScroll()
-	want = ppu.readScroll()
+	// PPUSCROLL
+	got = ppu.PeekMMIORegister(0x2005)
+	want = ppu.ReadMMIORegister(0x2005)
 	assert.Equal(t, want, got)
 
-	got = ppu.PeekPPUAddr()
-	want = ppu.readPPUAddr()
+	// PPUADDR
+	got = ppu.PeekMMIORegister(0x2006)
+	want = ppu.ReadMMIORegister(0x2006)
 	assert.Equal(t, want, got)
 }
 
@@ -295,12 +300,13 @@ func Test_ReadOAMData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			peek := tt.ppu.PeekOAMData()
-			got := tt.ppu.readOAMData()
+			// OAMDATA
+			peek := tt.ppu.PeekMMIORegister(0x2004)
+			got := tt.ppu.ReadMMIORegister(0x2004)
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus.get(tt.ppu.Clock))
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.iobus.get(tt.ppu.Clock))
 		})
 	}
 
@@ -319,8 +325,8 @@ func Test_ReadStatus(t *testing.T) {
 		{
 			"1",
 			&PPU{
-				status:  ppuStatusRegister(0x88),
-				openbus: ppuDecayRegister{val: 0x31},
+				status: ppuStatusRegister(0x88),
+				iobus:  ppuDecayRegister{val: 0x31},
 				//    0x ---D DDDD
 				// -: 0x 1000 1000
 				// D: 0x 0011 0001
@@ -337,7 +343,7 @@ func Test_ReadStatus(t *testing.T) {
 			"2",
 			&PPU{
 				status:   ppuStatusRegister(0x00),
-				openbus:  ppuDecayRegister{val: 0x01},
+				iobus:    ppuDecayRegister{val: 0x01},
 				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    0,
@@ -351,7 +357,7 @@ func Test_ReadStatus(t *testing.T) {
 			"3",
 			&PPU{
 				status:   ppuStatusRegister(0x00),
-				openbus:  ppuDecayRegister{val: 0x01},
+				iobus:    ppuDecayRegister{val: 0x01},
 				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    1,
@@ -365,7 +371,7 @@ func Test_ReadStatus(t *testing.T) {
 			"4",
 			&PPU{
 				status:   ppuStatusRegister(0x00),
-				openbus:  ppuDecayRegister{val: 0x01},
+				iobus:    ppuDecayRegister{val: 0x01},
 				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    2,
@@ -379,7 +385,7 @@ func Test_ReadStatus(t *testing.T) {
 			"5",
 			&PPU{
 				status:   ppuStatusRegister(0x00),
-				openbus:  ppuDecayRegister{val: 0x01},
+				iobus:    ppuDecayRegister{val: 0x01},
 				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    3,
@@ -395,14 +401,14 @@ func Test_ReadStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			peek := tt.ppu.PeekStatus()
-			got := tt.ppu.readStatus()
+			peek := tt.ppu.PeekMMIORegister(0x2002)
+			got := tt.ppu.ReadMMIORegister(0x2002)
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantw, tt.ppu.w)
 			assert.Equal(t, tt.wantSuppressVBlankFlag, tt.ppu.suppressVBlankFlag)
-			assert.Equal(t, tt.wantOpenbus, tt.ppu.openbus.get(tt.ppu.Clock))
+			assert.Equal(t, tt.wantOpenbus, tt.ppu.iobus.get(tt.ppu.Clock))
 		})
 	}
 }

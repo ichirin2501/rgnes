@@ -5,12 +5,14 @@ import "fmt"
 type mapper3 struct {
 	*Cassette
 	chrBank byte
+	sram    []byte // for test
 }
 
 func newMapper3(c *Cassette) *mapper3 {
 	return &mapper3{
 		Cassette: c,
 		chrBank:  0,
+		sram:     make([]byte, 0x2000), // for test
 	}
 }
 
@@ -30,7 +32,8 @@ func (m *mapper3) Read(addr uint16) byte {
 		return m.CHR[index]
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper 3 don't have PRG RAM
-		return 0
+		// but, prepare RAM for automatic testing of ppu_read_buffer
+		return m.sram[addr-0x6000]
 	case 0x8000 <= addr && addr <= 0xFFFF:
 		// > PRG ROM size: 16 KiB or 32 KiB
 		// > PRG ROM bank size: Not bankswitched
@@ -47,6 +50,8 @@ func (m *mapper3) Write(addr uint16, val byte) {
 		// read only (for ppu_read_buffer test)
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper 3 don't have PRG RAM
+		// but, prepare RAM for automatic testing of ppu_read_buffer
+		m.sram[addr-0x6000] = val
 	case 0x8000 <= addr && addr <= 0xFFFF:
 		// https://www.nesdev.org/wiki/INES_Mapper_003#Bank_select_($8000-$FFFF)
 		// 7  bit  0

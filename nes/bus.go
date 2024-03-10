@@ -36,26 +36,8 @@ func (bus *CPUBus) read(addr uint16) byte {
 		return bus.ram[addr%0x800]
 
 	// NES PPU registers
-	case addr == 0x2000:
-		return bus.ppu.readController()
-	case addr == 0x2001:
-		return bus.ppu.readMask()
-	case addr == 0x2002:
-		return bus.ppu.readStatus()
-	case addr == 0x2003:
-		return bus.ppu.readOAMAddr()
-	case addr == 0x2004:
-		return bus.ppu.readOAMData()
-	case addr == 0x2005:
-		return bus.ppu.readScroll()
-	case addr == 0x2006:
-		return bus.ppu.readPPUAddr()
-	case addr == 0x2007:
-		return bus.ppu.readPPUData()
-
-	// Mirrors of $2000-2007 (repeats every 8 bytes)
-	case 0x2008 <= addr && addr <= 0x3FFF:
-		return bus.read(0x2000 + addr%0x08)
+	case 0x2000 <= addr && addr <= 0x3FFF:
+		return bus.ppu.ReadMMIORegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
@@ -91,26 +73,8 @@ func (bus *CPUBus) write(addr uint16, val byte) {
 		bus.ram[addr%0x800] = val
 
 	// NES PPU registers
-	case addr == 0x2000:
-		bus.ppu.writeController(val)
-	case addr == 0x2001:
-		bus.ppu.writeMask(val)
-	case addr == 0x2002:
-		bus.ppu.writeStatus(val)
-	case addr == 0x2003:
-		bus.ppu.writeOAMAddr(val)
-	case addr == 0x2004:
-		bus.ppu.writeOAMData(val)
-	case addr == 0x2005:
-		bus.ppu.writeScroll(val)
-	case addr == 0x2006:
-		bus.ppu.writePPUAddr(val)
-	case addr == 0x2007:
-		bus.ppu.writePPUData(val)
-
-	// Mirrors of $2000-2007 (repeats every 8 bytes)
-	case 0x2008 <= addr && addr <= 0x3FFF:
-		bus.write(0x2000+addr%0x08, val)
+	case 0x2000 <= addr && addr <= 0x3FFF:
+		bus.ppu.WriteMMIORegister(addr, val)
 
 	// NES APU and I/O registers
 	case addr == 0x4000:
@@ -208,26 +172,8 @@ func (bus *CPUBus) Peek(addr uint16) byte {
 		return bus.ram[addr%0x800]
 
 	// NES PPU registers
-	case addr == 0x2000:
-		return bus.ppu.PeekController()
-	case addr == 0x2001:
-		return bus.ppu.PeekMask()
-	case addr == 0x2002:
-		return bus.ppu.PeekStatus()
-	case addr == 0x2003:
-		return bus.ppu.PeekOAMAddr()
-	case addr == 0x2004:
-		return bus.ppu.PeekOAMData()
-	case addr == 0x2005:
-		return bus.ppu.PeekScroll()
-	case addr == 0x2006:
-		return bus.ppu.PeekPPUAddr()
-	case addr == 0x2007:
-		return bus.ppu.PeekPPUData()
-
-	// Mirrors of $2000-2007 (repeats every 8 bytes)
-	case 0x2008 <= addr && addr <= 0x3FFF:
-		return bus.Peek(0x2000 + addr%0x08)
+	case 0x2000 <= addr && addr <= 0x3FFF:
+		return bus.ppu.PeekMMIORegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
