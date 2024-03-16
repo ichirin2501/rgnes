@@ -28,16 +28,17 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  processorStatus
 
-	I   *interruptLines
-	bus *CPUBus
-	t   *Trace
-	mu  *sync.Mutex
+	nmiLine *interruptLine
+	irqLine *interruptLine
+	bus     *CPUBus
+	t       *Trace
+	mu      *sync.Mutex
 
 	irqTriggered bool
 	irqSignal    bool
 	nmiTriggered bool
 	nmiSignal    bool
-	prevNMILine  interruptLineStatus
+	prevNMILine  interruptLine
 
 	pendingInterrupt pendingInterruptType
 
@@ -47,12 +48,13 @@ type CPU struct {
 	interrupting bool
 }
 
-func NewCPU(bus *CPUBus, i *interruptLines, opts ...CPUOption) *CPU {
+func NewCPU(bus *CPUBus, nmiLine, irqLine *interruptLine, opts ...CPUOption) *CPU {
 	cpu := &CPU{
-		I:   i,
-		bus: bus,
-		t:   nil,
-		mu:  &sync.Mutex{},
+		nmiLine: nmiLine,
+		irqLine: irqLine,
+		bus:     bus,
+		t:       nil,
+		mu:      &sync.Mutex{},
 	}
 	for _, opt := range opts {
 		opt(cpu)
@@ -363,14 +365,14 @@ func (cpu *CPU) pollInterrupts() {
 	// poll interrupt lines
 	// The NMI input is connected to an edge detector
 	cpu.nmiTriggered = false
-	if cpu.I.nmiLine == interruptLineLow && cpu.prevNMILine == interruptLineHigh {
+	if cpu.nmiLine.IsLow() && cpu.prevNMILine.IsHigh() {
 		cpu.nmiTriggered = true
 	}
-	cpu.prevNMILine = cpu.I.nmiLine
+	cpu.prevNMILine = *cpu.nmiLine
 
 	// The IRQ input is connected to a level detector
 	cpu.irqTriggered = false
-	if cpu.I.irqLine == interruptLineLow {
+	if cpu.irqLine.IsLow() {
 		cpu.irqTriggered = true
 	}
 

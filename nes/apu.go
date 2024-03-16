@@ -37,7 +37,7 @@ type Player interface {
 }
 
 type APU struct {
-	cpu          *interruptLines
+	irqLine      *interruptLine
 	player       Player
 	sampleRate   float64
 	sampleTiming int
@@ -57,10 +57,10 @@ type APU struct {
 	writeDelayFrameCounter byte
 }
 
-func NewAPU(cpu *interruptLines, p Player, dma *DMA) *APU {
+func NewAPU(irqLine *interruptLine, p Player, dma *DMA) *APU {
 	apu := &APU{
 		player:     p,
-		cpu:        cpu,
+		irqLine:    irqLine,
 		sampleRate: p.SampleRate(),
 
 		clock:  -1,
@@ -290,7 +290,7 @@ func (apu *APU) readStatus() byte {
 		res |= 0x80
 	}
 	apu.frameInterruptFlag = false
-	apu.cpu.setIRQLine(interruptLineHigh)
+	apu.irqLine.SetHigh()
 
 	return res
 }
@@ -368,7 +368,7 @@ func (apu *APU) writeFrameCounter(val byte) {
 	if (val & 0x40) == 0x40 {
 		apu.frameInterruptInhibit = true
 		apu.frameInterruptFlag = false
-		apu.cpu.setIRQLine(interruptLineHigh)
+		apu.irqLine.SetHigh()
 	} else {
 		apu.frameInterruptInhibit = false
 	}
@@ -474,19 +474,19 @@ func (apu *APU) tickFrameCounter() {
 		case frameTable[apu.frameMode][3]:
 			if !apu.frameInterruptInhibit {
 				apu.frameInterruptFlag = true
-				apu.cpu.setIRQLine(interruptLineLow)
+				apu.irqLine.SetLow()
 			}
 		case frameTable[apu.frameMode][4]:
 			apu.tickQuarterFrameCounter()
 			apu.tickHalfFrameCounter()
 			if !apu.frameInterruptInhibit {
 				apu.frameInterruptFlag = true
-				apu.cpu.setIRQLine(interruptLineLow)
+				apu.irqLine.SetLow()
 			}
 		case frameTable[apu.frameMode][5]:
 			if !apu.frameInterruptInhibit {
 				apu.frameInterruptFlag = true
-				apu.cpu.setIRQLine(interruptLineLow)
+				apu.irqLine.SetLow()
 			}
 			apu.frameStep = 0
 		}

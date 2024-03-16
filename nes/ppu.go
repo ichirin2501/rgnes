@@ -15,16 +15,16 @@ type Renderer interface {
 	Refresh()
 }
 
-type vram struct {
+type ppuRAM struct {
 	ram       [2048]byte
 	mirroring MirroringType
 }
 
-func newVRAM(m MirroringType) *vram {
-	return &vram{mirroring: m}
+func newPPURAM(m MirroringType) *ppuRAM {
+	return &ppuRAM{mirroring: m}
 }
 
-func (m *vram) mirrorAddr(addr uint16) uint16 {
+func (m *ppuRAM) mirrorAddr(addr uint16) uint16 {
 	if 0x3000 <= addr {
 		panic(fmt.Sprintf("unexpected addr 0x%04X in vram.mirrorAddr", addr))
 	}
@@ -66,23 +66,70 @@ func (m *vram) mirrorAddr(addr uint16) uint16 {
 	}
 }
 
-func (m *vram) Read(addr uint16) byte {
+func (m *ppuRAM) Read(addr uint16) byte {
 	return m.ram[m.mirrorAddr(addr)]
 }
 
-func (m *vram) Write(addr uint16, val byte) {
+func (m *ppuRAM) Write(addr uint16, val byte) {
 	m.ram[m.mirrorAddr(addr)] = val
 }
 
+type ppuBus struct {
+	ram    *ppuRAM
+	mapper Mapper
+	// https://www.nesdev.org/wiki/Open_bus_behavior#PPU_open_bus
+	// > The PPU has two data buses: the I/O bus, used to communicate with the CPU, and the video memory bus.
+	// This is the video memory bus variable
+	openbus uint16
+}
+
+func (bus *ppuBus) Read(addr uint16) byte {
+	res := byte(0)
+	switch {
+	case 0x0000 <= addr && addr <= 0x1FFF:
+		res = bus.mapper.Read(addr)
+	case 0x2000 <= addr && addr <= 0x2FFF:
+		res = bus.ram.Read(addr)
+	case 0x3000 <= addr && addr <= 0x3FFF:
+		// Mirrors of $2000-$2FFF
+		// ref: https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
+		// > Simultaneously, the PPU also performs a normal read from the PPU memory at the specified address, "underneath" the palette data,
+		res = bus.ram.Read(addr - 0x1000)
+	default:
+		panic(fmt.Sprintf("read ppubus invalid addr = 0x%04x", addr))
+	}
+	bus.openbus = (addr & 0x3F00) | uint16(res)
+	return res
+}
+
+func (bus *ppuBus) Write(addr uint16, val byte) {
+	switch {
+	case 0x0000 <= addr && addr <= 0x1FFF:
+		bus.mapper.Write(addr, val)
+	case 0x2000 <= addr && addr <= 0x2FFF:
+		bus.ram.Write(addr, val)
+	case 0x3000 <= addr && addr <= 0x3EFF:
+		// Mirrors of $2000-$2EFF
+		bus.ram.Write(addr-0x1000, val)
+	case 0x3F00 <= addr && addr <= 0x3FFF:
+		// nothing
+		// https://www.nesdev.org/wiki/PPU_pinout
+		// > /RD and /WR specify that the PPU is reading from or writing to VRAM.
+		// > As an exception, writing to the internal palette range (3F00-3FFF) will not assert /WR.
+	default:
+		panic(fmt.Sprintf("write ppubus invalid addr = 0x%04x", addr))
+	}
+	bus.openbus = (addr & 0x3F00) | uint16(val)
+}
+
 type PPU struct {
-	mapper       Mapper
-	vram         *vram // include nametable and attribute
+	bus          *ppuBus
 	paletteTable paletteRAM
 	ctrl         ppuControlRegister
 	mask         ppuMaskRegister
 	status       ppuStatusRegister
 	oamAddr      byte
-	buf          byte   // internal data buffer
+	readBuffer   byte   // internal read buffer
 	v            uint16 // VRAM address (15 bits)
 	t            uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
 	x            byte   // Fine X scroll (3 bits)
@@ -116,18 +163,18 @@ type PPU struct {
 	copySpriteStateCycle  int
 
 	// background temp variables
-	nameTableByte        byte
-	attributeTableByte   byte
-	patternTableLowByte  byte
-	patternTableHighByte byte
+	nameTableByte      byte
+	attributeTableByte byte
+	backgroundLowByte  byte
+	backgroundHighByte byte
 	// shift register
 	// curr = higher bit =  >>15
-	patternTableLowBit      uint16
-	patternTableHighBit     uint16
-	patternAttributeLowBit  uint16
-	patternAttributeHighBit uint16
+	backgroundLowShiftRegister  uint16
+	backgroundHighShiftRegister uint16
+	attributeLowShiftRegister   uint16
+	attributeHighShiftRegister  uint16
 
-	cpu *interruptLines
+	nmiLine *interruptLine
 
 	Clock int
 }
@@ -139,16 +186,18 @@ func (ppu *PPU) FetchV() uint16 {
 	return ppu.v
 }
 func (ppu *PPU) FetchBuffer() byte {
-	return ppu.buf
+	return ppu.readBuffer
 }
 
-func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *interruptLines) *PPU {
+func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *interruptLine) *PPU {
 	ppu := &PPU{
-		vram:     newVRAM(mirror),
-		mapper:   mapper,
+		bus: &ppuBus{
+			ram:    newPPURAM(mirror),
+			mapper: mapper,
+		},
 		Cycle:    -1,
 		renderer: renderer,
-		cpu:      c,
+		nmiLine:  nmiLine,
 	}
 	// init
 	for i := 0; i < len(ppu.primaryOAM); i++ {
@@ -160,7 +209,28 @@ func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, c *interrupt
 	return ppu
 }
 
-func (ppu *PPU) ReadMMIORegister(addr uint16) byte {
+func (ppu *PPU) readData(addr uint16) (result byte, isPalette bool, busData byte) {
+	addr &= 0x3FFF
+	busData = ppu.bus.Read(addr)
+	if 0x3F00 <= addr && addr <= 0x3FFF {
+		// override
+		return ppu.paletteTable.Read(paletteForm(addr % 0x20)), true, busData
+	} else {
+		return busData, false, busData
+	}
+}
+
+func (ppu *PPU) writeData(addr uint16, val byte) {
+	addr &= 0x3FFF
+	ppu.bus.Write(addr, val)
+	if 0x3F00 <= addr && addr <= 0x3FFF {
+		// override
+		ppu.paletteTable.Write(paletteForm(addr%0x20), val)
+	}
+}
+
+// ReadRegister is called from CPU Memory Mapped I/O
+func (ppu *PPU) ReadRegister(addr uint16) byte {
 	// https://www.nesdev.org/wiki/PPU_pinout
 	// > CPU A2-A0 are tied to the corresponding CPU address pins and select the PPU register (0-7).
 	switch addr & 0x07 {
@@ -170,22 +240,36 @@ func (ppu *PPU) ReadMMIORegister(addr uint16) byte {
 		// $2001 PPUMASK write only
 	case 2:
 		// $2002 PPUSTATUS
-		st, mask := ppu.readStatus()
-		ppu.iobus.refresh(st, mask, ppu.Clock)
+		// https://www.nesdev.org/wiki/Open_bus_behavior
+		// > Reading the PPU's status port loads a value onto bits 7-5 of the bus, leaving the rest unchanged.
+		st := ppu.readStatus()
+		ppu.iobus.refresh(st, 0xE0, ppu.Clock)
 	case 3:
 		// $2003 OAMADDR write only
 	case 4:
 		// $2004 OAMDATA
-		d, mask := ppu.readOAMData()
-		ppu.iobus.refresh(d, mask, ppu.Clock)
+		d := ppu.readOAMData()
+		ppu.iobus.refresh(d, 0xFF, ppu.Clock)
 	case 5:
 		// $2005 PPUSCROLL write only
 	case 6:
 		// $2006 PPUADDR write only
 	case 7:
 		// $2007 PPUDATA
-		d, mask := ppu.readPPUData()
-		ppu.iobus.refresh(d, mask, ppu.Clock)
+		// ppu_open_bus/readme.txt
+		// D = openbus bit
+		// DD-- ----   palette
+		result, isPalette, busData := ppu.readPPUData()
+		if isPalette {
+			// ref: https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
+			// > The referenced 6-bit palette data is returned immediately instead of going to the internal read buffer,
+			// > and hence no priming read is required.
+			ppu.iobus.refresh(result, 0x3F, ppu.Clock)
+		} else {
+			ppu.iobus.refresh(ppu.readBuffer, 0xFF, ppu.Clock)
+		}
+		// The buffered value corresponds to bus read data, not palette data
+		ppu.readBuffer = busData
 	default:
 		panic("unreachable")
 	}
@@ -193,7 +277,7 @@ func (ppu *PPU) ReadMMIORegister(addr uint16) byte {
 	return ppu.iobus.get(ppu.Clock)
 }
 
-func (ppu *PPU) PeekMMIORegister(addr uint16) byte {
+func (ppu *PPU) PeekRegister(addr uint16) byte {
 	switch addr & 0x07 {
 	case 0:
 		return ppu.iobus.get(ppu.Clock)
@@ -216,7 +300,8 @@ func (ppu *PPU) PeekMMIORegister(addr uint16) byte {
 	}
 }
 
-func (ppu *PPU) WriteMMIORegister(addr uint16, val byte) {
+// WriteRegister is called from CPU Memory Mapped I/O
+func (ppu *PPU) WriteRegister(addr uint16, val byte) {
 	ppu.iobus.refresh(val, 0xFF, ppu.Clock)
 	switch addr & 0x07 {
 	case 0:
@@ -250,10 +335,10 @@ func (ppu *PPU) writeController(val byte) {
 	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
 	if ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
 		if !beforeGeneratedVBlankNMI {
-			ppu.cpu.setNMILine(interruptLineLow)
+			ppu.nmiLine.SetLow()
 		}
 	} else {
-		ppu.cpu.setNMILine(interruptLineHigh)
+		ppu.nmiLine.SetHigh()
 	}
 
 	// t: ...GH.. ........ <- d: ......GH
@@ -267,7 +352,7 @@ func (ppu *PPU) writeMask(val byte) {
 }
 
 // $2002: PPUSTATUS
-func (ppu *PPU) readStatus() (byte, byte) {
+func (ppu *PPU) readStatus() byte {
 	// https://www.nesdev.org/wiki/PPU_frame_timing#VBL_Flag_Timing
 	// > Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
 	// > Reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame.
@@ -281,16 +366,13 @@ func (ppu *PPU) readStatus() (byte, byte) {
 	} else {
 		st = ppu.status.Get()
 		ppu.status.ClearVBlankStarted()
-		ppu.cpu.setNMILine(interruptLineHigh)
+		ppu.nmiLine.SetHigh()
 	}
 
 	// w:                  <- 0
 	ppu.w = false
 
-	// https://www.nesdev.org/wiki/Open_bus_behavior
-	// > Reading the PPU's status port loads a value onto bits 7-5 of the bus, leaving the rest unchanged.
-	// (data, bit information where loading occurred)
-	return st, 0xE0
+	return st
 }
 
 // $2003: OAMADDR
@@ -299,8 +381,8 @@ func (ppu *PPU) writeOAMAddr(val byte) {
 }
 
 // $2004: OAMDATA read
-func (ppu *PPU) readOAMData() (byte, byte) {
-	return ppu.primaryOAM[ppu.oamAddr], 0xFF
+func (ppu *PPU) readOAMData() byte {
+	return ppu.primaryOAM[ppu.oamAddr]
 }
 
 // $2004: OAMDATA write
@@ -375,8 +457,8 @@ func (ppu *PPU) writePPUAddr(val byte) {
 }
 
 // $2007: PPUDATA read
-func (ppu *PPU) readPPUData() (byte, byte) {
-	res, mask := ppu._readPPUData(ppu.v)
+func (ppu *PPU) readPPUData() (result byte, isPalette bool, busData byte) {
+	result, isPalette, busData = ppu.readData(ppu.v)
 
 	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
@@ -388,7 +470,8 @@ func (ppu *PPU) readPPUData() (byte, byte) {
 		// normal
 		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
 	}
-	return res, mask
+
+	return result, isPalette, busData
 }
 
 // peekPPUData is used for debugging
@@ -398,7 +481,7 @@ func (ppu *PPU) peekPPUData() byte {
 	switch {
 	case 0x0000 <= addr && addr <= 0x3EFF:
 		// include mirrors of $2000-$2EFF
-		return ppu.buf
+		return ppu.readBuffer
 	case 0x3F00 <= addr && addr <= 0x3FFF:
 		// ppu_open_bus/readme.txt
 		// D = openbus bit
@@ -409,46 +492,9 @@ func (ppu *PPU) peekPPUData() byte {
 	}
 }
 
-func (ppu *PPU) _readPPUData(addr uint16) (byte, byte) {
-	// https://www.nesdev.org/wiki/PPU_scrolling#PPU_internal_registers
-	// > Note that while the v register has 15 bits, the PPU memory space is only 14 bits wide.
-	// > The highest bit is unused for access through $2007.
-	addr &= 0x3FFF
-	switch {
-	case 0x0000 <= addr && addr <= 0x1FFF:
-		res := ppu.buf
-		ppu.buf = ppu.mapper.Read(addr)
-		return res, 0xFF
-	case 0x2000 <= addr && addr <= 0x2FFF:
-		res := ppu.buf
-		ppu.buf = ppu.vram.Read(addr)
-		return res, 0xFF
-	case 0x3000 <= addr && addr <= 0x3EFF:
-		// Mirrors of $2000-$2EFF
-		res := ppu.buf
-		ppu.buf = ppu.vram.Read(addr - 0x1000)
-		return res, 0xFF
-	case 0x3F00 <= addr && addr <= 0x3FFF:
-		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
-		// ref: https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
-		// > The referenced 6-bit palette data is returned immediately instead of going to the internal read buffer, and hence no priming read is required.
-		// > Simultaneously, the PPU also performs a normal read from the PPU memory at the specified address, "underneath" the palette data,
-		// > and the result of this read goes into the read buffer as normal.
-		// I don't understand the meaning of "underneath". But, reading other emulator implementations it seems like it's about -0x1000
-		ppu.buf = ppu.vram.Read(addr - 0x1000)
-
-		// ppu_open_bus/readme.txt
-		// D = openbus bit
-		// DD-- ----   palette
-		return ppu.paletteTable.Read(paletteForm(addr % 0x20)), 0x3F
-	default:
-		panic(fmt.Sprintf("readPPUData invalid addr = 0x%04x", addr))
-	}
-}
-
 // $2007: PPUDATA write
 func (ppu *PPU) writePPUData(val byte) {
-	ppu._writePPUData(ppu.v, val)
+	ppu.writeData(ppu.v, val)
 
 	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
@@ -459,24 +505,6 @@ func (ppu *PPU) writePPUData(val byte) {
 	} else {
 		// normal
 		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
-	}
-}
-
-func (ppu *PPU) _writePPUData(addr uint16, val byte) {
-	addr &= 0x3FFF
-	switch {
-	case 0x0000 <= addr && addr <= 0x1FFF:
-		ppu.mapper.Write(addr, val)
-	case 0x2000 <= addr && addr <= 0x2FFF:
-		ppu.vram.Write(addr, val)
-	case 0x3000 <= addr && addr <= 0x3EFF:
-		// Mirrors of $2000-$2EFF
-		ppu.vram.Write(addr-0x1000, val)
-	case 0x3F00 <= addr && addr <= 0x3FFF:
-		// note: [0x3F20,0x3FFF] => Mirrors $3F00-$3F1F
-		ppu.paletteTable.Write(paletteForm(addr%0x20), val)
-	default:
-		panic("uaaaaaaaaaaaaaaa")
 	}
 }
 
@@ -533,16 +561,16 @@ func (ppu *PPU) incrementY() {
 	ppu.v = v
 }
 
-func (ppu *PPU) fetchNameTableByte() {
+func (ppu *PPU) fetchNTByte() {
 	v := ppu.v
 	addr := 0x2000 | (v & 0x0FFF)
-	ppu.nameTableByte = ppu.vram.Read(addr)
+	ppu.nameTableByte, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchAttributeTableByte() {
+func (ppu *PPU) fetchATByte() {
 	v := ppu.v
 	addr := 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-	b := ppu.vram.Read(addr)
+	b, _, _ := ppu.readData(addr)
 	//
 	// b
 	// 7654 3210
@@ -564,16 +592,16 @@ func (ppu *PPU) fetchAttributeTableByte() {
 	ppu.attributeTableByte = (b >> shift) & 0x3
 }
 
-func (ppu *PPU) fetchPatternTableLowByte() {
+func (ppu *PPU) fetchBGLowByte() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
-	ppu.patternTableLowByte = ppu.mapper.Read(addr)
+	ppu.backgroundLowByte, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchPatternTableHighByte() {
+func (ppu *PPU) fetchBGHighByte() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
-	ppu.patternTableHighByte = ppu.mapper.Read(addr + 8)
+	ppu.backgroundHighByte, _, _ = ppu.readData(addr + 8)
 }
 
 func (ppu *PPU) fetchSpriteForNextScanline() {
@@ -592,8 +620,9 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 				y = 7 - y
 			}
 			addr := ppu.ctrl.SpritePatternAddr() | (uint16(stile) << 4) | y
-			lo := ppu.mapper.Read(addr)
-			hi := ppu.mapper.Read(addr + 8)
+			lo, _, _ := ppu.readData(addr)
+			hi, _, _ := ppu.readData(addr + 8)
+
 			return lo, hi, true
 		} else {
 			// 8x16
@@ -613,8 +642,9 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 				y -= 8
 			}
 			addr := bankTile | tileIndex<<4 | y
-			lo := ppu.mapper.Read(addr)
-			hi := ppu.mapper.Read(addr + 8)
+			lo, _, _ := ppu.readData(addr)
+			hi, _, _ := ppu.readData(addr + 8)
+
 			return lo, hi, true
 		}
 	}()
@@ -728,14 +758,14 @@ func (ppu *PPU) isRenderingEnabled() bool {
 	return ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 }
 
-func (ppu *PPU) loadNextPixelData() {
-	ppu.patternTableHighBit |= uint16(ppu.patternTableHighByte)
-	ppu.patternTableLowBit |= uint16(ppu.patternTableLowByte)
+func (ppu *PPU) loadNextBackgroundPixelData() {
+	ppu.backgroundHighShiftRegister |= uint16(ppu.backgroundHighByte)
+	ppu.backgroundLowShiftRegister |= uint16(ppu.backgroundLowByte)
 	if ppu.attributeTableByte&0x2 == 0x2 {
-		ppu.patternAttributeHighBit |= 0xFF
+		ppu.attributeHighShiftRegister |= 0xFF
 	}
 	if ppu.attributeTableByte&0x1 == 0x1 {
-		ppu.patternAttributeLowBit |= 0xFF
+		ppu.attributeLowShiftRegister |= 0xFF
 	}
 }
 
@@ -748,11 +778,11 @@ func (ppu *PPU) backgroundPixelPaletteAddr() paletteForm {
 		return universalBGColorPalette
 	}
 
-	talo := byte((ppu.patternAttributeLowBit >> (15 - ppu.x)) & 0b1)
-	tahi := byte((ppu.patternAttributeHighBit >> (15 - ppu.x)) & 0b1)
+	talo := byte((ppu.attributeLowShiftRegister >> (15 - ppu.x)) & 0b1)
+	tahi := byte((ppu.attributeHighShiftRegister >> (15 - ppu.x)) & 0b1)
 
-	ttlo := byte((ppu.patternTableLowBit >> (15 - ppu.x)) & 0b1)
-	tthi := byte((ppu.patternTableHighBit >> (15 - ppu.x)) & 0b1)
+	ttlo := byte((ppu.backgroundLowShiftRegister >> (15 - ppu.x)) & 0b1)
+	tthi := byte((ppu.backgroundHighShiftRegister >> (15 - ppu.x)) & 0b1)
 
 	return newPaletteForm(false, (tahi<<1)|talo, (tthi<<1)|ttlo)
 }
@@ -848,15 +878,15 @@ func (ppu *PPU) Step() {
 	// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
 		// shift
-		ppu.patternAttributeHighBit <<= 1
-		ppu.patternAttributeLowBit <<= 1
-		ppu.patternTableHighBit <<= 1
-		ppu.patternTableLowBit <<= 1
+		ppu.attributeHighShiftRegister <<= 1
+		ppu.attributeLowShiftRegister <<= 1
+		ppu.backgroundHighShiftRegister <<= 1
+		ppu.backgroundLowShiftRegister <<= 1
 	}
 	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 	// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
-		ppu.loadNextPixelData()
+		ppu.loadNextBackgroundPixelData()
 	}
 	// The screen draws regardless of the PPU rendering mode
 	if ppu.isVisibleScanlines() && visibleCycle {
@@ -865,13 +895,13 @@ func (ppu *PPU) Step() {
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && fetchCycle {
 		switch ppu.Cycle % 8 {
 		case 1:
-			ppu.fetchNameTableByte()
+			ppu.fetchNTByte()
 		case 3:
-			ppu.fetchAttributeTableByte()
+			ppu.fetchATByte()
 		case 5:
-			ppu.fetchPatternTableLowByte()
+			ppu.fetchBGLowByte()
 		case 7:
-			ppu.fetchPatternTableHighByte()
+			ppu.fetchBGHighByte()
 		}
 	}
 
@@ -948,7 +978,7 @@ func (ppu *PPU) Step() {
 		if !ppu.suppressVBlankFlag {
 			ppu.status.SetVBlankStarted()
 			if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-				ppu.cpu.setNMILine(interruptLineLow)
+				ppu.nmiLine.SetLow()
 			}
 		}
 	}
@@ -956,7 +986,7 @@ func (ppu *PPU) Step() {
 	// Pre-render line
 	if ppu.isPreLine() && ppu.Cycle == 1 {
 		ppu.status.ClearVBlankStarted()
-		ppu.cpu.setNMILine(interruptLineHigh)
+		ppu.nmiLine.SetHigh()
 		ppu.status.ClearSprite0Hit()
 		ppu.status.ClearSpriteOverflow()
 	}

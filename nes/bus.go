@@ -37,7 +37,7 @@ func (bus *CPUBus) read(addr uint16) byte {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		return bus.ppu.ReadMMIORegister(addr)
+		return bus.ppu.ReadRegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
@@ -74,7 +74,7 @@ func (bus *CPUBus) write(addr uint16, val byte) {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		bus.ppu.WriteMMIORegister(addr, val)
+		bus.ppu.WriteRegister(addr, val)
 
 	// NES APU and I/O registers
 	case addr == 0x4000:
@@ -173,7 +173,7 @@ func (bus *CPUBus) Peek(addr uint16) byte {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		return bus.ppu.PeekMMIORegister(addr)
+		return bus.ppu.PeekRegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:

@@ -12,55 +12,55 @@ func Test_PPU_MirrorVRAMAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		ram  *vram
+		ram  *ppuRAM
 		addr uint16
 		want uint16
 	}{
 		{
 			"1",
-			newVRAM(MirroringHorizontal),
+			newPPURAM(MirroringHorizontal),
 			0x2003,
 			0x0003,
 		},
 		{
 			"2",
-			newVRAM(MirroringHorizontal),
+			newPPURAM(MirroringHorizontal),
 			0x2403,
 			0x0003,
 		},
 		{
 			"3",
-			newVRAM(MirroringHorizontal),
+			newPPURAM(MirroringHorizontal),
 			0x2800,
 			0x0400,
 		},
 		{
 			"4",
-			newVRAM(MirroringHorizontal),
+			newPPURAM(MirroringHorizontal),
 			0x2C00,
 			0x0400,
 		},
 		{
 			"5",
-			newVRAM(MirroringVertical),
+			newPPURAM(MirroringVertical),
 			0x2000,
 			0x0000,
 		},
 		{
 			"6",
-			newVRAM(MirroringVertical),
+			newPPURAM(MirroringVertical),
 			0x2801,
 			0x0001,
 		},
 		{
 			"7",
-			newVRAM(MirroringVertical),
+			newPPURAM(MirroringVertical),
 			0x2400,
 			0x0400,
 		},
 		{
 			"8",
-			newVRAM(MirroringVertical),
+			newPPURAM(MirroringVertical),
 			0x2C01,
 			0x0401,
 		},
@@ -203,28 +203,28 @@ func Test_PeekWriteOnlyRegister(t *testing.T) {
 		},
 	}
 	// PPUCTRL
-	got := ppu.PeekMMIORegister(0x2000)
-	want := ppu.ReadMMIORegister(0x2000)
+	got := ppu.PeekRegister(0x2000)
+	want := ppu.ReadRegister(0x2000)
 	assert.Equal(t, want, got)
 
 	// PPUMASK
-	got = ppu.PeekMMIORegister(0x2001)
-	want = ppu.ReadMMIORegister(0x2001)
+	got = ppu.PeekRegister(0x2001)
+	want = ppu.ReadRegister(0x2001)
 	assert.Equal(t, want, got)
 
 	// PPUOAMADDR
-	got = ppu.PeekMMIORegister(0x2003)
-	want = ppu.ReadMMIORegister(0x2003)
+	got = ppu.PeekRegister(0x2003)
+	want = ppu.ReadRegister(0x2003)
 	assert.Equal(t, want, got)
 
 	// PPUSCROLL
-	got = ppu.PeekMMIORegister(0x2005)
-	want = ppu.ReadMMIORegister(0x2005)
+	got = ppu.PeekRegister(0x2005)
+	want = ppu.ReadRegister(0x2005)
 	assert.Equal(t, want, got)
 
 	// PPUADDR
-	got = ppu.PeekMMIORegister(0x2006)
-	want = ppu.ReadMMIORegister(0x2006)
+	got = ppu.PeekRegister(0x2006)
+	want = ppu.ReadRegister(0x2006)
 	assert.Equal(t, want, got)
 }
 
@@ -301,8 +301,8 @@ func Test_ReadOAMData(t *testing.T) {
 			t.Parallel()
 
 			// OAMDATA
-			peek := tt.ppu.PeekMMIORegister(0x2004)
-			got := tt.ppu.ReadMMIORegister(0x2004)
+			peek := tt.ppu.PeekRegister(0x2004)
+			got := tt.ppu.ReadRegister(0x2004)
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)
@@ -331,8 +331,7 @@ func Test_ReadStatus(t *testing.T) {
 				// -: 0x 1000 1000
 				// D: 0x 0011 0001
 				//    0x 1001 0001
-				cpu: &interruptLines{},
-				w:   true,
+				w: true,
 			},
 			0x91,
 			false,
@@ -344,7 +343,6 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				iobus:    ppuDecayRegister{val: 0x01},
-				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    0,
 			},
@@ -358,7 +356,6 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				iobus:    ppuDecayRegister{val: 0x01},
-				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    1,
 			},
@@ -372,7 +369,6 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				iobus:    ppuDecayRegister{val: 0x01},
-				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    2,
 			},
@@ -386,7 +382,6 @@ func Test_ReadStatus(t *testing.T) {
 			&PPU{
 				status:   ppuStatusRegister(0x00),
 				iobus:    ppuDecayRegister{val: 0x01},
-				cpu:      &interruptLines{},
 				Scanline: 241,
 				Cycle:    3,
 			},
@@ -401,8 +396,11 @@ func Test_ReadStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			peek := tt.ppu.PeekMMIORegister(0x2002)
-			got := tt.ppu.ReadMMIORegister(0x2002)
+			nmiLine := defaultInterruptLineState
+			tt.ppu.nmiLine = &nmiLine
+
+			peek := tt.ppu.PeekRegister(0x2002)
+			got := tt.ppu.ReadRegister(0x2002)
 
 			assert.Equal(t, peek, got)
 			assert.Equal(t, tt.want, got)

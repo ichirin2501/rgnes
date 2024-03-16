@@ -13,16 +13,17 @@ type NES struct {
 }
 
 func New(mapper Mapper, renderer Renderer, player Player) *NES {
-	irp := &interruptLines{}
+	irqLine := defaultInterruptLineState
+	nmiLine := defaultInterruptLineState
 	m := mapper.MirroingType()
 	dma := &DMA{}
 
-	ppu := NewPPU(renderer, mapper, m, irp)
+	ppu := NewPPU(renderer, mapper, m, &nmiLine)
 	joypad := NewJoypad()
-	apu := NewAPU(irp, player, dma)
+	apu := NewAPU(&irqLine, player, dma)
 	bus := NewCPUBus(ppu, apu, mapper, joypad, dma)
 
-	cpu := NewCPU(bus, irp)
+	cpu := NewCPU(bus, &nmiLine, &irqLine)
 
 	return &NES{
 		cpu:    cpu,

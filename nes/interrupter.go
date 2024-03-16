@@ -1,21 +1,26 @@
 package nes
 
-type interruptLineStatus int
+type interruptLine int
 
 const (
-	interruptLineHigh interruptLineStatus = iota
+	interruptLineHigh interruptLine = iota
 	interruptLineLow
+
+	defaultInterruptLineState interruptLine = interruptLineHigh
 )
 
-type interruptLines struct {
-	nmiLine interruptLineStatus
-	irqLine interruptLineStatus
+func (i *interruptLine) SetHigh() {
+	*i = interruptLineHigh
 }
 
-func (i *interruptLines) setIRQLine(v interruptLineStatus) {
-	i.irqLine = v
+func (i *interruptLine) SetLow() {
+	*i = interruptLineLow
 }
 
-func (i *interruptLines) setNMILine(v interruptLineStatus) {
-	i.nmiLine = v
+func (i *interruptLine) IsHigh() bool {
+	return *i == interruptLineHigh
+}
+
+func (i *interruptLine) IsLow() bool {
+	return *i == interruptLineLow
 }
