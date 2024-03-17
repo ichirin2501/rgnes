@@ -11,7 +11,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 	tests := []struct {
 		name string
 		ram  paletteRAM
-		addr paletteForm
+		addr paletteAddr
 		want byte
 	}{
 		{
@@ -26,7 +26,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(false, 0x0, 0x1),
+			newPaletteAddr(false, 0x0, 0x1),
 			0x2,
 		},
 		{
@@ -41,7 +41,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(true, 0x0, 0x1),
+			newPaletteAddr(true, 0x0, 0x1),
 			0x3,
 		},
 		{
@@ -56,7 +56,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(true, 0x0, 0x0),
+			newPaletteAddr(true, 0x0, 0x0),
 			0x1,
 		},
 		{
@@ -71,7 +71,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(true, 0x1, 0x0),
+			newPaletteAddr(true, 0x1, 0x0),
 			0x4,
 		},
 		{
@@ -86,7 +86,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(true, 0x2, 0x0),
+			newPaletteAddr(true, 0x2, 0x0),
 			0x5,
 		},
 		{
@@ -101,7 +101,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 				0x0, 0x0, 0x0, 0x0,
 				0x0, 0x0, 0x0, 0x0,
 			},
-			newPaletteForm(true, 0x3, 0x0),
+			newPaletteAddr(true, 0x3, 0x0),
 			0x6,
 		},
 	}
@@ -121,14 +121,14 @@ func Test_PaletteRAM_Write(t *testing.T) {
 	tests := []struct {
 		name string
 		ram  paletteRAM
-		addr paletteForm
+		addr paletteAddr
 		val  byte
 		want paletteRAM
 	}{
 		{
 			"1",
 			paletteRAM{},
-			newPaletteForm(false, 0x0, 0x1),
+			newPaletteAddr(false, 0x0, 0x1),
 			0x1,
 			paletteRAM{
 				0x0, 0x1, 0x0, 0x0,
@@ -144,7 +144,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		{
 			"2",
 			paletteRAM{},
-			newPaletteForm(true, 0x0, 0x1),
+			newPaletteAddr(true, 0x0, 0x1),
 			0x3,
 			paletteRAM{
 				0x0, 0x0, 0x0, 0x0,
@@ -160,7 +160,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		{
 			"3",
 			paletteRAM{},
-			newPaletteForm(true, 0x0, 0x0),
+			newPaletteAddr(true, 0x0, 0x0),
 			0x1,
 			paletteRAM{
 				0x1, 0x0, 0x0, 0x0,
@@ -176,7 +176,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		{
 			"4",
 			paletteRAM{},
-			newPaletteForm(true, 0x1, 0x0),
+			newPaletteAddr(true, 0x1, 0x0),
 			0x4,
 			paletteRAM{
 				0x0, 0x0, 0x0, 0x0,
@@ -192,7 +192,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		{
 			"5",
 			paletteRAM{},
-			newPaletteForm(true, 0x2, 0x0),
+			newPaletteAddr(true, 0x2, 0x0),
 			0x5,
 			paletteRAM{
 				0x0, 0x0, 0x0, 0x0,
@@ -208,7 +208,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		{
 			"6",
 			paletteRAM{},
-			newPaletteForm(true, 0x3, 0x0),
+			newPaletteAddr(true, 0x3, 0x0),
 			0x6,
 			paletteRAM{
 				0x0, 0x0, 0x0, 0x0,
@@ -237,17 +237,17 @@ func Test_PaletteAddr_GetAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		addr paletteForm
+		addr paletteAddr
 		want byte
 	}{
 		{
 			"1",
-			newPaletteForm(false, 0x3, 0x3),
+			newPaletteAddr(false, 0x3, 0x3),
 			0x0F,
 		},
 		{
 			"2",
-			newPaletteForm(true, 0x1, 0x1),
+			newPaletteAddr(true, 0x1, 0x1),
 			0x15,
 		},
 	}

@@ -28,7 +28,9 @@ func init() {
 // A 6-bit value in the palette memory area corresponds to one of 64 outputs
 type paletteRAM [32]byte
 
-func (p *paletteRAM) Read(addr paletteForm) byte {
+func (p *paletteRAM) Read(addr paletteAddr) byte {
+	// $3F20-$3FFF are mirrors of $3F00-$3F1F
+	addr %= 0x20
 	// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
 	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
 		return p[addr-0x10]
@@ -37,7 +39,8 @@ func (p *paletteRAM) Read(addr paletteForm) byte {
 	}
 }
 
-func (p *paletteRAM) Write(addr paletteForm, val byte) {
+func (p *paletteRAM) Write(addr paletteAddr, val byte) {
+	addr %= 0x20
 	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
 		p[addr-0x10] = val
 	} else {
@@ -54,32 +57,32 @@ ref: https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
 	|++-- - Palette number from attribute table or OAM
 	+---- - Background/Sprite select
 */
-type paletteForm byte
+type paletteAddr uint16
 
 const (
-	universalBGColorPalette = paletteForm(0)
+	universalBGColor = paletteAddr(0x3F00)
 )
 
-func (p *paletteForm) Pixel() byte {
-	return byte(*p) & 0b11
+func (p paletteAddr) PixelColorIndex() byte {
+	return byte(p & 0b11)
 }
-func (p *paletteForm) PaletteNumber() byte {
-	return (byte(*p) >> 2) & 0b11
+func (p paletteAddr) PaletteNumber() byte {
+	return byte((p >> 2) & 0b11)
 }
-func (p *paletteForm) IsSprite() bool {
-	return (byte(*p) & 0b10000) == 0b10000
+func (p paletteAddr) IsSprite() bool {
+	return (p & 0b10000) == 0b10000
 }
 
-func newPaletteForm(isSprite bool, paletteNumber byte, pixel byte) paletteForm {
+func newPaletteAddr(isSprite bool, paletteNumber byte, pixelColorIndex byte) paletteAddr {
 	if paletteNumber > 0b11 {
 		panic("palette number must be within 2 bits")
 	}
-	if pixel > 0b11 {
+	if pixelColorIndex > 0b11 {
 		panic("pixel value must be within 2 bits")
 	}
 	if isSprite {
-		return paletteForm(0b10000 | (paletteNumber << 2) | pixel)
+		return paletteAddr(uint16(0x3F10) | uint16(paletteNumber<<2) | uint16(pixelColorIndex))
 	} else {
-		return paletteForm((paletteNumber << 2) | pixel)
+		return paletteAddr(uint16(0x3F00) | uint16(paletteNumber<<2) | uint16(pixelColorIndex))
 	}
 }

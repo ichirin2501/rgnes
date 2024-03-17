@@ -13,20 +13,17 @@ Sprite Attribute
 */
 type spriteAttribute byte
 
-func (s *spriteAttribute) Palette() byte {
-	return byte(*s) & 0x3
+func (s spriteAttribute) PaletteNumber() byte {
+	return byte(s & 0x3)
 }
-func (s *spriteAttribute) BehindBackground() bool {
-	return (byte(*s) & 0x20) == 0x20
+func (s spriteAttribute) BehindBackground() bool {
+	return (s & 0x20) == 0x20
 }
-func (s *spriteAttribute) FlipSpriteHorizontally() bool {
-	return (byte(*s) & 0x40) == 0x40
+func (s spriteAttribute) FlipSpriteHorizontally() bool {
+	return (s & 0x40) == 0x40
 }
-func (s *spriteAttribute) FlipSpriteVertically() bool {
-	return (byte(*s) & 0x80) == 0x80
-}
-func (s *spriteAttribute) Byte() byte {
-	return byte(*s)
+func (s spriteAttribute) FlipSpriteVertically() bool {
+	return (s & 0x80) == 0x80
 }
 
 type spriteSlot struct {
@@ -41,7 +38,7 @@ func (s *spriteSlot) InRange(x int) bool {
 	return int(s.x) <= x && x < int(s.x)+8
 }
 
-func (s *spriteSlot) PixelPalette(x int) paletteForm {
+func (s *spriteSlot) PaletteAddr(x int) paletteAddr {
 	dx := x - int(s.x)
 	if s.attr.FlipSpriteHorizontally() {
 		dx = 7 - dx
@@ -49,7 +46,7 @@ func (s *spriteSlot) PixelPalette(x int) paletteForm {
 	hb := (s.hi & (1 << (7 - dx))) >> (7 - dx)
 	lb := (s.lo & (1 << (7 - dx))) >> (7 - dx)
 	p := (hb << 1) | lb
-	return newPaletteForm(true, s.attr.Palette(), p)
+	return newPaletteAddr(true, s.attr.PaletteNumber(), p)
 }
 
 /*

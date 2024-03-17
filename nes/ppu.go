@@ -123,21 +123,21 @@ func (bus *ppuBus) Write(addr uint16, val byte) {
 }
 
 type PPU struct {
-	bus          *ppuBus
-	paletteTable paletteRAM
-	ctrl         ppuControlRegister
-	mask         ppuMaskRegister
-	status       ppuStatusRegister
-	oamAddr      byte
-	readBuffer   byte   // internal read buffer
-	v            uint16 // VRAM address (15 bits)
-	t            uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
-	x            byte   // Fine X scroll (3 bits)
-	w            bool   // First or second write toggle (1 bit)
-	Scanline     int
-	Cycle        int
-	renderer     Renderer
-	f            byte // even/odd frame flag (1 bit)
+	bus        *ppuBus
+	paletteRAM paletteRAM
+	ctrl       ppuControlRegister
+	mask       ppuMaskRegister
+	status     ppuStatusRegister
+	oamAddr    byte
+	readBuffer byte   // internal read buffer
+	v          uint16 // VRAM address (15 bits)
+	t          uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
+	x          byte   // Fine X scroll (3 bits)
+	w          bool   // First or second write toggle (1 bit)
+	Scanline   int
+	Cycle      int
+	renderer   Renderer
+	oddFrame   byte // even/odd frame flag (1 bit)
 
 	// https://www.nesdev.org/wiki/Open_bus_behavior#PPU_open_bus
 	// > The PPU has two data buses: the I/O bus, used to communicate with the CPU, and the video memory bus.
@@ -163,16 +163,16 @@ type PPU struct {
 	copySpriteStateCycle  int
 
 	// background temp variables
-	nameTableByte      byte
-	attributeTableByte byte
-	backgroundLowByte  byte
-	backgroundHighByte byte
+	nameTableByte           byte
+	bgPaletteNumber         byte
+	bgPixelColorIndexLSBits byte
+	bgPixelColorIndexMSBits byte
 	// shift register
 	// curr = higher bit =  >>15
-	backgroundLowShiftRegister  uint16
-	backgroundHighShiftRegister uint16
-	attributeLowShiftRegister   uint16
-	attributeHighShiftRegister  uint16
+	bgPixelColorIndexLSBitsSR uint16
+	bgPixelColorIndexMSBitsSR uint16
+	bgPaletteNumberLSBitsSR   uint16
+	bgPaletteNumberMSBitsSR   uint16
 
 	nmiLine *interruptLine
 
@@ -214,7 +214,7 @@ func (ppu *PPU) readData(addr uint16) (result byte, isPalette bool, busData byte
 	busData = ppu.bus.Read(addr)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
-		return ppu.paletteTable.Read(paletteForm(addr % 0x20)), true, busData
+		return ppu.paletteRAM.Read(paletteAddr(addr)), true, busData
 	} else {
 		return busData, false, busData
 	}
@@ -225,7 +225,7 @@ func (ppu *PPU) writeData(addr uint16, val byte) {
 	ppu.bus.Write(addr, val)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
-		ppu.paletteTable.Write(paletteForm(addr%0x20), val)
+		ppu.paletteRAM.Write(paletteAddr(addr), val)
 	}
 }
 
@@ -486,7 +486,7 @@ func (ppu *PPU) peekPPUData() byte {
 		// ppu_open_bus/readme.txt
 		// D = openbus bit
 		// DD-- ----   palette
-		return (ppu.iobus.get(ppu.Clock) & 0xC0) | (ppu.paletteTable.Read(paletteForm(addr%0x20)) & 0x3F)
+		return (ppu.iobus.get(ppu.Clock) & 0xC0) | (ppu.paletteRAM.Read(paletteAddr(addr)) & 0x3F)
 	default:
 		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
 	}
@@ -561,23 +561,23 @@ func (ppu *PPU) incrementY() {
 	ppu.v = v
 }
 
-func (ppu *PPU) fetchNTByte() {
+func (ppu *PPU) fetchNT() {
 	v := ppu.v
 	addr := 0x2000 | (v & 0x0FFF)
 	ppu.nameTableByte, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchATByte() {
+func (ppu *PPU) fetchAT() {
 	v := ppu.v
 	addr := 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
 	b, _, _ := ppu.readData(addr)
 	//
 	// b
 	// 7654 3210
-	// |||| ||++ - Color bits 3-2 for top left quadrant of this byte
+	// |||| ||++ - Color bits 1-0 for top left quadrant of this byte
 	// |||| ++-- - Color bits 3-2 for top right quadrant of this byte
-	// ||++----- - Color bits 3-2 for bottom left quadrant of this byte
-	// ++------- - Color bits 3-2 for bottom right quadrant of this byte
+	// ||++----- - Color bits 5-4 for bottom left quadrant of this byte
+	// ++------- - Color bits 7-6 for bottom right quadrant of this byte
 
 	// coarse X,Y は画面全体から見たTile(8x8 pixel)のindexを表す
 	// Goal: coarse X,Y の情報から、マッピングされる属性テーブルの1byte中の2bitを求めること (その2bitはpallete numberに相当する)
@@ -586,22 +586,21 @@ func (ppu *PPU) fetchATByte() {
 	// そして属性テーブルの1byte内の表現は上記bのことを指す
 	// 対象Tile(8x8)が、上左(16x16)、上右(16x16)、下左(16x16)、下右(16x16)のうち、いずれにマッピングされるかを導出する
 	// coarse X,Y の値から、4つに面に対応する2bit毎の位置(shift区切り)を算出するときに、bitテクニックを使うと以下のようになる
+
 	shift := ((v >> 4) & 4) | (v & 2)
-	// Byteという文字がよくない、既に正確な位置は求めてるので、単にattributeTableで良い？...いやぁ、もう少し細かい
-	// shift & 0x3 した時点で、意味が異なっている。パレットテーブルの情報では？？？？ => Palette Attribute
-	ppu.attributeTableByte = (b >> shift) & 0x3
+	ppu.bgPaletteNumber = (b >> shift) & 0x3
 }
 
-func (ppu *PPU) fetchBGLowByte() {
+func (ppu *PPU) fetchBGLSBits() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
-	ppu.backgroundLowByte, _, _ = ppu.readData(addr)
+	ppu.bgPixelColorIndexLSBits, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchBGHighByte() {
+func (ppu *PPU) fetchBGMSBits() {
 	fineY := (ppu.v >> 12) & 7
 	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
-	ppu.backgroundHighByte, _, _ = ppu.readData(addr + 8)
+	ppu.bgPixelColorIndexMSBits, _, _ = ppu.readData(addr + 8)
 }
 
 func (ppu *PPU) fetchSpriteForNextScanline() {
@@ -758,48 +757,46 @@ func (ppu *PPU) isRenderingEnabled() bool {
 	return ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
 }
 
-func (ppu *PPU) loadNextBackgroundPixelData() {
-	ppu.backgroundHighShiftRegister |= uint16(ppu.backgroundHighByte)
-	ppu.backgroundLowShiftRegister |= uint16(ppu.backgroundLowByte)
-	if ppu.attributeTableByte&0x2 == 0x2 {
-		ppu.attributeHighShiftRegister |= 0xFF
+func (ppu *PPU) loadNextBackgroundPaletteData() {
+	ppu.bgPixelColorIndexMSBitsSR |= uint16(ppu.bgPixelColorIndexMSBits)
+	ppu.bgPixelColorIndexLSBitsSR |= uint16(ppu.bgPixelColorIndexLSBits)
+	if ppu.bgPaletteNumber&0x2 == 0x2 {
+		ppu.bgPaletteNumberMSBitsSR |= 0xFF
 	}
-	if ppu.attributeTableByte&0x1 == 0x1 {
-		ppu.attributeLowShiftRegister |= 0xFF
+	if ppu.bgPaletteNumber&0x1 == 0x1 {
+		ppu.bgPaletteNumberLSBitsSR |= 0xFF
 	}
 }
 
-func (ppu *PPU) backgroundPixelPaletteAddr() paletteForm {
+func (ppu *PPU) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
 	if !ppu.mask.ShowBackground() {
-		return universalBGColorPalette
+		return universalBGColor
 	}
-	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
-		return universalBGColorPalette
+		return universalBGColor
 	}
 
-	talo := byte((ppu.attributeLowShiftRegister >> (15 - ppu.x)) & 0b1)
-	tahi := byte((ppu.attributeHighShiftRegister >> (15 - ppu.x)) & 0b1)
+	talo := byte((ppu.bgPaletteNumberLSBitsSR >> (15 - ppu.x)) & 0b1)
+	tahi := byte((ppu.bgPaletteNumberMSBitsSR >> (15 - ppu.x)) & 0b1)
 
-	ttlo := byte((ppu.backgroundLowShiftRegister >> (15 - ppu.x)) & 0b1)
-	tthi := byte((ppu.backgroundHighShiftRegister >> (15 - ppu.x)) & 0b1)
+	ttlo := byte((ppu.bgPixelColorIndexLSBitsSR >> (15 - ppu.x)) & 0b1)
+	tthi := byte((ppu.bgPixelColorIndexMSBitsSR >> (15 - ppu.x)) & 0b1)
 
-	return newPaletteForm(false, (tahi<<1)|talo, (tthi<<1)|ttlo)
+	return newPaletteAddr(false, (tahi<<1)|talo, (tthi<<1)|ttlo)
 }
 
-func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (paletteForm, int) {
+func (ppu *PPU) getCandidateSpritePaletteAddrAndSlotIndex(x int) (paletteAddr, int) {
 	if !ppu.mask.ShowSprites() {
-		return universalBGColorPalette, -1
+		return universalBGColor, -1
 	}
-	x := ppu.Cycle - 1
 	if x < 8 && !ppu.mask.ShowSpritesLeftMost8pxlScreen() {
-		return universalBGColorPalette, -1
+		return universalBGColor, -1
 	}
 	for i := 0; i < ppu.spriteFounds; i++ {
 		s := ppu.spriteSlots[i]
 		if s.InRange(x) {
-			p := s.PixelPalette(x)
-			if p.Pixel() == 0 {
+			p := s.PaletteAddr(x)
+			if p.PixelColorIndex() == 0 {
 				// transparent pixel
 				// https://www.nesdev.org/wiki/PPU_rendering#Preface
 				// > The current pixel for each "active" sprite is checked (from highest to lowest priority),
@@ -809,24 +806,23 @@ func (ppu *PPU) spritePixelPaletteAddrAndSlotIndex() (paletteForm, int) {
 			return p, i
 		}
 	}
-	return universalBGColorPalette, -1
+	return universalBGColor, -1
 }
 
-func (ppu *PPU) multiplexPixelPaletteAddr() paletteForm {
-	bp := ppu.backgroundPixelPaletteAddr()
-	sp, slotIdx := ppu.spritePixelPaletteAddrAndSlotIndex()
+func (ppu *PPU) multiplexPaletteAddr(x int) paletteAddr {
+	bp := ppu.getCandidateBackgroundPaletteAddr(x)
+	sp, slotIdx := ppu.getCandidateSpritePaletteAddrAndSlotIndex(x)
 
-	if bp.Pixel() == 0 && sp.Pixel() == 0 {
+	if bp.PixelColorIndex() == 0 && sp.PixelColorIndex() == 0 {
 		// 0x3F00, universal background color
-		return universalBGColorPalette
-	} else if bp.Pixel() == 0 && sp.Pixel() != 0 {
+		return universalBGColor
+	} else if bp.PixelColorIndex() == 0 && sp.PixelColorIndex() != 0 {
 		return sp
-	} else if bp.Pixel() != 0 && sp.Pixel() == 0 {
+	} else if bp.PixelColorIndex() != 0 && sp.PixelColorIndex() == 0 {
 		return bp
 	} else {
 		// bp != 0 && sp != 0
 		s := ppu.spriteSlots[slotIdx]
-		x := ppu.Cycle - 1
 
 		if x < 255 && s.idx == 0 {
 			ppu.status.SetSprite0Hit()
@@ -843,8 +839,8 @@ func (ppu *PPU) renderPixel() {
 	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	y := ppu.Scanline
 
-	addr := ppu.multiplexPixelPaletteAddr()
-	c := Palette[ppu.paletteTable.Read(addr)%64]
+	addr := ppu.multiplexPaletteAddr(x)
+	c := Palette[ppu.paletteRAM.Read(addr)%64]
 	ppu.renderer.Render(x, y, c)
 }
 
@@ -853,7 +849,7 @@ func (ppu *PPU) Step() {
 	ppu.Clock++
 
 	if ppu.isRenderingEnabled() {
-		if ppu.f == 1 && ppu.isPreLine() && ppu.Cycle == 339 {
+		if ppu.oddFrame == 1 && ppu.isPreLine() && ppu.Cycle == 339 {
 			// skip 1 cycle
 			ppu.Cycle = 340
 		}
@@ -866,7 +862,7 @@ func (ppu *PPU) Step() {
 		if ppu.Scanline > 261 {
 			ppu.Scanline = 0
 			ppu.suppressVBlankFlag = false
-			ppu.f ^= 1
+			ppu.oddFrame ^= 1
 		}
 	}
 
@@ -878,15 +874,15 @@ func (ppu *PPU) Step() {
 	// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
 		// shift
-		ppu.attributeHighShiftRegister <<= 1
-		ppu.attributeLowShiftRegister <<= 1
-		ppu.backgroundHighShiftRegister <<= 1
-		ppu.backgroundLowShiftRegister <<= 1
+		ppu.bgPaletteNumberMSBitsSR <<= 1
+		ppu.bgPaletteNumberLSBitsSR <<= 1
+		ppu.bgPixelColorIndexMSBitsSR <<= 1
+		ppu.bgPixelColorIndexLSBitsSR <<= 1
 	}
 	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 	// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
-		ppu.loadNextBackgroundPixelData()
+		ppu.loadNextBackgroundPaletteData()
 	}
 	// The screen draws regardless of the PPU rendering mode
 	if ppu.isVisibleScanlines() && visibleCycle {
@@ -894,14 +890,14 @@ func (ppu *PPU) Step() {
 	}
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && fetchCycle {
 		switch ppu.Cycle % 8 {
-		case 1:
-			ppu.fetchNTByte()
-		case 3:
-			ppu.fetchATByte()
-		case 5:
-			ppu.fetchBGLowByte()
-		case 7:
-			ppu.fetchBGHighByte()
+		case 2:
+			ppu.fetchNT()
+		case 4:
+			ppu.fetchAT()
+		case 6:
+			ppu.fetchBGLSBits()
+		case 0:
+			ppu.fetchBGMSBits()
 		}
 	}
 
@@ -938,37 +934,34 @@ func (ppu *PPU) Step() {
 
 		if ppu.isRenderingEnabled() {
 			switch ppu.Cycle % 8 {
-			case 1:
+			case 2:
 				// garbage NT byte
-			case 3:
+			case 4:
 				// garbage AT byte
-			case 5:
+			case 6:
 				// fetch sprite pattern table low byte
 				// this process is included in fetchSpriteForNextScanline
-			case 7:
-				// fetch sprite pattern table high byte
-				// this process is included in fetchSpriteForNextScanline
 			case 0:
-				if ppu.isVisibleScanlines() {
-					ppu.fetchSpriteForNextScanline()
-				}
+				ppu.fetchSpriteForNextScanline()
 			}
 		}
 	}
 
-	if ppu.isRenderingEnabled() && ppu.isPreLine() && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
-		ppu.copyY()
-	}
-
-	if ppu.isRenderingEnabled() && ppu.isRenderLine() {
-		if fetchCycle && ppu.Cycle%8 == 0 {
-			ppu.incrementX()
+	// update vram register
+	if ppu.isRenderingEnabled() {
+		if ppu.isRenderLine() {
+			if fetchCycle && ppu.Cycle%8 == 0 {
+				ppu.incrementX()
+			}
+			if ppu.Cycle == 256 {
+				ppu.incrementY()
+			}
+			if ppu.Cycle == 257 {
+				ppu.copyX()
+			}
 		}
-		if ppu.Cycle == 256 {
-			ppu.incrementY()
-		}
-		if ppu.Cycle == 257 {
-			ppu.copyX()
+		if ppu.isPreLine() && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
+			ppu.copyY()
 		}
 	}
 
