@@ -7,7 +7,7 @@ import (
 	"image/color"
 	"os"
 	"runtime"
-	"time"
+	"sync"
 
 	"github.com/gordonklaus/portaudio"
 	"github.com/ichirin2501/rgnes/nes"
@@ -29,12 +29,14 @@ func main() {
 type renderer struct {
 	img  *image.RGBA
 	rimg *rl.Image
+	mu   *sync.Mutex
 }
 
 func newRenderer(img *image.RGBA) *renderer {
 	return &renderer{
 		img:  img,
 		rimg: rl.NewImageFromImage(img),
+		mu:   &sync.Mutex{},
 	}
 }
 
@@ -42,7 +44,11 @@ func (r *renderer) Render(x, y int, c color.Color) {
 	r.img.Set(x, y, c)
 }
 func (r *renderer) Refresh() {
-	r.rimg = rl.NewImageFromImage(r.img)
+	tmp := rl.NewImageFromImage(r.img)
+	r.mu.Lock()
+	rl.UnloadImage(r.rimg)
+	r.rimg = tmp
+	r.mu.Unlock()
 }
 
 // ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
@@ -115,9 +121,6 @@ func realMain() error {
 	flag.IntVar(&scale, "scale", 2, "window scale size")
 	flag.Parse()
 
-	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
-	renderer := newRenderer(img)
-
 	f, err := os.Open(rom)
 	if err != nil {
 		return err
@@ -140,13 +143,9 @@ func realMain() error {
 	}
 	defer player.Stop()
 
+	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	renderer := newRenderer(img)
 	n := nes.New(mapper, renderer, player)
-
-	go func() {
-		time.Sleep(2 * time.Second)
-		n.PowerUp()
-		n.Run()
-	}()
 
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.InitWindow(256*int32(scale), 240*int32(scale), "rgnes")
@@ -157,8 +156,15 @@ func realMain() error {
 
 	rl.SetTargetFPS(60)
 
+	go func() {
+		n.PowerUp()
+		n.Run()
+	}()
+
 	for !rl.WindowShouldClose() {
+		renderer.mu.Lock()
 		newTexture := rl.LoadTextureFromImage(renderer.rimg)
+		renderer.mu.Unlock()
 		rl.UnloadTexture(texture)
 		texture = newTexture
 
