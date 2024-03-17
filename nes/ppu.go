@@ -167,12 +167,16 @@ type PPU struct {
 	bgPaletteNumber         byte
 	bgPixelColorIndexLSBits byte
 	bgPixelColorIndexMSBits byte
-	// shift register
+	// 16 bits shift register
 	// curr = higher bit =  >>15
 	bgPixelColorIndexLSBitsSR uint16
 	bgPixelColorIndexMSBitsSR uint16
-	bgPaletteNumberLSBitsSR   uint16
-	bgPaletteNumberMSBitsSR   uint16
+	// 8 bits shift register and latch
+	// curr = higher bit =  >>7
+	bgPaletteNumberLSBitsSR byte
+	bgPaletteNumberMSBitsSR byte
+	bgPaletteNumberLSBLatch byte
+	bgPaletteNumberMSBLatch byte
 
 	nmiLine *interruptLine
 
@@ -760,12 +764,8 @@ func (ppu *PPU) isRenderingEnabled() bool {
 func (ppu *PPU) loadNextBackgroundPaletteData() {
 	ppu.bgPixelColorIndexMSBitsSR |= uint16(ppu.bgPixelColorIndexMSBits)
 	ppu.bgPixelColorIndexLSBitsSR |= uint16(ppu.bgPixelColorIndexLSBits)
-	if ppu.bgPaletteNumber&0x2 == 0x2 {
-		ppu.bgPaletteNumberMSBitsSR |= 0xFF
-	}
-	if ppu.bgPaletteNumber&0x1 == 0x1 {
-		ppu.bgPaletteNumberLSBitsSR |= 0xFF
-	}
+	ppu.bgPaletteNumberLSBLatch = ppu.bgPaletteNumber & 0b1
+	ppu.bgPaletteNumberMSBLatch = (ppu.bgPaletteNumber >> 1) & 0b1
 }
 
 func (ppu *PPU) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
@@ -776,8 +776,8 @@ func (ppu *PPU) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
 		return universalBGColor
 	}
 
-	talo := byte((ppu.bgPaletteNumberLSBitsSR >> (15 - ppu.x)) & 0b1)
-	tahi := byte((ppu.bgPaletteNumberMSBitsSR >> (15 - ppu.x)) & 0b1)
+	talo := byte((ppu.bgPaletteNumberLSBitsSR >> (7 - ppu.x)) & 0b1)
+	tahi := byte((ppu.bgPaletteNumberMSBitsSR >> (7 - ppu.x)) & 0b1)
 
 	ttlo := byte((ppu.bgPixelColorIndexLSBitsSR >> (15 - ppu.x)) & 0b1)
 	tthi := byte((ppu.bgPixelColorIndexMSBitsSR >> (15 - ppu.x)) & 0b1)
@@ -874,8 +874,8 @@ func (ppu *PPU) Step() {
 	// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
 		// shift
-		ppu.bgPaletteNumberMSBitsSR <<= 1
-		ppu.bgPaletteNumberLSBitsSR <<= 1
+		ppu.bgPaletteNumberMSBitsSR = (ppu.bgPaletteNumberMSBitsSR << 1) | ppu.bgPaletteNumberMSBLatch
+		ppu.bgPaletteNumberLSBitsSR = (ppu.bgPaletteNumberLSBitsSR << 1) | ppu.bgPaletteNumberLSBLatch
 		ppu.bgPixelColorIndexMSBitsSR <<= 1
 		ppu.bgPixelColorIndexLSBitsSR <<= 1
 	}
