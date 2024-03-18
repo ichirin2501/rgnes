@@ -7,15 +7,12 @@ import (
 	"image/color"
 	"os"
 	"runtime"
-	"time"
+	"sync"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/gordonklaus/portaudio"
 	"github.com/ichirin2501/rgnes/nes"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 func init() {
@@ -30,22 +27,44 @@ func main() {
 }
 
 type renderer struct {
-	fyne.Window
-	img *canvas.Image
+	evenImg  *image.RGBA
+	oddImg   *image.RGBA
+	oddFrame bool
+	mu       *sync.Mutex
 }
 
-func newRenderer(win fyne.Window, img *canvas.Image) *renderer {
+func newRenderer(evenImg, oddImg *image.RGBA) *renderer {
 	return &renderer{
-		Window: win,
-		img:    img,
+		evenImg: evenImg,
+		oddImg:  oddImg,
+		mu:      &sync.Mutex{},
 	}
 }
 
 func (r *renderer) Render(x, y int, c color.Color) {
-	r.img.Image.(*image.RGBA).Set(x, y, c)
+	if r.oddFrame {
+		r.oddImg.Set(x, y, c)
+	} else {
+		r.evenImg.Set(x, y, c)
+	}
 }
 func (r *renderer) Refresh() {
-	r.img.Refresh()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.oddFrame {
+		r.oddFrame = false
+	} else {
+		r.oddFrame = true
+	}
+}
+func (r *renderer) CurerntImage() *rl.Image {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.oddFrame {
+		return rl.NewImageFromImage(r.oddImg)
+	} else {
+		return rl.NewImageFromImage(r.evenImg)
+	}
 }
 
 // ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
@@ -111,19 +130,12 @@ func (p *Player) SampleRate() float64 {
 
 func realMain() error {
 	var (
-		rom string
+		rom   string
+		scale int
 	)
 	flag.StringVar(&rom, "rom", "", "rome filepath")
+	flag.IntVar(&scale, "scale", 2, "window scale size")
 	flag.Parse()
-
-	myapp := app.New()
-	win := myapp.NewWindow("rgnes")
-	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
-	canvasImg := canvas.NewImageFromImage(img)
-	canvasImg.SetMinSize(fyne.NewSize(256*2, 240*2))
-	canvasImg.ScaleMode = canvas.ImageScalePixels
-	win.SetContent(container.NewStack(canvasImg))
-	renderer := newRenderer(win, canvasImg)
 
 	f, err := os.Open(rom)
 	if err != nil {
@@ -147,52 +159,91 @@ func realMain() error {
 	}
 	defer player.Stop()
 
+	evenImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	oddImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	renderer := newRenderer(evenImg, oddImg)
 	n := nes.New(mapper, renderer, player)
 
-	if deskCanvas, ok := win.Canvas().(desktop.Canvas); ok {
-		deskCanvas.SetOnKeyDown(func(k *fyne.KeyEvent) {
-			updateKey(n, k.Name, true)
-		})
-		deskCanvas.SetOnKeyUp(func(k *fyne.KeyEvent) {
-			updateKey(n, k.Name, false)
-		})
-	}
+	rl.SetTraceLogLevel(rl.LogWarning)
+	rl.InitWindow(256*int32(scale), 240*int32(scale), "rgnes")
+	defer rl.CloseWindow()
+
+	currImg := renderer.CurerntImage()
+	texture := rl.LoadTextureFromImage(currImg)
+	defer rl.UnloadTexture(texture)
+	rl.UnloadImage(currImg)
+
+	rl.SetTargetFPS(60)
 
 	go func() {
-		defer win.Close()
-		// win.ShowAndRun() is required to run in the main thread, but a data race occurs during initialization within ShowAndRun().
-		// So so wait a little while.
-		time.Sleep(2 * time.Second)
 		n.PowerUp()
 		n.Run()
 	}()
 
-	win.ShowAndRun()
+	for !rl.WindowShouldClose() {
+		rl.UnloadTexture(texture)
+		currImg = renderer.CurerntImage()
+		newTexture := rl.LoadTextureFromImage(currImg)
+		rl.UnloadImage(currImg)
+		texture = newTexture
+
+		if rl.IsKeyDown(rl.KeyUp) {
+			n.SetButtonStatus(nes.ButtonUP, true)
+		}
+		if rl.IsKeyDown(rl.KeyDown) {
+			n.SetButtonStatus(nes.ButtonDown, true)
+		}
+		if rl.IsKeyDown(rl.KeyLeft) {
+			n.SetButtonStatus(nes.ButtonLeft, true)
+		}
+		if rl.IsKeyDown(rl.KeyRight) {
+			n.SetButtonStatus(nes.ButtonRight, true)
+		}
+		if rl.IsKeyDown(rl.KeySpace) {
+			n.SetButtonStatus(nes.ButtonSelect, true)
+		}
+		if rl.IsKeyDown(rl.KeyEnter) {
+			n.SetButtonStatus(nes.ButtonStart, true)
+		}
+		if rl.IsKeyDown(rl.KeyZ) {
+			n.SetButtonStatus(nes.ButtonA, true)
+		}
+		if rl.IsKeyDown(rl.KeyX) {
+			n.SetButtonStatus(nes.ButtonB, true)
+		}
+		// release
+		if rl.IsKeyReleased(rl.KeyUp) {
+			n.SetButtonStatus(nes.ButtonUP, false)
+		}
+		if rl.IsKeyReleased(rl.KeyDown) {
+			n.SetButtonStatus(nes.ButtonDown, false)
+		}
+		if rl.IsKeyReleased(rl.KeyLeft) {
+			n.SetButtonStatus(nes.ButtonLeft, false)
+		}
+		if rl.IsKeyReleased(rl.KeyRight) {
+			n.SetButtonStatus(nes.ButtonRight, false)
+		}
+		if rl.IsKeyReleased(rl.KeySpace) {
+			n.SetButtonStatus(nes.ButtonSelect, false)
+		}
+		if rl.IsKeyReleased(rl.KeyEnter) {
+			n.SetButtonStatus(nes.ButtonStart, false)
+		}
+		if rl.IsKeyReleased(rl.KeyZ) {
+			n.SetButtonStatus(nes.ButtonA, false)
+		}
+		if rl.IsKeyReleased(rl.KeyX) {
+			n.SetButtonStatus(nes.ButtonB, false)
+		}
+
+		rl.BeginDrawing()
+
+		rl.ClearBackground(rl.RayWhite)
+		rl.DrawTextureEx(texture, rl.NewVector2(0, 0), 0, float32(scale), rl.White)
+
+		rl.EndDrawing()
+	}
 
 	return nil
-}
-
-func updateKey(n *nes.NES, k fyne.KeyName, pressed bool) {
-	switch k {
-	case fyne.KeyEscape:
-		n.Close()
-	case fyne.KeyR:
-		n.Reset()
-	case fyne.KeySpace:
-		n.SetButtonStatus(nes.ButtonSelect, pressed)
-	case fyne.KeyReturn:
-		n.SetButtonStatus(nes.ButtonStart, pressed)
-	case fyne.KeyUp:
-		n.SetButtonStatus(nes.ButtonUP, pressed)
-	case fyne.KeyDown:
-		n.SetButtonStatus(nes.ButtonDown, pressed)
-	case fyne.KeyLeft:
-		n.SetButtonStatus(nes.ButtonLeft, pressed)
-	case fyne.KeyRight:
-		n.SetButtonStatus(nes.ButtonRight, pressed)
-	case fyne.KeyZ:
-		n.SetButtonStatus(nes.ButtonA, pressed)
-	case fyne.KeyX:
-		n.SetButtonStatus(nes.ButtonB, pressed)
-	}
 }
