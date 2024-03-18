@@ -27,28 +27,44 @@ func main() {
 }
 
 type renderer struct {
-	img  *image.RGBA
-	rimg *rl.Image
-	mu   *sync.Mutex
+	evenImg  *image.RGBA
+	oddImg   *image.RGBA
+	oddFrame bool
+	mu       *sync.Mutex
 }
 
-func newRenderer(img *image.RGBA) *renderer {
+func newRenderer(evenImg, oddImg *image.RGBA) *renderer {
 	return &renderer{
-		img:  img,
-		rimg: rl.NewImageFromImage(img),
-		mu:   &sync.Mutex{},
+		evenImg: evenImg,
+		oddImg:  oddImg,
+		mu:      &sync.Mutex{},
 	}
 }
 
 func (r *renderer) Render(x, y int, c color.Color) {
-	r.img.Set(x, y, c)
+	if r.oddFrame {
+		r.oddImg.Set(x, y, c)
+	} else {
+		r.evenImg.Set(x, y, c)
+	}
 }
 func (r *renderer) Refresh() {
-	tmp := rl.NewImageFromImage(r.img)
 	r.mu.Lock()
-	rl.UnloadImage(r.rimg)
-	r.rimg = tmp
-	r.mu.Unlock()
+	defer r.mu.Unlock()
+	if r.oddFrame {
+		r.oddFrame = false
+	} else {
+		r.oddFrame = true
+	}
+}
+func (r *renderer) CurerntImage() *rl.Image {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.oddFrame {
+		return rl.NewImageFromImage(r.oddImg)
+	} else {
+		return rl.NewImageFromImage(r.evenImg)
+	}
 }
 
 // ref: https://github.com/fogleman/nes/blob/3880f3400500b1ff2e89af4e12e90be46c73ae07/ui/audio.go#L5
@@ -143,16 +159,19 @@ func realMain() error {
 	}
 	defer player.Stop()
 
-	img := image.NewRGBA(image.Rect(0, 0, 256, 240))
-	renderer := newRenderer(img)
+	evenImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	oddImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	renderer := newRenderer(evenImg, oddImg)
 	n := nes.New(mapper, renderer, player)
 
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.InitWindow(256*int32(scale), 240*int32(scale), "rgnes")
 	defer rl.CloseWindow()
 
-	texture := rl.LoadTextureFromImage(renderer.rimg)
+	currImg := renderer.CurerntImage()
+	texture := rl.LoadTextureFromImage(currImg)
 	defer rl.UnloadTexture(texture)
+	rl.UnloadImage(currImg)
 
 	rl.SetTargetFPS(60)
 
@@ -162,10 +181,10 @@ func realMain() error {
 	}()
 
 	for !rl.WindowShouldClose() {
-		renderer.mu.Lock()
-		newTexture := rl.LoadTextureFromImage(renderer.rimg)
-		renderer.mu.Unlock()
 		rl.UnloadTexture(texture)
+		currImg = renderer.CurerntImage()
+		newTexture := rl.LoadTextureFromImage(currImg)
+		rl.UnloadImage(currImg)
 		texture = newTexture
 
 		if rl.IsKeyDown(rl.KeyUp) {

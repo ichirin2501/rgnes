@@ -2,7 +2,7 @@ FROM golang:1.21-bullseye
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --no-install-suggests \
-    gcc xorg-dev portaudio19-dev \
+    gcc portaudio19-dev \
     libgl1-mesa-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev libwayland-dev libxkbcommon-dev
 
 WORKDIR /work
