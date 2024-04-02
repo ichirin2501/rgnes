@@ -512,13 +512,6 @@ func (ppu *PPU) writePPUData(val byte) {
 	}
 }
 
-// writeOAMDMAByte is used $4014 from cpubus.
-// control cpu clock on cpubus side
-func (ppu *PPU) writeOAMDMAByte(val byte) {
-	ppu.primaryOAM[ppu.oamAddr] = val
-	ppu.oamAddr++
-}
-
 // // copyX() is `hori(v) = hori(t)` in NTSC PPU Frame Timing
 func (ppu *PPU) copyX() {
 	// v: .....F.. ...EDCBA = t: .....F.. ...EDCBA
@@ -617,6 +610,7 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			if y > 7 {
 				// eval時点で範囲内しか見ない&0xFFで初期化されるが、初期化途中でsprite&bgともにdisableされて前回の状態が残ることがある
 				// eval時点だけでなくこのfetchタイミングでも範囲内か確認して少なくとも場外のspriteは表示させないようにしておく
+				// As a result of fixing another bug, maybe there is no problem now?
 				return 0, 0, false
 			}
 			if sattr.FlipSpriteVertically() {
@@ -919,31 +913,29 @@ func (ppu *PPU) Step() {
 		}
 	}
 
-	// sprite fetch
-	if 257 <= ppu.Cycle && ppu.Cycle <= 320 && ppu.isRenderLine() {
+	if ppu.Cycle == 257 && ppu.isRenderLine() {
 		// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
 		// > Values during rendering
 		// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
-		if ppu.Cycle == 257 {
-			// init
-			if ppu.isRenderingEnabled() {
-				ppu.oamAddr = 0
-			}
-			ppu.spriteFounds = 0
-		}
-
+		// init
 		if ppu.isRenderingEnabled() {
-			switch ppu.Cycle % 8 {
-			case 2:
-				// garbage NT byte
-			case 4:
-				// garbage AT byte
-			case 6:
-				// fetch sprite pattern table low byte
-				// this process is included in fetchSpriteForNextScanline
-			case 0:
-				ppu.fetchSpriteForNextScanline()
-			}
+			ppu.oamAddr = 0
+		}
+		ppu.spriteFounds = 0
+	}
+
+	// sprite fetch
+	if ppu.isRenderingEnabled() && 257 <= ppu.Cycle && ppu.Cycle <= 320 && ppu.isVisibleScanlines() {
+		switch ppu.Cycle % 8 {
+		case 2:
+			// garbage NT byte
+		case 4:
+			// garbage AT byte
+		case 6:
+			// fetch sprite pattern table low byte
+			// this process is included in fetchSpriteForNextScanline
+		case 0:
+			ppu.fetchSpriteForNextScanline()
 		}
 	}
 

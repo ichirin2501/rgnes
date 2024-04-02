@@ -252,7 +252,7 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 				bus.dma.oamSaveState = OAMDMAWriteState
 				bus.dma.oamState = OAMDMAAlignmentState
 			} else {
-				bus.ppu.writeOAMDMAByte(bus.dma.oamTempByte)
+				bus.ppu.writeOAMData(bus.dma.oamTempByte)
 				bus.dma.oamCount++
 				if bus.dma.oamCount < 256 {
 					bus.dma.oamState = OAMDMAReadState
