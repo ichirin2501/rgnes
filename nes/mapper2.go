@@ -25,7 +25,7 @@ func (m *mapper2) Reset() {
 func (m *mapper2) Read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		return m.CHR[addr]
+		return m.readCHR(addr)
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper2 dont'h have PRG RAM
 		return 0
@@ -45,9 +45,9 @@ func (m *mapper2) Read(addr uint16) byte {
 func (m *mapper2) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		m.CHR[addr] = val
+		// mapper2 don't have CHR RAM
 	case 0x6000 <= addr && addr < 0x8000:
-		// mapper2 dont'h have PRG RAM
+		// mapper2 don't have PRG RAM
 	case 0x8000 <= addr && addr <= 0xFFFF:
 		// 7  bit  0
 		// ---- ----

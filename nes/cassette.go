@@ -29,15 +29,15 @@ func (m *MirroringType) IsFourScreen() bool {
 }
 
 type iNESHeader struct {
-	Magic   uint32
-	PRGSize byte
-	CHRSize byte
-	Flags6  byte // Mapper, mirroring, battery, trainer
-	Flags7  byte // Mapper, VS/Playchoice, NES 2.0
-	Flags8  byte // PRG-RAM size (rarely used extension)
-	Flags9  byte // TV system (rarely used extension)
-	Flags10 byte // TV system, PRG-RAM presence (unofficial, rarely used extension)
-	_       [5]byte
+	Magic      uint32
+	PRGROMSize byte // Size of PRG ROM in 16 KB units
+	CHRROMSize byte // Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
+	Flags6     byte // Mapper, mirroring, battery, trainer
+	Flags7     byte // Mapper, VS/Playchoice, NES 2.0
+	Flags8     byte // PRG-RAM size (rarely used extension)
+	Flags9     byte // TV system (rarely used extension)
+	Flags10    byte // TV system, PRG-RAM presence (unofficial, rarely used extension)
+	_          [5]byte
 }
 
 type Cassette struct {
@@ -45,6 +45,8 @@ type Cassette struct {
 	CHR    []byte
 	Mapper byte
 	Mirror MirroringType
+
+	chrROMSize byte
 }
 
 func NewCassette(r io.Reader) (*Cassette, error) {
@@ -79,16 +81,16 @@ func NewCassette(r io.Reader) (*Cassette, error) {
 
 	mapper := (header.Flags7 & 0xF0) | (header.Flags6&0xF0)>>4
 
-	prgRom := make([]byte, int(header.PRGSize)*programROMUnit)
+	prgRom := make([]byte, int(header.PRGROMSize)*programROMUnit)
 	if _, err := io.ReadFull(r, prgRom); err != nil {
 		return nil, err
 	}
 
-	chrRom := make([]byte, int(header.CHRSize)*characterROMUnit)
+	chrRom := make([]byte, int(header.CHRROMSize)*characterROMUnit)
 	if _, err := io.ReadFull(r, chrRom); err != nil {
 		return nil, err
 	}
-	if header.CHRSize == 0 {
+	if header.CHRROMSize == 0 {
 		chrRom = make([]byte, 8192)
 	}
 
@@ -97,9 +99,22 @@ func NewCassette(r io.Reader) (*Cassette, error) {
 		CHR:    chrRom,
 		Mapper: mapper,
 		Mirror: mirroringType,
+
+		chrROMSize: header.CHRROMSize,
 	}, nil
 }
 
 func (c *Cassette) MirroingType() MirroringType {
 	return c.Mirror
+}
+
+func (c *Cassette) readCHR(index uint16) byte {
+	return c.CHR[index]
+}
+
+func (c *Cassette) writeCHR(index uint16, val byte) {
+	if c.chrROMSize == 0 {
+		// CHR RAM
+		c.CHR[index] = val
+	}
 }

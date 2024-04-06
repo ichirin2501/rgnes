@@ -28,8 +28,8 @@ func (m *mapper3) Read(addr uint16) byte {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
 		// > PPU $0000-$1FFF: 8 KB switchable CHR ROM bank
-		index := int(m.chrBank)*0x2000 + int(addr)
-		return m.CHR[index]
+		index := uint16(m.chrBank)*0x2000 + uint16(addr)
+		return m.readCHR(index)
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper 3 don't have PRG RAM
 		// but, prepare RAM for automatic testing of ppu_read_buffer
