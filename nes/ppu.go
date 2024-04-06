@@ -193,6 +193,16 @@ func (ppu *PPU) FetchBuffer() byte {
 	return ppu.readBuffer
 }
 
+// https://www.nesdev.org/wiki/PPU_power_up_state
+// > Palette unspecified
+// But I will set the initial value expected by blargg_ppu_tests_2005.09.15b/power_up_palette.nes for now
+var powerupPaletteRAM = [32]byte{
+	0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D,
+	0x08, 0x10, 0x08, 0x24, 0x00, 0x00, 0x04, 0x2C,
+	0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14,
+	0x08, 0x3A, 0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
+}
+
 func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *interruptLine) *PPU {
 	ppu := &PPU{
 		bus: &ppuBus{
@@ -203,6 +213,9 @@ func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *int
 		renderer: renderer,
 		nmiLine:  nmiLine,
 	}
+
+	_ = copy(ppu.paletteRAM[:], powerupPaletteRAM[:])
+
 	// init
 	for i := 0; i < len(ppu.primaryOAM); i++ {
 		ppu.primaryOAM[i] = 0xFF
@@ -833,8 +846,21 @@ func (ppu *PPU) renderPixel() {
 	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
 	y := ppu.Scanline
 
-	addr := ppu.multiplexPaletteAddr(x)
-	c := Palette[ppu.paletteRAM.Read(addr)%64]
+	var c color.Color
+	if ppu.isRenderingEnabled() {
+		addr := ppu.multiplexPaletteAddr(x)
+		c = Palette[ppu.paletteRAM.Read(addr)%64]
+	} else {
+		// https://www.nesdev.org/wiki/PPU_rendering#Rendering_disabled
+		// > When the PPU isn't rendering, its v register specifies the current VRAM address (and is output on the PPU's address pins).
+		// > Whenever the low 14 bits of v point into palette RAM ($3F00-$3FFF), the PPU will continuously draw the color at that address instead of the EXT input,
+		// > overriding the backdrop color.
+		if (ppu.v & 0x3F00) == 0x3F00 {
+			c = Palette[ppu.paletteRAM.Read(paletteAddr(ppu.v))%64]
+		} else {
+			c = Palette[ppu.paletteRAM.Read(universalBGColor)%64]
+		}
+	}
 	ppu.renderer.Render(x, y, c)
 }
 

@@ -42,10 +42,10 @@ func (p *paletteRAM) Read(addr paletteAddr) byte {
 func (p *paletteRAM) Write(addr paletteAddr, val byte) {
 	addr %= 0x20
 	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
-		p[addr-0x10] = val
-	} else {
 		p[addr] = val
+		addr -= 0x10
 	}
+	p[addr] = val
 }
 
 /*
