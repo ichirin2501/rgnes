@@ -28,8 +28,8 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  processorStatus
 
-	nmiLine *interruptLine
-	irqLine *interruptLine
+	nmiLine *NMIInterruptLine
+	irqLine *IRQInterruptLine
 	bus     *CPUBus
 	t       *Trace
 	mu      *sync.Mutex
@@ -38,7 +38,7 @@ type CPU struct {
 	irqSignal    bool
 	nmiTriggered bool
 	nmiSignal    bool
-	prevNMILine  interruptLine
+	prevNMILine  NMIInterruptLine
 
 	pendingInterrupt pendingInterruptType
 
@@ -48,7 +48,7 @@ type CPU struct {
 	interrupting bool
 }
 
-func NewCPU(bus *CPUBus, nmiLine, irqLine *interruptLine, opts ...CPUOption) *CPU {
+func NewCPU(bus *CPUBus, nmiLine *NMIInterruptLine, irqLine *IRQInterruptLine, opts ...CPUOption) *CPU {
 	cpu := &CPU{
 		nmiLine: nmiLine,
 		irqLine: irqLine,

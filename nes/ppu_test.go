@@ -396,7 +396,7 @@ func Test_ReadStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			nmiLine := defaultInterruptLineState
+			nmiLine := NMIInterruptLine(0)
 			tt.ppu.nmiLine = &nmiLine
 
 			peek := tt.ppu.PeekRegister(0x2002)

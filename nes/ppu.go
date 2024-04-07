@@ -178,7 +178,7 @@ type PPU struct {
 	bgPaletteNumberLSBLatch byte
 	bgPaletteNumberMSBLatch byte
 
-	nmiLine *interruptLine
+	nmiLine *NMIInterruptLine
 
 	Clock int
 }
@@ -203,7 +203,7 @@ var powerupPaletteRAM = [32]byte{
 	0x08, 0x3A, 0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
 }
 
-func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *interruptLine) *PPU {
+func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *NMIInterruptLine) *PPU {
 	ppu := &PPU{
 		bus: &ppuBus{
 			ram:    newPPURAM(mirror),

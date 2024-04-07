@@ -13,8 +13,8 @@ type NES struct {
 }
 
 func New(mapper Mapper, renderer Renderer, player Player) *NES {
-	irqLine := defaultInterruptLineState
-	nmiLine := defaultInterruptLineState
+	irqLine := IRQInterruptLine(0)
+	nmiLine := NMIInterruptLine(0)
 	m := mapper.MirroingType()
 	dma := &DMA{}
 

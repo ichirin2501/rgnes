@@ -26,10 +26,10 @@ type dmc struct {
 	silenceFlag          bool
 	level                byte // 7 bit
 
-	irqLine *interruptLine
+	irqLine *IRQInterruptLine
 }
 
-func newDMC(dma *DMA, irqLine *interruptLine) *dmc {
+func newDMC(dma *DMA, irqLine *IRQInterruptLine) *dmc {
 	return &dmc{
 		sampleBuffer: make([]byte, 0, 1),
 		dma:          dma,
@@ -74,7 +74,7 @@ func (d *dmc) output() byte {
 
 func (d *dmc) clearInterruptFlag() {
 	d.interruptFlag = false
-	d.irqLine.SetHigh()
+	d.irqLine.SetHigh(IRQSourceDMC)
 }
 
 func (d *dmc) loadRate(rateIndex byte) {
@@ -102,7 +102,7 @@ func (d *dmc) setSampleBuffer(val byte) {
 				d.restart()
 			} else if d.irqEnabled {
 				d.interruptFlag = true
-				d.irqLine.SetLow()
+				d.irqLine.SetLow(IRQSourceDMC)
 			}
 		}
 	}

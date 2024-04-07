@@ -88,7 +88,7 @@ func Test_APU_TickFrameCounter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			irqLine := defaultInterruptLineState
+			irqLine := IRQInterruptLine(0)
 			apu := NewAPU(&irqLine, &fakePlayer{}, &DMA{})
 			apu.frameMode = tt.mode
 
