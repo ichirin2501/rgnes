@@ -187,6 +187,10 @@ func realMain() error {
 		rl.UnloadImage(currImg)
 		texture = newTexture
 
+		if rl.IsKeyDown(rl.KeyR) {
+			n.Reset()
+		}
+
 		if rl.IsKeyDown(rl.KeyUp) {
 			n.SetButtonStatus(nes.ButtonUP, true)
 		}

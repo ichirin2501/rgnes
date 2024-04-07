@@ -39,11 +39,13 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 func (n *NES) PowerUp() {
 	n.cpu.PowerUp()
 	n.apu.PowerUp()
+	n.ppu.PowerUp()
 }
 
 func (n *NES) Reset() {
 	n.cpu.Reset()
 	n.apu.Reset()
+	n.ppu.Reset()
 }
 
 func (n *NES) Step() {

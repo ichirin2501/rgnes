@@ -25,12 +25,15 @@ type dmc struct {
 	bitsRemainingCounter byte
 	silenceFlag          bool
 	level                byte // 7 bit
+
+	irqLine *interruptLine
 }
 
-func newDMC(dma *DMA) *dmc {
+func newDMC(dma *DMA, irqLine *interruptLine) *dmc {
 	return &dmc{
 		sampleBuffer: make([]byte, 0, 1),
 		dma:          dma,
+		irqLine:      irqLine,
 	}
 }
 
@@ -69,6 +72,11 @@ func (d *dmc) output() byte {
 	return d.level
 }
 
+func (d *dmc) clearInterruptFlag() {
+	d.interruptFlag = false
+	d.irqLine.SetHigh()
+}
+
 func (d *dmc) loadRate(rateIndex byte) {
 	// > The rate determines for how many CPU cycles happen between changes in the output level during automatic delta-encoded sample playback.
 	// The timer in this implementation works at a cycle of P+1 by default.
@@ -94,6 +102,7 @@ func (d *dmc) setSampleBuffer(val byte) {
 				d.restart()
 			} else if d.irqEnabled {
 				d.interruptFlag = true
+				d.irqLine.SetLow()
 			}
 		}
 	}

@@ -68,7 +68,7 @@ func NewAPU(irqLine *interruptLine, p Player, dma *DMA) *APU {
 		pulse2: newPulse(2),
 		tnd:    newTriangle(),
 		noise:  newNoise(),
-		dmc:    newDMC(dma),
+		dmc:    newDMC(dma, irqLine),
 
 		frameStep:          -1,
 		newFrameCounterVal: -1,
@@ -240,7 +240,7 @@ func (apu *APU) writeNoiseLength(val byte) {
 func (apu *APU) writeDMCController(val byte) {
 	apu.dmc.irqEnabled = (val & 0x80) == 0x80
 	if !apu.dmc.irqEnabled {
-		apu.dmc.interruptFlag = false
+		apu.dmc.clearInterruptFlag()
 	}
 	apu.dmc.loop = (val & 0x40) == 0x40
 	apu.dmc.loadRate(val & 0x0F)
@@ -326,7 +326,7 @@ func (apu *APU) PeekStatus() byte {
 // ---D NT21	Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
 func (apu *APU) writeStatus(val byte) {
 	apu.dmc.setEnabled((val & 0x10) == 0x10)
-	apu.dmc.interruptFlag = false
+	apu.dmc.clearInterruptFlag()
 	apu.noise.lc.setEnabled((val & 0x08) == 0x08)
 	apu.tnd.lc.setEnabled((val & 0x04) == 0x04)
 	apu.pulse2.lc.setEnabled((val & 0x02) == 0x02)

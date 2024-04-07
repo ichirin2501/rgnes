@@ -214,8 +214,6 @@ func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *int
 		nmiLine:  nmiLine,
 	}
 
-	_ = copy(ppu.paletteRAM[:], powerupPaletteRAM[:])
-
 	// init
 	for i := 0; i < len(ppu.primaryOAM); i++ {
 		ppu.primaryOAM[i] = 0xFF
@@ -224,6 +222,24 @@ func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *int
 		ppu.secondaryOAM[i] = 0xFF
 	}
 	return ppu
+}
+
+func (ppu *PPU) PowerUp() {
+	_ = copy(ppu.paletteRAM[:], powerupPaletteRAM[:])
+	ppu.status = ppuStatusRegister(0)
+	ppu.mask = ppuMaskRegister(0)
+	ppu.oamAddr = 0
+	ppu.w = false
+	ppu.readBuffer = 0
+	ppu.oddFrame = 0
+}
+
+func (ppu *PPU) Reset() {
+	ppu.status = ppuStatusRegister(0)
+	ppu.mask = ppuMaskRegister(0)
+	ppu.w = false
+	ppu.readBuffer = 0
+	ppu.oddFrame = 0
 }
 
 func (ppu *PPU) readData(addr uint16) (result byte, isPalette bool, busData byte) {

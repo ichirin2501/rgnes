@@ -47,7 +47,7 @@ func (m *mapper3) Read(addr uint16) byte {
 func (m *mapper3) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		// read only (for ppu_read_buffer test)
+		m.writeCHR(addr, val)
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper 3 don't have PRG RAM
 		// but, prepare RAM for automatic testing of ppu_read_buffer

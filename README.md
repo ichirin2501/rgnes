@@ -99,6 +99,7 @@ It's great because it's written so simple.
 | dmc_dma_during_read4 | dma_4016_read.nes | ❌ |
 | dmc_dma_during_read4 | double_2007_read.nes | ❌ |
 | dmc_dma_during_read4 | read_write_2007.nes | ✅ |
+| dpcmletterbox | dpcmletterbox.nes | ✅ |
 | instr_misc | 01-abs_x_wrap.nes | ✅ |
 | instr_misc | 02-branch_wrap.nes | ✅ |
 | instr_misc | 03-dummy_reads.nes | ✅ |
@@ -152,6 +153,7 @@ It's great because it's written so simple.
 | sprite_overflow_tests | 3.Timing.nes | ✅ |
 | sprite_overflow_tests | 4.Obscure.nes | ✅ |
 | sprite_overflow_tests | 5.Emulator.nes | ✅ |
+| square_timer_div2 | square_timer_div2.nes | ✅ |
 | vbl_nmi_timing | 1.frame_basics.nes | ✅ |
 | vbl_nmi_timing | 2.vbl_timing.nes | ✅ |
 | vbl_nmi_timing | 3.even_odd_frames.nes | ✅ |
@@ -169,6 +171,7 @@ It's great because it's written so simple.
 - [ｷﾞｺ猫でもわかるファミコンプログラミング](http://gikofami.fc2web.com/index.html)
 - [NES研究室](http://hp.vector.co.jp/authors/VA042397/nes/index.html)
 - [NES on FPGA](https://pgate1.at-ninja.jp/NES_on_FPGA/index.html)
+- [Index of /~ant/nes-tests](https://www.slack.net/~ant/nes-tests/)
 
 ## License
 rgnes is licensed under the MIT license

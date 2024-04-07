@@ -45,7 +45,8 @@ func (m *mapper2) Read(addr uint16) byte {
 func (m *mapper2) Write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr < 0x2000:
-		// mapper2 don't have CHR RAM
+		// mapper2 shouldn't have CHA RAM, but e.g.PCM.demo.wgraphics.nes needs CHR RAM, so I'll prepare it.
+		m.writeCHR(addr, val)
 	case 0x6000 <= addr && addr < 0x8000:
 		// mapper2 don't have PRG RAM
 	case 0x8000 <= addr && addr <= 0xFFFF:
