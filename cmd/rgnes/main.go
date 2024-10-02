@@ -71,11 +71,12 @@ func (r *renderer) CurerntImage() *rl.Image {
 type Player struct {
 	stream         *portaudio.Stream
 	sampleRate     float64
+	volume         float32
 	outputChannels int
 	channel        chan float32
 }
 
-func newPlayer() (*Player, error) {
+func newPlayer(volume float32) (*Player, error) {
 	host, err := portaudio.DefaultHostApi()
 	if err != nil {
 		return nil, err
@@ -85,6 +86,7 @@ func newPlayer() (*Player, error) {
 	p := Player{
 		sampleRate:     parameters.SampleRate,
 		outputChannels: parameters.Output.Channels,
+		volume:         volume,
 		// If this channel size is too large (e.g. 44100), the BGM will be delayed. Make the size not too big
 		channel: make(chan float32, 3000),
 	}
@@ -121,7 +123,7 @@ func (p *Player) Stop() error {
 }
 
 func (p *Player) Sample(v float32) {
-	p.channel <- v
+	p.channel <- v * p.volume
 }
 
 func (p *Player) SampleRate() float64 {
@@ -130,11 +132,13 @@ func (p *Player) SampleRate() float64 {
 
 func realMain() error {
 	var (
-		rom   string
-		scale int
+		rom    string
+		scale  int
+		volume float64
 	)
 	flag.StringVar(&rom, "rom", "", "rome filepath")
 	flag.IntVar(&scale, "scale", 2, "window scale size")
+	flag.Float64Var(&volume, "volume", 0.5, "volume scale size")
 	flag.Parse()
 
 	f, err := os.Open(rom)
@@ -150,7 +154,7 @@ func realMain() error {
 
 	portaudio.Initialize()
 	defer portaudio.Terminate()
-	player, nil := newPlayer()
+	player, nil := newPlayer(float32(volume))
 	if err != nil {
 		return err
 	}
