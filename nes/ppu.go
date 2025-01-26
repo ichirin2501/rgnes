@@ -66,11 +66,11 @@ func (m *ppuRAM) mirrorAddr(addr uint16) uint16 {
 	}
 }
 
-func (m *ppuRAM) Read(addr uint16) byte {
+func (m *ppuRAM) read(addr uint16) byte {
 	return m.ram[m.mirrorAddr(addr)]
 }
 
-func (m *ppuRAM) Write(addr uint16, val byte) {
+func (m *ppuRAM) write(addr uint16, val byte) {
 	m.ram[m.mirrorAddr(addr)] = val
 }
 
@@ -83,18 +83,18 @@ type ppuBus struct {
 	openbus uint16
 }
 
-func (bus *ppuBus) Read(addr uint16) byte {
+func (bus *ppuBus) read(addr uint16) byte {
 	res := byte(0)
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		res = bus.mapper.Read(addr)
 	case 0x2000 <= addr && addr <= 0x2FFF:
-		res = bus.ram.Read(addr)
+		res = bus.ram.read(addr)
 	case 0x3000 <= addr && addr <= 0x3FFF:
 		// Mirrors of $2000-$2FFF
 		// ref: https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
 		// > Simultaneously, the PPU also performs a normal read from the PPU memory at the specified address, "underneath" the palette data,
-		res = bus.ram.Read(addr - 0x1000)
+		res = bus.ram.read(addr - 0x1000)
 	default:
 		panic(fmt.Sprintf("read ppubus invalid addr = 0x%04x", addr))
 	}
@@ -102,15 +102,15 @@ func (bus *ppuBus) Read(addr uint16) byte {
 	return res
 }
 
-func (bus *ppuBus) Write(addr uint16, val byte) {
+func (bus *ppuBus) write(addr uint16, val byte) {
 	switch {
 	case 0x0000 <= addr && addr <= 0x1FFF:
 		bus.mapper.Write(addr, val)
 	case 0x2000 <= addr && addr <= 0x2FFF:
-		bus.ram.Write(addr, val)
+		bus.ram.write(addr, val)
 	case 0x3000 <= addr && addr <= 0x3EFF:
 		// Mirrors of $2000-$2EFF
-		bus.ram.Write(addr-0x1000, val)
+		bus.ram.write(addr-0x1000, val)
 	case 0x3F00 <= addr && addr <= 0x3FFF:
 		// nothing
 		// https://www.nesdev.org/wiki/PPU_pinout
@@ -122,7 +122,7 @@ func (bus *ppuBus) Write(addr uint16, val byte) {
 	bus.openbus = (addr & 0x3F00) | uint16(val)
 }
 
-type PPU struct {
+type ppu struct {
 	bus        *ppuBus
 	paletteRAM paletteRAM
 	ctrl       ppuControlRegister
@@ -134,8 +134,8 @@ type PPU struct {
 	t          uint16 // Temporary VRAM address (15 bits); can also be thought of as the address of the top left onscreen tile.
 	x          byte   // Fine X scroll (3 bits)
 	w          bool   // First or second write toggle (1 bit)
-	Scanline   int
-	Cycle      int
+	scanline   int
+	cycle      int
 	renderer   Renderer
 	oddFrame   byte // even/odd frame flag (1 bit)
 
@@ -158,7 +158,7 @@ type PPU struct {
 
 	primaryOAMIndex       int
 	secondaryOAMIndex     int
-	spriteEvaluationState SpriteEvaluationState
+	spriteEvaluationState spriteEvaluationState
 	oamMIdx               int
 	copySpriteStateCycle  int
 
@@ -178,18 +178,18 @@ type PPU struct {
 	bgPaletteNumberLSBLatch byte
 	bgPaletteNumberMSBLatch byte
 
-	nmiLine *NMIInterruptLine
+	nmiLine *nmiInterruptLine
 
-	Clock int
+	clock int
 }
 
-func (ppu *PPU) FetchVBlankStarted() bool {
-	return ppu.status.VBlankStarted()
+func (ppu *ppu) FetchVBlankStarted() bool {
+	return ppu.status.vblankStarted()
 }
-func (ppu *PPU) FetchV() uint16 {
+func (ppu *ppu) FetchV() uint16 {
 	return ppu.v
 }
-func (ppu *PPU) FetchBuffer() byte {
+func (ppu *ppu) FetchBuffer() byte {
 	return ppu.readBuffer
 }
 
@@ -203,13 +203,13 @@ var powerupPaletteRAM = [32]byte{
 	0x08, 0x3A, 0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
 }
 
-func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *NMIInterruptLine) *PPU {
-	ppu := &PPU{
+func newPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *nmiInterruptLine) *ppu {
+	ppu := &ppu{
 		bus: &ppuBus{
 			ram:    newPPURAM(mirror),
 			mapper: mapper,
 		},
-		Cycle:    -1,
+		cycle:    -1,
 		renderer: renderer,
 		nmiLine:  nmiLine,
 	}
@@ -224,7 +224,7 @@ func NewPPU(renderer Renderer, mapper Mapper, mirror MirroringType, nmiLine *NMI
 	return ppu
 }
 
-func (ppu *PPU) PowerUp() {
+func (ppu *ppu) powerUp() {
 	_ = copy(ppu.paletteRAM[:], powerupPaletteRAM[:])
 	ppu.status = ppuStatusRegister(0)
 	ppu.mask = ppuMaskRegister(0)
@@ -234,7 +234,7 @@ func (ppu *PPU) PowerUp() {
 	ppu.oddFrame = 0
 }
 
-func (ppu *PPU) Reset() {
+func (ppu *ppu) reset() {
 	ppu.status = ppuStatusRegister(0)
 	ppu.mask = ppuMaskRegister(0)
 	ppu.w = false
@@ -242,9 +242,9 @@ func (ppu *PPU) Reset() {
 	ppu.oddFrame = 0
 }
 
-func (ppu *PPU) readData(addr uint16) (result byte, isPalette bool, busData byte) {
+func (ppu *ppu) readData(addr uint16) (result byte, isPalette bool, busData byte) {
 	addr &= 0x3FFF
-	busData = ppu.bus.Read(addr)
+	busData = ppu.bus.read(addr)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
 		return ppu.paletteRAM.Read(paletteAddr(addr)), true, busData
@@ -253,17 +253,17 @@ func (ppu *PPU) readData(addr uint16) (result byte, isPalette bool, busData byte
 	}
 }
 
-func (ppu *PPU) writeData(addr uint16, val byte) {
+func (ppu *ppu) writeData(addr uint16, val byte) {
 	addr &= 0x3FFF
-	ppu.bus.Write(addr, val)
+	ppu.bus.write(addr, val)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
 		ppu.paletteRAM.Write(paletteAddr(addr), val)
 	}
 }
 
-// ReadRegister is called from CPU Memory Mapped I/O
-func (ppu *PPU) ReadRegister(addr uint16) byte {
+// readRegister is called from CPU Memory Mapped I/O
+func (ppu *ppu) readRegister(addr uint16) byte {
 	// https://www.nesdev.org/wiki/PPU_pinout
 	// > CPU A2-A0 are tied to the corresponding CPU address pins and select the PPU register (0-7).
 	switch addr & 0x07 {
@@ -276,13 +276,13 @@ func (ppu *PPU) ReadRegister(addr uint16) byte {
 		// https://www.nesdev.org/wiki/Open_bus_behavior
 		// > Reading the PPU's status port loads a value onto bits 7-5 of the bus, leaving the rest unchanged.
 		st := ppu.readStatus()
-		ppu.iobus.refresh(st, 0xE0, ppu.Clock)
+		ppu.iobus.refresh(st, 0xE0, ppu.clock)
 	case 3:
 		// $2003 OAMADDR write only
 	case 4:
 		// $2004 OAMDATA
 		d := ppu.readOAMData()
-		ppu.iobus.refresh(d, 0xFF, ppu.Clock)
+		ppu.iobus.refresh(d, 0xFF, ppu.clock)
 	case 5:
 		// $2005 PPUSCROLL write only
 	case 6:
@@ -297,9 +297,9 @@ func (ppu *PPU) ReadRegister(addr uint16) byte {
 			// ref: https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
 			// > The referenced 6-bit palette data is returned immediately instead of going to the internal read buffer,
 			// > and hence no priming read is required.
-			ppu.iobus.refresh(result, 0x3F, ppu.Clock)
+			ppu.iobus.refresh(result, 0x3F, ppu.clock)
 		} else {
-			ppu.iobus.refresh(ppu.readBuffer, 0xFF, ppu.Clock)
+			ppu.iobus.refresh(ppu.readBuffer, 0xFF, ppu.clock)
 		}
 		// The buffered value corresponds to bus read data, not palette data
 		ppu.readBuffer = busData
@@ -307,25 +307,25 @@ func (ppu *PPU) ReadRegister(addr uint16) byte {
 		panic("unreachable")
 	}
 
-	return ppu.iobus.get(ppu.Clock)
+	return ppu.iobus.get(ppu.clock)
 }
 
-func (ppu *PPU) PeekRegister(addr uint16) byte {
+func (ppu *ppu) peekRegister(addr uint16) byte {
 	switch addr & 0x07 {
 	case 0:
-		return ppu.iobus.get(ppu.Clock)
+		return ppu.iobus.get(ppu.clock)
 	case 1:
-		return ppu.iobus.get(ppu.Clock)
+		return ppu.iobus.get(ppu.clock)
 	case 2:
-		return (ppu.status.Get() & 0xE0) | (ppu.iobus.get(ppu.Clock) & 0x1F)
+		return (ppu.status.get() & 0xE0) | (ppu.iobus.get(ppu.clock) & 0x1F)
 	case 3:
-		return ppu.iobus.get(ppu.Clock)
+		return ppu.iobus.get(ppu.clock)
 	case 4:
 		return ppu.primaryOAM[ppu.oamAddr]
 	case 5:
-		return ppu.iobus.get(ppu.Clock)
+		return ppu.iobus.get(ppu.clock)
 	case 6:
-		return ppu.iobus.get(ppu.Clock)
+		return ppu.iobus.get(ppu.clock)
 	case 7:
 		return ppu.peekPPUData()
 	default:
@@ -333,9 +333,9 @@ func (ppu *PPU) PeekRegister(addr uint16) byte {
 	}
 }
 
-// WriteRegister is called from CPU Memory Mapped I/O
-func (ppu *PPU) WriteRegister(addr uint16, val byte) {
-	ppu.iobus.refresh(val, 0xFF, ppu.Clock)
+// writeRegister is called from CPU Memory Mapped I/O
+func (ppu *ppu) writeRegister(addr uint16, val byte) {
+	ppu.iobus.refresh(val, 0xFF, ppu.clock)
 	switch addr & 0x07 {
 	case 0:
 		ppu.writeController(val)
@@ -359,19 +359,19 @@ func (ppu *PPU) WriteRegister(addr uint16, val byte) {
 }
 
 // $2000: PPUCTRL
-func (ppu *PPU) writeController(val byte) {
-	beforeGeneratedVBlankNMI := ppu.ctrl.GenerateVBlankNMI()
+func (ppu *ppu) writeController(val byte) {
+	beforeGeneratedVBlankNMI := ppu.ctrl.generateVBlankNMI()
 	ppu.ctrl = ppuControlRegister(val)
 
 	// https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
 	// > If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1),
 	// > changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
-	if ppu.ctrl.GenerateVBlankNMI() && ppu.status.VBlankStarted() {
+	if ppu.ctrl.generateVBlankNMI() && ppu.status.vblankStarted() {
 		if !beforeGeneratedVBlankNMI {
-			ppu.nmiLine.SetLow()
+			ppu.nmiLine.setLow()
 		}
 	} else {
-		ppu.nmiLine.SetHigh()
+		ppu.nmiLine.setHigh()
 	}
 
 	// t: ...GH.. ........ <- d: ......GH
@@ -380,26 +380,26 @@ func (ppu *PPU) writeController(val byte) {
 }
 
 // $2001: PPUMASK
-func (ppu *PPU) writeMask(val byte) {
+func (ppu *ppu) writeMask(val byte) {
 	ppu.mask = ppuMaskRegister(val)
 }
 
 // $2002: PPUSTATUS
-func (ppu *PPU) readStatus() byte {
+func (ppu *ppu) readStatus() byte {
 	// https://www.nesdev.org/wiki/PPU_frame_timing#VBL_Flag_Timing
 	// > Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
 	// > Reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame.
 	// > Reading on the same PPU clock or one later reads it as set, clears it, and suppresses the NMI for that frame.
 	// > Reading two or more PPU clocks before/after it's set behaves normally (reads flag's value, clears it, and doesn't affect NMI operation).
 	var st byte
-	if ppu.Scanline == 241 && ppu.Cycle == 0 {
-		ppu.status.ClearVBlankStarted()
-		st = ppu.status.Get()
+	if ppu.scanline == 241 && ppu.cycle == 0 {
+		ppu.status.clearVBlankStarted()
+		st = ppu.status.get()
 		ppu.suppressVBlankFlag = true
 	} else {
-		st = ppu.status.Get()
-		ppu.status.ClearVBlankStarted()
-		ppu.nmiLine.SetHigh()
+		st = ppu.status.get()
+		ppu.status.clearVBlankStarted()
+		ppu.nmiLine.setHigh()
 	}
 
 	// w:                  <- 0
@@ -409,17 +409,17 @@ func (ppu *PPU) readStatus() byte {
 }
 
 // $2003: OAMADDR
-func (ppu *PPU) writeOAMAddr(val byte) {
+func (ppu *ppu) writeOAMAddr(val byte) {
 	ppu.oamAddr = val
 }
 
 // $2004: OAMDATA read
-func (ppu *PPU) readOAMData() byte {
+func (ppu *ppu) readOAMData() byte {
 	return ppu.primaryOAM[ppu.oamAddr]
 }
 
 // $2004: OAMDATA write
-func (ppu *PPU) writeOAMData(val byte) {
+func (ppu *ppu) writeOAMData(val byte) {
 	// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
 	// > Writes to OAMDATA during rendering (on the pre-render line and the visible lines 0-239, provided either sprite or background rendering is enabled) do not modify values in OAM
 	if !(ppu.isRenderLine() && ppu.isRenderingEnabled()) {
@@ -449,7 +449,7 @@ func (ppu *PPU) writeOAMData(val byte) {
 }
 
 // $2005: PPUSCROLL
-func (ppu *PPU) writeScroll(val byte) {
+func (ppu *ppu) writeScroll(val byte) {
 	if !ppu.w {
 		// first write
 		// t: ....... ...ABCDE <- d: ABCDE...
@@ -469,7 +469,7 @@ func (ppu *PPU) writeScroll(val byte) {
 }
 
 // $2006: PPUADDR
-func (ppu *PPU) writePPUAddr(val byte) {
+func (ppu *ppu) writePPUAddr(val byte) {
 	if !ppu.w {
 		// first write
 		// t: .CDEFGH ........ <- d: ..CDEFGH
@@ -490,7 +490,7 @@ func (ppu *PPU) writePPUAddr(val byte) {
 }
 
 // $2007: PPUDATA read
-func (ppu *PPU) readPPUData() (result byte, isPalette bool, busData byte) {
+func (ppu *ppu) readPPUData() (result byte, isPalette bool, busData byte) {
 	result, isPalette, busData = ppu.readData(ppu.v)
 
 	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
@@ -501,14 +501,14 @@ func (ppu *PPU) readPPUData() (result byte, isPalette bool, busData byte) {
 		ppu.incrementY()
 	} else {
 		// normal
-		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
+		ppu.v += uint16(ppu.ctrl.incrementalVRAMAddr())
 	}
 
 	return result, isPalette, busData
 }
 
 // peekPPUData is used for debugging
-func (ppu *PPU) peekPPUData() byte {
+func (ppu *ppu) peekPPUData() byte {
 	addr := ppu.v
 	addr &= 0x3FFF
 	switch {
@@ -519,14 +519,14 @@ func (ppu *PPU) peekPPUData() byte {
 		// ppu_open_bus/readme.txt
 		// D = openbus bit
 		// DD-- ----   palette
-		return (ppu.iobus.get(ppu.Clock) & 0xC0) | (ppu.paletteRAM.Read(paletteAddr(addr)) & 0x3F)
+		return (ppu.iobus.get(ppu.clock) & 0xC0) | (ppu.paletteRAM.Read(paletteAddr(addr)) & 0x3F)
 	default:
 		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
 	}
 }
 
 // $2007: PPUDATA write
-func (ppu *PPU) writePPUData(val byte) {
+func (ppu *ppu) writePPUData(val byte) {
 	ppu.writeData(ppu.v, val)
 
 	if ppu.isRenderLine() && ppu.isRenderingEnabled() {
@@ -537,25 +537,25 @@ func (ppu *PPU) writePPUData(val byte) {
 		ppu.incrementY()
 	} else {
 		// normal
-		ppu.v += uint16(ppu.ctrl.IncrementalVRAMAddr())
+		ppu.v += uint16(ppu.ctrl.incrementalVRAMAddr())
 	}
 }
 
 // // copyX() is `hori(v) = hori(t)` in NTSC PPU Frame Timing
-func (ppu *PPU) copyX() {
+func (ppu *ppu) copyX() {
 	// v: .....F.. ...EDCBA = t: .....F.. ...EDCBA
 	ppu.v = (ppu.v & 0xFBE0) | (ppu.t & 0x041F)
 }
 
 // // copyY() is `vert(v) = vert(t)` in NTSC PPU Frame Timing
-func (ppu *PPU) copyY() {
+func (ppu *ppu) copyY() {
 	// v: .IHGF.ED CBA..... = t: .IHGF.ED CBA.....
 	ppu.v = (ppu.v & 0x841F) | (ppu.t & 0x7BE0)
 }
 
 // incrementX() is `incr hori(v)` in NTSC PPU Frame Timing
 // Coarse X increment
-func (ppu *PPU) incrementX() {
+func (ppu *ppu) incrementX() {
 	v := ppu.v
 	if (v & 0x001F) == 31 {
 		v &= 0xFFE0
@@ -567,7 +567,7 @@ func (ppu *PPU) incrementX() {
 }
 
 // incrementY() is `incr vert(v)` in NTSC PPU Frame Timing
-func (ppu *PPU) incrementY() {
+func (ppu *ppu) incrementY() {
 	v := ppu.v
 	if (v & 0x7000) != 0x7000 {
 		v += 0x1000
@@ -587,13 +587,13 @@ func (ppu *PPU) incrementY() {
 	ppu.v = v
 }
 
-func (ppu *PPU) fetchNT() {
+func (ppu *ppu) fetchNT() {
 	v := ppu.v
 	addr := 0x2000 | (v & 0x0FFF)
 	ppu.nameTableByte, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchAT() {
+func (ppu *ppu) fetchAT() {
 	v := ppu.v
 	addr := 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
 	b, _, _ := ppu.readData(addr)
@@ -617,35 +617,35 @@ func (ppu *PPU) fetchAT() {
 	ppu.bgPaletteNumber = (b >> shift) & 0x3
 }
 
-func (ppu *PPU) fetchBGLSBits() {
+func (ppu *ppu) fetchBGLSBits() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
+	addr := ppu.ctrl.backgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.bgPixelColorIndexLSBits, _, _ = ppu.readData(addr)
 }
 
-func (ppu *PPU) fetchBGMSBits() {
+func (ppu *ppu) fetchBGMSBits() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.BackgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
+	addr := ppu.ctrl.backgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.bgPixelColorIndexMSBits, _, _ = ppu.readData(addr + 8)
 }
 
-func (ppu *PPU) fetchSpriteForNextScanline() {
+func (ppu *ppu) fetchSpriteForNextScanline() {
 	// called cycle: 264, 272, ..., 320
-	sidx := (ppu.Cycle - 264) / 8
+	sidx := (ppu.cycle - 264) / 8
 	sy, stile, sattr, sx := getSpriteFromOAM(ppu.secondaryOAM[:], byte(sidx))
 	lo, hi, ok := func() (byte, byte, bool) {
-		if ppu.ctrl.SpriteSize() == 8 {
-			y := uint16(ppu.Scanline) - uint16(sy)
+		if ppu.ctrl.spriteSize() == 8 {
+			y := uint16(ppu.scanline) - uint16(sy)
 			if y > 7 {
 				// eval時点で範囲内しか見ない&0xFFで初期化されるが、初期化途中でsprite&bgともにdisableされて前回の状態が残ることがある
 				// eval時点だけでなくこのfetchタイミングでも範囲内か確認して少なくとも場外のspriteは表示させないようにしておく
 				// As a result of fixing another bug, maybe there is no problem now?
 				return 0, 0, false
 			}
-			if sattr.FlipSpriteVertically() {
+			if sattr.flipSpriteVertically() {
 				y = 7 - y
 			}
-			addr := ppu.ctrl.SpritePatternAddr() | (uint16(stile) << 4) | y
+			addr := ppu.ctrl.spritePatternAddr() | (uint16(stile) << 4) | y
 			lo, _, _ := ppu.readData(addr)
 			hi, _, _ := ppu.readData(addr + 8)
 
@@ -656,11 +656,11 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 			// > For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number.
 			bankTile := (uint16(stile) & 0b1) * 0x1000
 			tileIndex := uint16(stile) & 0b11111110
-			y := uint16(ppu.Scanline) - uint16(sy)
+			y := uint16(ppu.scanline) - uint16(sy)
 			if y > 15 {
 				return 0, 0, false
 			}
-			if sattr.FlipSpriteVertically() {
+			if sattr.flipSpriteVertically() {
 				y = 15 - y
 			}
 			if y > 7 {
@@ -687,27 +687,27 @@ func (ppu *PPU) fetchSpriteForNextScanline() {
 	ppu.spriteFounds++
 }
 
-type SpriteEvaluationState byte
+type spriteEvaluationState byte
 
 const (
-	InitAndScanPrimaryOAMState SpriteEvaluationState = iota
-	ScanPrimaryOAMState
-	CopySpriteState
-	CheckSpriteOverflowState
-	DoneSpriteEvaluationState
+	initAndScanPrimaryOAMState spriteEvaluationState = iota
+	scanPrimaryOAMState
+	copySpriteState
+	checkSpriteOverflowState
+	doneSpriteEvaluationState
 )
 
-func (ppu *PPU) evalSpriteForNextScanline() {
+func (ppu *ppu) evalSpriteForNextScanline() {
 	switch ppu.spriteEvaluationState {
-	case InitAndScanPrimaryOAMState:
+	case initAndScanPrimaryOAMState:
 		ppu.primaryOAMIndex = 0
 		ppu.secondaryOAMIndex = 0
 		ppu.oamMIdx = 0
 		ppu.copySpriteStateCycle = -1
-		ppu.spriteEvaluationState = ScanPrimaryOAMState
+		ppu.spriteEvaluationState = scanPrimaryOAMState
 		fallthrough
-	case ScanPrimaryOAMState:
-		if ppu.Cycle%2 == 0 {
+	case scanPrimaryOAMState:
+		if ppu.cycle%2 == 0 {
 			// > On odd cycles, data is read from (primary) OAM
 			// > On even cycles, data is written to secondary OAM (unless secondary OAM is full, in which case it will read the value in secondary OAM instead)
 			// > 1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it to the next open slot in secondary OAM (unless 8 sprites have been found, in which case the write is ignored).
@@ -716,24 +716,24 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 			// Does not transition to this ScanPrimaryOAMState when 8 sprites are found
 			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+0] = y
 
-			d := ppu.ctrl.SpriteSize()
-			if uint(y) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y)+uint(d) {
-				ppu.spriteEvaluationState = CopySpriteState
+			d := ppu.ctrl.spriteSize()
+			if uint(y) <= uint(ppu.scanline) && uint(ppu.scanline) < uint(y)+uint(d) {
+				ppu.spriteEvaluationState = copySpriteState
 				// > 1a. If Y-coordinate is in range, copy remaining bytes of sprite data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
 				// It takes a total of 2 ppu cycles to read from primaryOAM(odd cycles) and write to secondaryOAM(even cycles).
 				// In other words, copying one sprite requires 8 ppu cycles. The remaining three copies will be completed after 6 ppu cycles
-				ppu.copySpriteStateCycle = ppu.Cycle + 6
+				ppu.copySpriteStateCycle = ppu.cycle + 6
 			} else {
 				ppu.primaryOAMIndex++
 				if ppu.primaryOAMIndex == 64 {
-					ppu.spriteEvaluationState = DoneSpriteEvaluationState
+					ppu.spriteEvaluationState = doneSpriteEvaluationState
 				} else {
-					ppu.spriteEvaluationState = ScanPrimaryOAMState
+					ppu.spriteEvaluationState = scanPrimaryOAMState
 				}
 			}
 		}
-	case CopySpriteState:
-		if ppu.Cycle == ppu.copySpriteStateCycle {
+	case copySpriteState:
+		if ppu.cycle == ppu.copySpriteStateCycle {
 			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+1] = ppu.primaryOAM[4*ppu.primaryOAMIndex+1]
 			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+2] = ppu.primaryOAM[4*ppu.primaryOAMIndex+2]
 			ppu.secondaryOAM[4*ppu.secondaryOAMIndex+3] = ppu.primaryOAM[4*ppu.primaryOAMIndex+3]
@@ -741,61 +741,61 @@ func (ppu *PPU) evalSpriteForNextScanline() {
 			ppu.secondaryOAMIndex++
 			ppu.primaryOAMIndex++
 			if ppu.primaryOAMIndex == 64 {
-				ppu.spriteEvaluationState = DoneSpriteEvaluationState
+				ppu.spriteEvaluationState = doneSpriteEvaluationState
 			} else if ppu.secondaryOAMIndex < 8 {
-				ppu.spriteEvaluationState = ScanPrimaryOAMState
+				ppu.spriteEvaluationState = scanPrimaryOAMState
 			} else if ppu.secondaryOAMIndex == 8 {
-				ppu.spriteEvaluationState = CheckSpriteOverflowState
+				ppu.spriteEvaluationState = checkSpriteOverflowState
 			}
 		}
-	case CheckSpriteOverflowState:
-		if ppu.Cycle%2 == 1 {
+	case checkSpriteOverflowState:
+		if ppu.cycle%2 == 1 {
 			y1 := ppu.primaryOAM[4*ppu.primaryOAMIndex+int(ppu.oamMIdx)]
-			d := ppu.ctrl.SpriteSize()
-			if uint(y1) <= uint(ppu.Scanline) && uint(ppu.Scanline) < uint(y1)+uint(d) {
-				ppu.status.SetSpriteOverflow()
-				ppu.spriteEvaluationState = DoneSpriteEvaluationState
+			d := ppu.ctrl.spriteSize()
+			if uint(y1) <= uint(ppu.scanline) && uint(ppu.scanline) < uint(y1)+uint(d) {
+				ppu.status.setSpriteOverflow()
+				ppu.spriteEvaluationState = doneSpriteEvaluationState
 			} else {
 				ppu.primaryOAMIndex++
 				ppu.oamMIdx = (ppu.oamMIdx + 1) % 4
 				if ppu.primaryOAMIndex == 64 {
-					ppu.spriteEvaluationState = DoneSpriteEvaluationState
+					ppu.spriteEvaluationState = doneSpriteEvaluationState
 				}
 			}
 		}
-	case DoneSpriteEvaluationState:
+	case doneSpriteEvaluationState:
 		// nothing
 	}
 }
 
-func (ppu *PPU) isRenderLine() bool {
+func (ppu *ppu) isRenderLine() bool {
 	return ppu.isPreLine() || ppu.isVisibleScanlines()
 }
 
-func (ppu *PPU) isVisibleScanlines() bool {
-	return ppu.Scanline < 240
+func (ppu *ppu) isVisibleScanlines() bool {
+	return ppu.scanline < 240
 }
 
-func (ppu *PPU) isPreLine() bool {
-	return ppu.Scanline == 261
+func (ppu *ppu) isPreLine() bool {
+	return ppu.scanline == 261
 }
 
-func (ppu *PPU) isRenderingEnabled() bool {
-	return ppu.mask.ShowBackground() || ppu.mask.ShowSprites()
+func (ppu *ppu) isRenderingEnabled() bool {
+	return ppu.mask.showBackground() || ppu.mask.showSprites()
 }
 
-func (ppu *PPU) loadNextBackgroundPaletteData() {
+func (ppu *ppu) loadNextBackgroundPaletteData() {
 	ppu.bgPixelColorIndexMSBitsSR |= uint16(ppu.bgPixelColorIndexMSBits)
 	ppu.bgPixelColorIndexLSBitsSR |= uint16(ppu.bgPixelColorIndexLSBits)
 	ppu.bgPaletteNumberLSBLatch = ppu.bgPaletteNumber & 0b1
 	ppu.bgPaletteNumberMSBLatch = (ppu.bgPaletteNumber >> 1) & 0b1
 }
 
-func (ppu *PPU) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
-	if !ppu.mask.ShowBackground() {
+func (ppu *ppu) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
+	if !ppu.mask.showBackground() {
 		return universalBGColor
 	}
-	if x < 8 && !ppu.mask.ShowBackgroundLeftMost8pxlScreen() {
+	if x < 8 && !ppu.mask.showBackgroundLeftMost8pxlScreen() {
 		return universalBGColor
 	}
 
@@ -808,18 +808,18 @@ func (ppu *PPU) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
 	return newPaletteAddr(false, (tahi<<1)|talo, (tthi<<1)|ttlo)
 }
 
-func (ppu *PPU) getCandidateSpritePaletteAddrAndSlotIndex(x int) (paletteAddr, int) {
-	if !ppu.mask.ShowSprites() {
+func (ppu *ppu) getCandidateSpritePaletteAddrAndSlotIndex(x int) (paletteAddr, int) {
+	if !ppu.mask.showSprites() {
 		return universalBGColor, -1
 	}
-	if x < 8 && !ppu.mask.ShowSpritesLeftMost8pxlScreen() {
+	if x < 8 && !ppu.mask.showSpritesLeftMost8pxlScreen() {
 		return universalBGColor, -1
 	}
 	for i := 0; i < ppu.spriteFounds; i++ {
 		s := ppu.spriteSlots[i]
-		if s.InRange(x) {
-			p := s.PaletteAddr(x)
-			if p.PixelColorIndex() == 0 {
+		if s.inRange(x) {
+			p := s.paletteAddr(x)
+			if p.pixelColorIndex() == 0 {
 				// transparent pixel
 				// https://www.nesdev.org/wiki/PPU_rendering#Preface
 				// > The current pixel for each "active" sprite is checked (from highest to lowest priority),
@@ -832,25 +832,25 @@ func (ppu *PPU) getCandidateSpritePaletteAddrAndSlotIndex(x int) (paletteAddr, i
 	return universalBGColor, -1
 }
 
-func (ppu *PPU) multiplexPaletteAddr(x int) paletteAddr {
+func (ppu *ppu) multiplexPaletteAddr(x int) paletteAddr {
 	bp := ppu.getCandidateBackgroundPaletteAddr(x)
 	sp, slotIdx := ppu.getCandidateSpritePaletteAddrAndSlotIndex(x)
 
-	if bp.PixelColorIndex() == 0 && sp.PixelColorIndex() == 0 {
+	if bp.pixelColorIndex() == 0 && sp.pixelColorIndex() == 0 {
 		// 0x3F00, universal background color
 		return universalBGColor
-	} else if bp.PixelColorIndex() == 0 && sp.PixelColorIndex() != 0 {
+	} else if bp.pixelColorIndex() == 0 && sp.pixelColorIndex() != 0 {
 		return sp
-	} else if bp.PixelColorIndex() != 0 && sp.PixelColorIndex() == 0 {
+	} else if bp.pixelColorIndex() != 0 && sp.pixelColorIndex() == 0 {
 		return bp
 	} else {
 		// bp != 0 && sp != 0
 		s := ppu.spriteSlots[slotIdx]
 
 		if x < 255 && s.idx == 0 {
-			ppu.status.SetSprite0Hit()
+			ppu.status.setSprite0Hit()
 		}
-		if s.attr.BehindBackground() {
+		if s.attr.behindBackground() {
 			return bp
 		} else {
 			return sp
@@ -858,57 +858,57 @@ func (ppu *PPU) multiplexPaletteAddr(x int) paletteAddr {
 	}
 }
 
-func (ppu *PPU) renderPixel() {
-	x := ppu.Cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
-	y := ppu.Scanline
+func (ppu *ppu) renderPixel() {
+	x := ppu.cycle - 1 // visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
+	y := ppu.scanline
 
 	var c color.Color
 	if ppu.isRenderingEnabled() {
 		addr := ppu.multiplexPaletteAddr(x)
-		c = Palette[ppu.paletteRAM.Read(addr)%64]
+		c = palette[ppu.paletteRAM.Read(addr)%64]
 	} else {
 		// https://www.nesdev.org/wiki/PPU_rendering#Rendering_disabled
 		// > When the PPU isn't rendering, its v register specifies the current VRAM address (and is output on the PPU's address pins).
 		// > Whenever the low 14 bits of v point into palette RAM ($3F00-$3FFF), the PPU will continuously draw the color at that address instead of the EXT input,
 		// > overriding the backdrop color.
 		if (ppu.v & 0x3F00) == 0x3F00 {
-			c = Palette[ppu.paletteRAM.Read(paletteAddr(ppu.v))%64]
+			c = palette[ppu.paletteRAM.Read(paletteAddr(ppu.v))%64]
 		} else {
-			c = Palette[ppu.paletteRAM.Read(universalBGColor)%64]
+			c = palette[ppu.paletteRAM.Read(universalBGColor)%64]
 		}
 	}
 	ppu.renderer.Render(x, y, c)
 }
 
 // ref: http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
-func (ppu *PPU) Step() {
-	ppu.Clock++
+func (ppu *ppu) step() {
+	ppu.clock++
 
 	if ppu.isRenderingEnabled() {
-		if ppu.oddFrame == 1 && ppu.isPreLine() && ppu.Cycle == 339 {
+		if ppu.oddFrame == 1 && ppu.isPreLine() && ppu.cycle == 339 {
 			// skip 1 cycle
-			ppu.Cycle = 340
+			ppu.cycle = 340
 		}
 	}
 
-	ppu.Cycle++
-	if ppu.Cycle > 340 {
-		ppu.Cycle = 0
-		ppu.Scanline++
-		if ppu.Scanline > 261 {
-			ppu.Scanline = 0
+	ppu.cycle++
+	if ppu.cycle > 340 {
+		ppu.cycle = 0
+		ppu.scanline++
+		if ppu.scanline > 261 {
+			ppu.scanline = 0
 			ppu.suppressVBlankFlag = false
 			ppu.oddFrame ^= 1
 		}
 	}
 
-	visibleCycle := ppu.Cycle >= 1 && ppu.Cycle <= 256
-	preFetchCycle := ppu.Cycle >= 321 && ppu.Cycle <= 336
+	visibleCycle := ppu.cycle >= 1 && ppu.cycle <= 256
+	preFetchCycle := ppu.cycle >= 321 && ppu.cycle <= 336
 	fetchCycle := preFetchCycle || visibleCycle
 
 	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 	// > The background shift registers shift during each of dots 2...257 and 322...337, inclusive.
-	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.Cycle && ppu.Cycle <= 257) || (322 <= ppu.Cycle && ppu.Cycle <= 337)) {
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((2 <= ppu.cycle && ppu.cycle <= 257) || (322 <= ppu.cycle && ppu.cycle <= 337)) {
 		// shift
 		ppu.bgPaletteNumberMSBitsSR = (ppu.bgPaletteNumberMSBitsSR << 1) | ppu.bgPaletteNumberMSBLatch
 		ppu.bgPaletteNumberLSBitsSR = (ppu.bgPaletteNumberLSBitsSR << 1) | ppu.bgPaletteNumberLSBLatch
@@ -917,7 +917,7 @@ func (ppu *PPU) Step() {
 	}
 	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 	// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
-	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.Cycle && ppu.Cycle <= 257 && ppu.Cycle%8 == 1) || (ppu.Cycle == 329 || ppu.Cycle == 337)) {
+	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.cycle && ppu.cycle <= 257 && ppu.cycle%8 == 1) || (ppu.cycle == 329 || ppu.cycle == 337)) {
 		ppu.loadNextBackgroundPaletteData()
 	}
 	// The screen draws regardless of the PPU rendering mode
@@ -925,7 +925,7 @@ func (ppu *PPU) Step() {
 		ppu.renderPixel()
 	}
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && fetchCycle {
-		switch ppu.Cycle % 8 {
+		switch ppu.cycle % 8 {
 		case 2:
 			ppu.fetchNT()
 		case 4:
@@ -938,24 +938,24 @@ func (ppu *PPU) Step() {
 	}
 
 	// secondary OAM clear
-	if ppu.isRenderingEnabled() && 1 <= ppu.Cycle && ppu.Cycle <= 64 && ppu.isVisibleScanlines() {
-		if ppu.Cycle%2 == 1 {
-			addr := ppu.Cycle / 2
+	if ppu.isRenderingEnabled() && 1 <= ppu.cycle && ppu.cycle <= 64 && ppu.isVisibleScanlines() {
+		if ppu.cycle%2 == 1 {
+			addr := ppu.cycle / 2
 			ppu.secondaryOAM[addr] = 0xFF
 		}
 	}
 
 	// sprite eval for next Scanline
-	if 65 <= ppu.Cycle && ppu.Cycle <= 256 && ppu.isVisibleScanlines() {
-		if ppu.Cycle == 65 {
-			ppu.spriteEvaluationState = InitAndScanPrimaryOAMState
+	if 65 <= ppu.cycle && ppu.cycle <= 256 && ppu.isVisibleScanlines() {
+		if ppu.cycle == 65 {
+			ppu.spriteEvaluationState = initAndScanPrimaryOAMState
 		}
 		if ppu.isRenderingEnabled() {
 			ppu.evalSpriteForNextScanline()
 		}
 	}
 
-	if ppu.Cycle == 257 && ppu.isRenderLine() {
+	if ppu.cycle == 257 && ppu.isRenderLine() {
 		// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
 		// > Values during rendering
 		// > OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible Scanlines.
@@ -967,8 +967,8 @@ func (ppu *PPU) Step() {
 	}
 
 	// sprite fetch
-	if ppu.isRenderingEnabled() && 257 <= ppu.Cycle && ppu.Cycle <= 320 && ppu.isVisibleScanlines() {
-		switch ppu.Cycle % 8 {
+	if ppu.isRenderingEnabled() && 257 <= ppu.cycle && ppu.cycle <= 320 && ppu.isVisibleScanlines() {
+		switch ppu.cycle % 8 {
 		case 2:
 			// garbage NT byte
 		case 4:
@@ -984,38 +984,38 @@ func (ppu *PPU) Step() {
 	// update vram register
 	if ppu.isRenderingEnabled() {
 		if ppu.isRenderLine() {
-			if fetchCycle && ppu.Cycle%8 == 0 {
+			if fetchCycle && ppu.cycle%8 == 0 {
 				ppu.incrementX()
 			}
-			if ppu.Cycle == 256 {
+			if ppu.cycle == 256 {
 				ppu.incrementY()
 			}
-			if ppu.Cycle == 257 {
+			if ppu.cycle == 257 {
 				ppu.copyX()
 			}
 		}
-		if ppu.isPreLine() && ppu.Cycle >= 280 && ppu.Cycle <= 304 {
+		if ppu.isPreLine() && ppu.cycle >= 280 && ppu.cycle <= 304 {
 			ppu.copyY()
 		}
 	}
 
 	// vblank
-	if ppu.Scanline == 241 && ppu.Cycle == 1 {
+	if ppu.scanline == 241 && ppu.cycle == 1 {
 		ppu.renderer.Refresh()
 		if !ppu.suppressVBlankFlag {
-			ppu.status.SetVBlankStarted()
-			if ppu.status.VBlankStarted() && ppu.ctrl.GenerateVBlankNMI() {
-				ppu.nmiLine.SetLow()
+			ppu.status.setVBlankStarted()
+			if ppu.status.vblankStarted() && ppu.ctrl.generateVBlankNMI() {
+				ppu.nmiLine.setLow()
 			}
 		}
 	}
 
 	// Pre-render line
-	if ppu.isPreLine() && ppu.Cycle == 1 {
-		ppu.status.ClearVBlankStarted()
-		ppu.nmiLine.SetHigh()
-		ppu.status.ClearSprite0Hit()
-		ppu.status.ClearSpriteOverflow()
+	if ppu.isPreLine() && ppu.cycle == 1 {
+		ppu.status.clearVBlankStarted()
+		ppu.nmiLine.setHigh()
+		ppu.status.clearSprite0Hit()
+		ppu.status.clearSpriteOverflow()
 	}
 
 }

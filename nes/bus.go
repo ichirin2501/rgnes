@@ -4,13 +4,13 @@ import (
 	"fmt"
 )
 
-type CPUBus struct {
+type cpuBus struct {
 	ram    []byte
-	ppu    *PPU
-	apu    *APU
+	ppu    *ppu
+	apu    *apu
 	mapper Mapper
-	joypad *Joypad
-	dma    *DMA
+	joypad *joypad
+	dma    *dma
 
 	// This clock is used to adjust the clock difference for each instruction,
 	// so keep the state separate from the $4014 dma stall.
@@ -18,8 +18,8 @@ type CPUBus struct {
 	stall int
 }
 
-func NewCPUBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *CPUBus {
-	return &CPUBus{
+func newCPUBus(ppu *ppu, apu *apu, mapper Mapper, joypad *joypad, dma *dma) *cpuBus {
+	return &cpuBus{
 		ram:    make([]byte, 2048),
 		ppu:    ppu,
 		apu:    apu,
@@ -29,7 +29,7 @@ func NewCPUBus(ppu *PPU, apu *APU, mapper Mapper, joypad *Joypad, dma *DMA) *CPU
 	}
 }
 
-func (bus *CPUBus) read(addr uint16) byte {
+func (bus *cpuBus) read(addr uint16) byte {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -37,7 +37,7 @@ func (bus *CPUBus) read(addr uint16) byte {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		return bus.ppu.ReadRegister(addr)
+		return bus.ppu.readRegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
@@ -45,7 +45,7 @@ func (bus *CPUBus) read(addr uint16) byte {
 		case addr == 0x4015:
 			return bus.apu.readStatus()
 		case addr == 0x4016:
-			return bus.joypad.Read()
+			return bus.joypad.read()
 		case addr == 0x4017: // TODO: 2p
 			//panic("unimplemented Bus.Read 0x4017(2p keypad)")
 			return 0
@@ -66,7 +66,7 @@ func (bus *CPUBus) read(addr uint16) byte {
 	}
 }
 
-func (bus *CPUBus) write(addr uint16, val byte) {
+func (bus *cpuBus) write(addr uint16, val byte) {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -74,7 +74,7 @@ func (bus *CPUBus) write(addr uint16, val byte) {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		bus.ppu.WriteRegister(addr, val)
+		bus.ppu.writeRegister(addr, val)
 
 	// NES APU and I/O registers
 	case addr == 0x4000:
@@ -119,11 +119,11 @@ func (bus *CPUBus) write(addr uint16, val byte) {
 		bus.apu.writeDMCSampleLength(val)
 	case addr == 0x4014:
 		a := uint16(val) << 8
-		bus.dma.TriggerOnOAM(a)
+		bus.dma.triggerOnOAM(a)
 	case addr == 0x4015:
 		bus.apu.writeStatus(val)
 	case addr == 0x4016:
-		bus.joypad.Write(val)
+		bus.joypad.write(val)
 	case addr == 0x4017:
 		bus.apu.writeFrameCounter(val)
 
@@ -138,34 +138,34 @@ func (bus *CPUBus) write(addr uint16, val byte) {
 	}
 }
 
-func (bus *CPUBus) realClock() int {
+func (bus *cpuBus) realClock() int {
 	return bus.clock + bus.stall
 }
 
-func (bus *CPUBus) tick(cpuCycle int) {
+func (bus *cpuBus) tick(cpuCycle int) {
 	bus.clock += cpuCycle
 	for i := 0; i < cpuCycle; i++ {
-		bus.apu.Step()
+		bus.apu.step()
 
-		bus.ppu.Step()
-		bus.ppu.Step()
-		bus.ppu.Step()
+		bus.ppu.step()
+		bus.ppu.step()
+		bus.ppu.step()
 	}
 }
 
-func (bus *CPUBus) tickStall(cpuCycle int) {
+func (bus *cpuBus) tickStall(cpuCycle int) {
 	bus.stall += cpuCycle
 	for i := 0; i < cpuCycle; i++ {
-		bus.apu.Step()
+		bus.apu.step()
 
-		bus.ppu.Step()
-		bus.ppu.Step()
-		bus.ppu.Step()
+		bus.ppu.step()
+		bus.ppu.step()
+		bus.ppu.step()
 	}
 }
 
-// Peek is used for debugging
-func (bus *CPUBus) Peek(addr uint16) byte {
+// peek is used for debugging
+func (bus *cpuBus) peek(addr uint16) byte {
 	switch {
 	// 2KB internal RAM
 	case 0x0000 <= addr && addr <= 0x1FFF:
@@ -173,16 +173,16 @@ func (bus *CPUBus) Peek(addr uint16) byte {
 
 	// NES PPU registers
 	case 0x2000 <= addr && addr <= 0x3FFF:
-		return bus.ppu.PeekRegister(addr)
+		return bus.ppu.peekRegister(addr)
 
 	// NES APU and I/O registers
 	case 0x4000 <= addr && addr <= 0x4017:
 		// todo
 		switch {
 		case addr == 0x4015:
-			return bus.apu.PeekStatus()
+			return bus.apu.peekStatus()
 		case addr == 0x4016:
-			return bus.joypad.Peek()
+			return bus.joypad.peek()
 		default:
 			return 0
 		}
@@ -198,20 +198,20 @@ func (bus *CPUBus) Peek(addr uint16) byte {
 
 }
 
-func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
+func (bus *cpuBus) runDMAIfOccurred(readCycle bool) {
 	for {
 		if bus.dma.dmcDelay > 0 {
 			bus.dma.dmcDelay--
 			if bus.dma.dmcDelay == 0 {
-				if bus.dma.dmcState == DMCDMANoneState {
-					bus.dma.dmcState = DMCDMAHaltState
+				if bus.dma.dmcState == dmcDMANoneState {
+					bus.dma.dmcState = dmcDMAHaltState
 				}
 			}
 		}
 		if readCycle == false {
 			return
 		}
-		if bus.dma.oamState == OAMDMANoneState && bus.dma.dmcState == DMCDMANoneState {
+		if bus.dma.oamState == oamDMANoneState && bus.dma.dmcState == dmcDMANoneState {
 			break
 		}
 		bus.tickStall(1)
@@ -227,56 +227,56 @@ func (bus *CPUBus) RunDMAIfOccurred(readCycle bool) {
 
 		// OAM
 		switch bus.dma.oamState {
-		case OAMDMAHaltState:
+		case oamDMAHaltState:
 			// init
 			bus.dma.oamCount = 0
 
 			if bus.realClock()%2 == 0 { // get cycle
-				bus.dma.oamState = OAMDMAAlignmentState
-				bus.dma.oamSaveState = OAMDMAReadState
+				bus.dma.oamState = oamDMAAlignmentState
+				bus.dma.oamSaveState = oamDMAReadState
 			} else {
-				bus.dma.oamState = OAMDMAReadState
+				bus.dma.oamState = oamDMAReadState
 			}
-		case OAMDMAAlignmentState:
+		case oamDMAAlignmentState:
 			bus.dma.oamState = bus.dma.oamSaveState
-		case OAMDMAReadState:
-			if bus.dma.dmcState == DMCDMARunState {
-				bus.dma.oamSaveState = OAMDMAReadState
-				bus.dma.oamState = OAMDMAAlignmentState
+		case oamDMAReadState:
+			if bus.dma.dmcState == dmcDMARunState {
+				bus.dma.oamSaveState = oamDMAReadState
+				bus.dma.oamState = oamDMAAlignmentState
 			} else {
 				bus.dma.oamTempByte = bus.read(bus.dma.oamTargetAddr + bus.dma.oamCount)
-				bus.dma.oamState = OAMDMAWriteState
+				bus.dma.oamState = oamDMAWriteState
 			}
-		case OAMDMAWriteState:
-			if bus.dma.dmcState == DMCDMARunState {
-				bus.dma.oamSaveState = OAMDMAWriteState
-				bus.dma.oamState = OAMDMAAlignmentState
+		case oamDMAWriteState:
+			if bus.dma.dmcState == dmcDMARunState {
+				bus.dma.oamSaveState = oamDMAWriteState
+				bus.dma.oamState = oamDMAAlignmentState
 			} else {
 				bus.ppu.writeOAMData(bus.dma.oamTempByte)
 				bus.dma.oamCount++
 				if bus.dma.oamCount < 256 {
-					bus.dma.oamState = OAMDMAReadState
+					bus.dma.oamState = oamDMAReadState
 				} else {
-					bus.dma.oamState = OAMDMANoneState
+					bus.dma.oamState = oamDMANoneState
 				}
 			}
 		}
 		// DMC
 		switch bus.dma.dmcState {
-		case DMCDMAHaltState:
-			bus.dma.dmcState = DMCDMADummyState
-		case DMCDMADummyState:
+		case dmcDMAHaltState:
+			bus.dma.dmcState = dmcDMADummyState
+		case dmcDMADummyState:
 			if bus.realClock()%2 == 0 { // get cycle
-				bus.dma.dmcState = DMCDMAAlignmentState
+				bus.dma.dmcState = dmcDMAAlignmentState
 			} else {
-				bus.dma.dmcState = DMCDMARunState
+				bus.dma.dmcState = dmcDMARunState
 			}
-		case DMCDMAAlignmentState:
-			bus.dma.dmcState = DMCDMARunState
-		case DMCDMARunState:
+		case dmcDMAAlignmentState:
+			bus.dma.dmcState = dmcDMARunState
+		case dmcDMARunState:
 			val := bus.read(bus.dma.dmcTargetAddr)
 			bus.apu.dmc.setSampleBuffer(val)
-			bus.dma.dmcState = DMCDMANoneState
+			bus.dma.dmcState = dmcDMANoneState
 		}
 	}
 }

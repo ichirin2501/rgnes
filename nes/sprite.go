@@ -13,16 +13,16 @@ Sprite Attribute
 */
 type spriteAttribute byte
 
-func (s spriteAttribute) PaletteNumber() byte {
+func (s spriteAttribute) paletteNumber() byte {
 	return byte(s & 0x3)
 }
-func (s spriteAttribute) BehindBackground() bool {
+func (s spriteAttribute) behindBackground() bool {
 	return (s & 0x20) == 0x20
 }
-func (s spriteAttribute) FlipSpriteHorizontally() bool {
+func (s spriteAttribute) flipSpriteHorizontally() bool {
 	return (s & 0x40) == 0x40
 }
-func (s spriteAttribute) FlipSpriteVertically() bool {
+func (s spriteAttribute) flipSpriteVertically() bool {
 	return (s & 0x80) == 0x80
 }
 
@@ -34,19 +34,19 @@ type spriteSlot struct {
 	idx  byte
 }
 
-func (s *spriteSlot) InRange(x int) bool {
+func (s *spriteSlot) inRange(x int) bool {
 	return int(s.x) <= x && x < int(s.x)+8
 }
 
-func (s *spriteSlot) PaletteAddr(x int) paletteAddr {
+func (s *spriteSlot) paletteAddr(x int) paletteAddr {
 	dx := x - int(s.x)
-	if s.attr.FlipSpriteHorizontally() {
+	if s.attr.flipSpriteHorizontally() {
 		dx = 7 - dx
 	}
 	hb := (s.hi & (1 << (7 - dx))) >> (7 - dx)
 	lb := (s.lo & (1 << (7 - dx))) >> (7 - dx)
 	p := (hb << 1) | lb
-	return newPaletteAddr(true, s.attr.PaletteNumber(), p)
+	return newPaletteAddr(true, s.attr.paletteNumber(), p)
 }
 
 /*

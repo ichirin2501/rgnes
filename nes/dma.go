@@ -1,48 +1,48 @@
 package nes
 
-type OAMDMAState int
+type oamDMAState int
 
 const (
-	OAMDMANoneState OAMDMAState = iota
-	OAMDMAHaltState
-	OAMDMAAlignmentState
-	OAMDMAReadState
-	OAMDMAWriteState
+	oamDMANoneState oamDMAState = iota
+	oamDMAHaltState
+	oamDMAAlignmentState
+	oamDMAReadState
+	oamDMAWriteState
 )
 
-type DMCDMAState int
+type dmcDMAState int
 
 const (
-	DMCDMANoneState DMCDMAState = iota
-	DMCDMAHaltState
-	DMCDMADummyState
-	DMCDMAAlignmentState
-	DMCDMARunState
+	dmcDMANoneState dmcDMAState = iota
+	dmcDMAHaltState
+	dmcDMADummyState
+	dmcDMAAlignmentState
+	dmcDMARunState
 )
 
-type DMA struct {
+type dma struct {
 	oamTargetAddr uint16
 	dmcTargetAddr uint16
 	dmcDelay      byte
 
-	oamState     OAMDMAState
-	oamSaveState OAMDMAState
+	oamState     oamDMAState
+	oamSaveState oamDMAState
 	oamTempByte  byte
 	oamCount     uint16
-	dmcState     DMCDMAState
+	dmcState     dmcDMAState
 }
 
-func (d *DMA) TriggerOnOAM(addr uint16) {
-	d.oamState = OAMDMAHaltState
+func (d *dma) triggerOnOAM(addr uint16) {
+	d.oamState = oamDMAHaltState
 	d.oamTargetAddr = addr
 }
 
-func (d *DMA) TriggerOnDMCLoad(addr uint16) {
+func (d *dma) triggerOnDMCLoad(addr uint16) {
 	d.dmcTargetAddr = addr
 	d.dmcDelay = 3
 }
 
-func (d *DMA) TriggerOnDMCReload(addr uint16) {
-	d.dmcState = DMCDMAHaltState
+func (d *dma) triggerOnDMCReload(addr uint16) {
+	d.dmcState = dmcDMAHaltState
 	d.dmcTargetAddr = addr
 }

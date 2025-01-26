@@ -3,27 +3,27 @@ package nes
 import "time"
 
 type NES struct {
-	cpu    *CPU
-	apu    *APU
-	ppu    *PPU
-	bus    *CPUBus
-	joypad *Joypad
+	cpu    *cpu
+	apu    *apu
+	ppu    *ppu
+	bus    *cpuBus
+	joypad *joypad
 
 	done chan struct{}
 }
 
 func New(mapper Mapper, renderer Renderer, player Player) *NES {
-	irqLine := IRQInterruptLine(0)
-	nmiLine := NMIInterruptLine(0)
+	irqLine := irqInterruptLine(0)
+	nmiLine := nmiInterruptLine(0)
 	m := mapper.MirroingType()
-	dma := &DMA{}
+	dma := &dma{}
 
-	ppu := NewPPU(renderer, mapper, m, &nmiLine)
-	joypad := NewJoypad()
-	apu := NewAPU(&irqLine, player, dma)
-	bus := NewCPUBus(ppu, apu, mapper, joypad, dma)
+	ppu := newPPU(renderer, mapper, m, &nmiLine)
+	joypad := newJoypad()
+	apu := newAPU(&irqLine, player, dma)
+	bus := newCPUBus(ppu, apu, mapper, joypad, dma)
 
-	cpu := NewCPU(bus, &nmiLine, &irqLine)
+	cpu := newCPU(bus, &nmiLine, &irqLine)
 
 	return &NES{
 		cpu:    cpu,
@@ -37,19 +37,19 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 }
 
 func (n *NES) PowerUp() {
-	n.cpu.PowerUp()
-	n.apu.PowerUp()
-	n.ppu.PowerUp()
+	n.cpu.powerUp()
+	n.apu.powerUp()
+	n.ppu.powerUp()
 }
 
 func (n *NES) Reset() {
-	n.cpu.Reset()
-	n.apu.Reset()
-	n.ppu.Reset()
+	n.cpu.reset()
+	n.apu.reset()
+	n.ppu.reset()
 }
 
 func (n *NES) Step() {
-	n.cpu.Step()
+	n.cpu.step()
 }
 
 func (n *NES) Run() {
@@ -65,7 +65,7 @@ func (n *NES) Run() {
 			du := float64(now.Sub(beforeTime)*CPUClockFrequency) / float64(time.Second)
 			if steps+du >= 1.0 {
 				beforeClock := n.cpu.bus.realClock()
-				n.cpu.Step()
+				n.cpu.step()
 				afterClock := n.cpu.bus.realClock()
 				steps = steps + du - float64(afterClock-beforeClock)
 				beforeTime = now
@@ -79,7 +79,7 @@ func (n *NES) Close() {
 }
 
 func (n *NES) SetButtonStatus(b byte, pressed bool) {
-	n.joypad.SetButtonStatus(b, pressed)
+	n.joypad.setButtonStatus(b, pressed)
 }
 
 func (n *NES) SetCPUPC(pc uint16) {
@@ -87,5 +87,5 @@ func (n *NES) SetCPUPC(pc uint16) {
 }
 
 func (n *NES) PeekMemory(addr uint16) byte {
-	return n.bus.Peek(addr)
+	return n.bus.peek(addr)
 }

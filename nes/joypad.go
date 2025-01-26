@@ -14,55 +14,55 @@ const (
 	ButtonRight
 )
 
-type Joypad struct {
-	Strobe       bool
-	ButtonIndex  byte
-	ButtonStatus byte
+type joypad struct {
+	strobe       bool
+	buttonIndex  byte
+	buttonStatus byte
 	mu           *sync.RWMutex // for ButtonStatus
 }
 
-func NewJoypad() *Joypad {
-	return &Joypad{
+func newJoypad() *joypad {
+	return &joypad{
 		mu: &sync.RWMutex{},
 	}
 }
 
-func (j *Joypad) Read() byte {
-	if j.ButtonIndex > 7 {
+func (j *joypad) read() byte {
+	if j.buttonIndex > 7 {
 		return 1
 	}
 	j.mu.RLock()
 	defer j.mu.RUnlock()
-	res := (byte(j.ButtonStatus) & (1 << j.ButtonIndex)) >> j.ButtonIndex
-	if !j.Strobe && j.ButtonIndex <= 7 {
-		j.ButtonIndex++
+	res := (byte(j.buttonStatus) & (1 << j.buttonIndex)) >> j.buttonIndex
+	if !j.strobe && j.buttonIndex <= 7 {
+		j.buttonIndex++
 	}
 	return res
 }
 
-// Peek is used for debugging
-func (j *Joypad) Peek() byte {
-	if j.ButtonIndex > 7 {
+// peek is used for debugging
+func (j *joypad) peek() byte {
+	if j.buttonIndex > 7 {
 		return 1
 	}
 	j.mu.RLock()
 	defer j.mu.RUnlock()
-	return (byte(j.ButtonStatus) & (1 << j.ButtonIndex)) >> j.ButtonIndex
+	return (byte(j.buttonStatus) & (1 << j.buttonIndex)) >> j.buttonIndex
 }
 
-func (j *Joypad) Write(v byte) {
-	j.Strobe = (v & 1) == 1
-	if j.Strobe {
-		j.ButtonIndex = 0
+func (j *joypad) write(v byte) {
+	j.strobe = (v & 1) == 1
+	if j.strobe {
+		j.buttonIndex = 0
 	}
 }
 
-func (j *Joypad) SetButtonStatus(b byte, pressed bool) {
+func (j *joypad) setButtonStatus(b byte, pressed bool) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if pressed {
-		j.ButtonStatus |= b
+		j.buttonStatus |= b
 	} else {
-		j.ButtonStatus &= ^b
+		j.buttonStatus &= ^b
 	}
 }

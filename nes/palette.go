@@ -4,7 +4,7 @@ import (
 	"image/color"
 )
 
-var Palette [64]color.Color
+var palette [64]color.Color
 
 func init() {
 	colors := []uint32{
@@ -21,7 +21,7 @@ func init() {
 		r := byte(c >> 16)
 		g := byte(c >> 8)
 		b := byte(c)
-		Palette[i] = &color.RGBA{r, g, b, 0xFF}
+		palette[i] = &color.RGBA{r, g, b, 0xFF}
 	}
 }
 
@@ -63,13 +63,13 @@ const (
 	universalBGColor = paletteAddr(0x3F00)
 )
 
-func (p paletteAddr) PixelColorIndex() byte {
+func (p paletteAddr) pixelColorIndex() byte {
 	return byte(p & 0b11)
 }
-func (p paletteAddr) PaletteNumber() byte {
+func (p paletteAddr) paletteNumber() byte {
 	return byte((p >> 2) & 0b11)
 }
-func (p paletteAddr) IsSprite() bool {
+func (p paletteAddr) isSprite() bool {
 	return (p & 0b10000) == 0b10000
 }
 

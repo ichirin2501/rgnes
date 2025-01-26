@@ -1,7 +1,7 @@
 package nes
 
 type fakePPU struct {
-	PPU
+	ppu
 }
 
 func (p *fakePPU) WriteOAMDMAByte(val byte) {
@@ -9,7 +9,7 @@ func (p *fakePPU) WriteOAMDMAByte(val byte) {
 func (p *fakePPU) Step() {}
 
 type fakeAPU struct {
-	APU
+	apu
 }
 
 func (apu *fakeAPU) Step() {}
@@ -18,7 +18,7 @@ type fakeMapper struct {
 	Mapper
 }
 type fakeJoypad struct {
-	Joypad
+	joypad
 }
 
 // エミュレーションとして正しいかどうかわからないけど、自分が期待する実装としてのテスト

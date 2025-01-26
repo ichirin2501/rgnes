@@ -22,7 +22,7 @@ ref: https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
 */
 type ppuControlRegister byte
 
-func (c *ppuControlRegister) BaseNameTableAddr() uint16 {
+func (c *ppuControlRegister) baseNameTableAddr() uint16 {
 	switch byte(*c) & 0x03 {
 	case 0:
 		return 0x2000
@@ -36,7 +36,7 @@ func (c *ppuControlRegister) BaseNameTableAddr() uint16 {
 	panic("uwaaaaaaaaaaa")
 }
 
-func (c *ppuControlRegister) IncrementalVRAMAddr() byte {
+func (c *ppuControlRegister) incrementalVRAMAddr() byte {
 	if (byte(*c) & 0x04) == 0 {
 		return 1
 	} else {
@@ -44,7 +44,7 @@ func (c *ppuControlRegister) IncrementalVRAMAddr() byte {
 	}
 }
 
-func (c *ppuControlRegister) SpritePatternAddr() uint16 {
+func (c *ppuControlRegister) spritePatternAddr() uint16 {
 	if (byte(*c) & 0x08) == 0 {
 		return 0
 	} else {
@@ -52,7 +52,7 @@ func (c *ppuControlRegister) SpritePatternAddr() uint16 {
 	}
 }
 
-func (c *ppuControlRegister) BackgroundPatternAddr() uint16 {
+func (c *ppuControlRegister) backgroundPatternAddr() uint16 {
 	if (byte(*c) & 0x10) == 0 {
 		return 0
 	} else {
@@ -60,7 +60,7 @@ func (c *ppuControlRegister) BackgroundPatternAddr() uint16 {
 	}
 }
 
-func (c *ppuControlRegister) SpriteSize() byte {
+func (c *ppuControlRegister) spriteSize() byte {
 	if (byte(*c) & 0x20) == 0 {
 		return 8
 	} else {
@@ -68,7 +68,7 @@ func (c *ppuControlRegister) SpriteSize() byte {
 	}
 }
 
-func (c *ppuControlRegister) MasterSlaveSelect() byte {
+func (c *ppuControlRegister) masterSlaveSelect() byte {
 	if (byte(*c) & 0x40) == 0 {
 		return 0
 	} else {
@@ -76,7 +76,7 @@ func (c *ppuControlRegister) MasterSlaveSelect() byte {
 	}
 }
 
-func (c *ppuControlRegister) GenerateVBlankNMI() bool {
+func (c *ppuControlRegister) generateVBlankNMI() bool {
 	return (byte(*c) & 0x80) == 0x80
 }
 
@@ -98,28 +98,28 @@ ref: https://www.nesdev.org/wiki/PPU_registers#PPUMASK
 */
 type ppuMaskRegister byte
 
-func (m *ppuMaskRegister) IsGreyscale() bool {
+func (m *ppuMaskRegister) isGreyscale() bool {
 	return (byte(*m) & 0x01) == 0x01
 }
-func (m *ppuMaskRegister) ShowBackgroundLeftMost8pxlScreen() bool {
+func (m *ppuMaskRegister) showBackgroundLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x02) == 0x02
 }
-func (m *ppuMaskRegister) ShowSpritesLeftMost8pxlScreen() bool {
+func (m *ppuMaskRegister) showSpritesLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x04) == 0x04
 }
-func (m *ppuMaskRegister) ShowBackground() bool {
+func (m *ppuMaskRegister) showBackground() bool {
 	return (byte(*m) & 0x08) == 0x08
 }
-func (m *ppuMaskRegister) ShowSprites() bool {
+func (m *ppuMaskRegister) showSprites() bool {
 	return (byte(*m) & 0x10) == 0x10
 }
-func (m *ppuMaskRegister) EmphasizeRed() bool {
+func (m *ppuMaskRegister) emphasizeRed() bool {
 	return (byte(*m) & 0x20) == 0x20
 }
-func (m *ppuMaskRegister) EmphasizeGreen() bool {
+func (m *ppuMaskRegister) emphasizeGreen() bool {
 	return (byte(*m) & 0x40) == 0x40
 }
-func (m *ppuMaskRegister) EmphasizeBlue() bool {
+func (m *ppuMaskRegister) emphasizeBlue() bool {
 	return (byte(*m) & 0x80) == 0x80
 }
 
@@ -148,35 +148,35 @@ ref: https://www.nesdev.org/wiki/PPU_registers#PPUSTATUS
 */
 type ppuStatusRegister byte
 
-func (s *ppuStatusRegister) SetSpriteOverflow() {
+func (s *ppuStatusRegister) setSpriteOverflow() {
 	*s |= 0x20
 }
 
-func (s *ppuStatusRegister) ClearSpriteOverflow() {
+func (s *ppuStatusRegister) clearSpriteOverflow() {
 	*s &= 0xDF
 }
 
-func (s *ppuStatusRegister) SetSprite0Hit() {
+func (s *ppuStatusRegister) setSprite0Hit() {
 	*s |= 0x40
 }
 
-func (s *ppuStatusRegister) ClearSprite0Hit() {
+func (s *ppuStatusRegister) clearSprite0Hit() {
 	*s &= 0xBF
 }
 
-func (s *ppuStatusRegister) SetVBlankStarted() {
+func (s *ppuStatusRegister) setVBlankStarted() {
 	*s |= 0x80
 }
 
-func (s *ppuStatusRegister) ClearVBlankStarted() {
+func (s *ppuStatusRegister) clearVBlankStarted() {
 	*s &= 0x7F
 }
 
-func (s *ppuStatusRegister) VBlankStarted() bool {
+func (s *ppuStatusRegister) vblankStarted() bool {
 	return ((*s) & 0x80) == 0x80
 }
 
-func (s *ppuStatusRegister) Get() byte {
+func (s *ppuStatusRegister) get() byte {
 	return byte(*s)
 }
 

@@ -301,270 +301,270 @@ func (m Mnemonic) String() string {
 }
 
 type opcode struct {
-	Name       Mnemonic
-	Mode       addressingMode
-	Cycle      int
-	PageCycle  int
-	Unofficial bool
+	name       Mnemonic
+	mode       addressingMode
+	cycle      int
+	pageCycle  int
+	unofficial bool
 }
 
 var opcodeMap = []*opcode{
-	/* 0x00 */ {Name: BRK, Mode: implied, Cycle: 7, PageCycle: 0},
-	/* 0x01 */ {Name: ORA, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0x02 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x03 */ {Name: SLO, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x04 */ {Name: NOP, Mode: zeroPage, Cycle: 3, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x05 */ {Name: ORA, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x06 */ {Name: ASL, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0x07 */ {Name: SLO, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x08 */ {Name: PHP, Mode: implied, Cycle: 3, PageCycle: 0},
-	/* 0x09 */ {Name: ORA, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0x0A */ {Name: ASL, Mode: accumulator, Cycle: 2, PageCycle: 0},
-	/* 0x0B */ {Name: ANC, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x0C */ {Name: NOP, Mode: absolute, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x0D */ {Name: ORA, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x0E */ {Name: ASL, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0x0F */ {Name: SLO, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x10 */ {Name: BPL, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0x11 */ {Name: ORA, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0x12 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x13 */ {Name: SLO, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x14 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x15 */ {Name: ORA, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x16 */ {Name: ASL, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0x17 */ {Name: SLO, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x18 */ {Name: CLC, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x19 */ {Name: ORA, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0x1A */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x1B */ {Name: SLO, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x1C */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0x1D */ {Name: ORA, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0x1E */ {Name: ASL, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0x1F */ {Name: SLO, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x20 */ {Name: JSR, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0x21 */ {Name: AND, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0x22 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x23 */ {Name: RLA, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x24 */ {Name: BIT, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x25 */ {Name: AND, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x26 */ {Name: ROL, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0x27 */ {Name: RLA, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x28 */ {Name: PLP, Mode: implied, Cycle: 4, PageCycle: 0},
-	/* 0x29 */ {Name: AND, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0x2A */ {Name: ROL, Mode: accumulator, Cycle: 2, PageCycle: 0},
-	/* 0x2B */ {Name: ANC, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x2C */ {Name: BIT, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x2D */ {Name: AND, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x2E */ {Name: ROL, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0x2F */ {Name: RLA, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x30 */ {Name: BMI, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0x31 */ {Name: AND, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0x32 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x33 */ {Name: RLA, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x34 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x35 */ {Name: AND, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x36 */ {Name: ROL, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0x37 */ {Name: RLA, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x38 */ {Name: SEC, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x39 */ {Name: AND, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0x3A */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x3B */ {Name: RLA, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x3C */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0x3D */ {Name: AND, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0x3E */ {Name: ROL, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0x3F */ {Name: RLA, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x40 */ {Name: RTI, Mode: implied, Cycle: 6, PageCycle: 0},
-	/* 0x41 */ {Name: EOR, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0x42 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x43 */ {Name: SRE, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x44 */ {Name: NOP, Mode: zeroPage, Cycle: 3, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x45 */ {Name: EOR, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x46 */ {Name: LSR, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0x47 */ {Name: SRE, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x48 */ {Name: PHA, Mode: implied, Cycle: 3, PageCycle: 0},
-	/* 0x49 */ {Name: EOR, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0x4A */ {Name: LSR, Mode: accumulator, Cycle: 2, PageCycle: 0},
-	/* 0x4B */ {Name: ALR, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x4C */ {Name: JMP, Mode: absolute, Cycle: 3, PageCycle: 0},
-	/* 0x4D */ {Name: EOR, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x4E */ {Name: LSR, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0x4F */ {Name: SRE, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x50 */ {Name: BVC, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0x51 */ {Name: EOR, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0x52 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x53 */ {Name: SRE, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x54 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x55 */ {Name: EOR, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x56 */ {Name: LSR, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0x57 */ {Name: SRE, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x58 */ {Name: CLI, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x59 */ {Name: EOR, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0x5A */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x5B */ {Name: SRE, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x5C */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0x5D */ {Name: EOR, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0x5E */ {Name: LSR, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0x5F */ {Name: SRE, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x60 */ {Name: RTS, Mode: implied, Cycle: 6, PageCycle: 0},
-	/* 0x61 */ {Name: ADC, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0x62 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x63 */ {Name: RRA, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x64 */ {Name: NOP, Mode: zeroPage, Cycle: 3, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x65 */ {Name: ADC, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x66 */ {Name: ROR, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0x67 */ {Name: RRA, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x68 */ {Name: PLA, Mode: implied, Cycle: 4, PageCycle: 0},
-	/* 0x69 */ {Name: ADC, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0x6A */ {Name: ROR, Mode: accumulator, Cycle: 2, PageCycle: 0},
-	/* 0x6B */ {Name: ARR, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x6C */ {Name: JMP, Mode: indirect, Cycle: 5, PageCycle: 0},
-	/* 0x6D */ {Name: ADC, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x6E */ {Name: ROR, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0x6F */ {Name: RRA, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x70 */ {Name: BVS, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0x71 */ {Name: ADC, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0x72 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x73 */ {Name: RRA, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x74 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x75 */ {Name: ADC, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x76 */ {Name: ROR, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0x77 */ {Name: RRA, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x78 */ {Name: SEI, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x79 */ {Name: ADC, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0x7A */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x7B */ {Name: RRA, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x7C */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0x7D */ {Name: ADC, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0x7E */ {Name: ROR, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0x7F */ {Name: RRA, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x80 */ {Name: NOP, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x81 */ {Name: STA, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0x82 */ {Name: NOP, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x83 */ {Name: SAX, Mode: indexedIndirect, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x84 */ {Name: STY, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x85 */ {Name: STA, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x86 */ {Name: STX, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0x87 */ {Name: SAX, Mode: zeroPage, Cycle: 3, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x88 */ {Name: DEY, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x89 */ {Name: NOP, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x8A */ {Name: TXA, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x8B */ {Name: XAA, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x8C */ {Name: STY, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x8D */ {Name: STA, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x8E */ {Name: STX, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0x8F */ {Name: SAX, Mode: absolute, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x90 */ {Name: BCC, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0x91 */ {Name: STA, Mode: indirectIndexed_D, Cycle: 6, PageCycle: 0},
-	/* 0x92 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x93 */ {Name: AHX, Mode: indirectIndexed_D, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x94 */ {Name: STY, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x95 */ {Name: STA, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0x96 */ {Name: STX, Mode: zeroPageY, Cycle: 4, PageCycle: 0},
-	/* 0x97 */ {Name: SAX, Mode: zeroPageY, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x98 */ {Name: TYA, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x99 */ {Name: STA, Mode: absoluteY_D, Cycle: 5, PageCycle: 0},
-	/* 0x9A */ {Name: TXS, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0x9B */ {Name: TAS, Mode: absoluteY_D, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x9C */ {Name: SHY, Mode: absoluteX_D, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x9D */ {Name: STA, Mode: absoluteX_D, Cycle: 5, PageCycle: 0},
-	/* 0x9E */ {Name: SHX, Mode: absoluteY_D, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0x9F */ {Name: AHX, Mode: absoluteY_D, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xA0 */ {Name: LDY, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xA1 */ {Name: LDA, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0xA2 */ {Name: LDX, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xA3 */ {Name: LAX, Mode: indexedIndirect, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xA4 */ {Name: LDY, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xA5 */ {Name: LDA, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xA6 */ {Name: LDX, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xA7 */ {Name: LAX, Mode: zeroPage, Cycle: 3, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xA8 */ {Name: TAY, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xA9 */ {Name: LDA, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xAA */ {Name: TAX, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xAB */ {Name: LAX, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xAC */ {Name: LDY, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xAD */ {Name: LDA, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xAE */ {Name: LDX, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xAF */ {Name: LAX, Mode: absolute, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xB0 */ {Name: BCS, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0xB1 */ {Name: LDA, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0xB2 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xB3 */ {Name: LAX, Mode: indirectIndexed, Cycle: 5, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0xB4 */ {Name: LDY, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0xB5 */ {Name: LDA, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0xB6 */ {Name: LDX, Mode: zeroPageY, Cycle: 4, PageCycle: 0},
-	/* 0xB7 */ {Name: LAX, Mode: zeroPageY, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xB8 */ {Name: CLV, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xB9 */ {Name: LDA, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0xBA */ {Name: TSX, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xBB */ {Name: LAS, Mode: absoluteY, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0xBC */ {Name: LDY, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0xBD */ {Name: LDA, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0xBE */ {Name: LDX, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0xBF */ {Name: LAX, Mode: absoluteY, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0xC0 */ {Name: CPY, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xC1 */ {Name: CMP, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0xC2 */ {Name: NOP, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xC3 */ {Name: DCP, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xC4 */ {Name: CPY, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xC5 */ {Name: CMP, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xC6 */ {Name: DEC, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0xC7 */ {Name: DCP, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xC8 */ {Name: INY, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xC9 */ {Name: CMP, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xCA */ {Name: DEX, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xCB */ {Name: AXS, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xCC */ {Name: CPY, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xCD */ {Name: CMP, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xCE */ {Name: DEC, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0xCF */ {Name: DCP, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xD0 */ {Name: BNE, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0xD1 */ {Name: CMP, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0xD2 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xD3 */ {Name: DCP, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xD4 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xD5 */ {Name: CMP, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0xD6 */ {Name: DEC, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0xD7 */ {Name: DCP, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xD8 */ {Name: CLD, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xD9 */ {Name: CMP, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0xDA */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xDB */ {Name: DCP, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xDC */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0xDD */ {Name: CMP, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0xDE */ {Name: DEC, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0xDF */ {Name: DCP, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xE0 */ {Name: CPX, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xE1 */ {Name: SBC, Mode: indexedIndirect, Cycle: 6, PageCycle: 0},
-	/* 0xE2 */ {Name: NOP, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xE3 */ {Name: ISB, Mode: indexedIndirect, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xE4 */ {Name: CPX, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xE5 */ {Name: SBC, Mode: zeroPage, Cycle: 3, PageCycle: 0},
-	/* 0xE6 */ {Name: INC, Mode: zeroPage, Cycle: 5, PageCycle: 0},
-	/* 0xE7 */ {Name: ISB, Mode: zeroPage, Cycle: 5, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xE8 */ {Name: INX, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xE9 */ {Name: SBC, Mode: immediate, Cycle: 2, PageCycle: 0},
-	/* 0xEA */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xEB */ {Name: SBC, Mode: immediate, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xEC */ {Name: CPX, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xED */ {Name: SBC, Mode: absolute, Cycle: 4, PageCycle: 0},
-	/* 0xEE */ {Name: INC, Mode: absolute, Cycle: 6, PageCycle: 0},
-	/* 0xEF */ {Name: ISB, Mode: absolute, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xF0 */ {Name: BEQ, Mode: relative, Cycle: 2, PageCycle: 1},
-	/* 0xF1 */ {Name: SBC, Mode: indirectIndexed, Cycle: 5, PageCycle: 1},
-	/* 0xF2 */ {Name: KIL, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xF3 */ {Name: ISB, Mode: indirectIndexed_D, Cycle: 8, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xF4 */ {Name: NOP, Mode: zeroPageX, Cycle: 4, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xF5 */ {Name: SBC, Mode: zeroPageX, Cycle: 4, PageCycle: 0},
-	/* 0xF6 */ {Name: INC, Mode: zeroPageX, Cycle: 6, PageCycle: 0},
-	/* 0xF7 */ {Name: ISB, Mode: zeroPageX, Cycle: 6, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xF8 */ {Name: SED, Mode: implied, Cycle: 2, PageCycle: 0},
-	/* 0xF9 */ {Name: SBC, Mode: absoluteY, Cycle: 4, PageCycle: 1},
-	/* 0xFA */ {Name: NOP, Mode: implied, Cycle: 2, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xFB */ {Name: ISB, Mode: absoluteY_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
-	/* 0xFC */ {Name: NOP, Mode: absoluteX, Cycle: 4, PageCycle: 1, Unofficial: true}, /* undocumented opcode */
-	/* 0xFD */ {Name: SBC, Mode: absoluteX, Cycle: 4, PageCycle: 1},
-	/* 0xFE */ {Name: INC, Mode: absoluteX_D, Cycle: 7, PageCycle: 0},
-	/* 0xFF */ {Name: ISB, Mode: absoluteX_D, Cycle: 7, PageCycle: 0, Unofficial: true}, /* undocumented opcode */
+	/* 0x00 */ {name: BRK, mode: implied, cycle: 7, pageCycle: 0},
+	/* 0x01 */ {name: ORA, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0x02 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x03 */ {name: SLO, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x04 */ {name: NOP, mode: zeroPage, cycle: 3, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x05 */ {name: ORA, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x06 */ {name: ASL, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0x07 */ {name: SLO, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x08 */ {name: PHP, mode: implied, cycle: 3, pageCycle: 0},
+	/* 0x09 */ {name: ORA, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0x0A */ {name: ASL, mode: accumulator, cycle: 2, pageCycle: 0},
+	/* 0x0B */ {name: ANC, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x0C */ {name: NOP, mode: absolute, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x0D */ {name: ORA, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x0E */ {name: ASL, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0x0F */ {name: SLO, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x10 */ {name: BPL, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0x11 */ {name: ORA, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0x12 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x13 */ {name: SLO, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x14 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x15 */ {name: ORA, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x16 */ {name: ASL, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0x17 */ {name: SLO, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x18 */ {name: CLC, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x19 */ {name: ORA, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0x1A */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x1B */ {name: SLO, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x1C */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0x1D */ {name: ORA, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0x1E */ {name: ASL, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0x1F */ {name: SLO, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x20 */ {name: JSR, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0x21 */ {name: AND, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0x22 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x23 */ {name: RLA, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x24 */ {name: BIT, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x25 */ {name: AND, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x26 */ {name: ROL, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0x27 */ {name: RLA, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x28 */ {name: PLP, mode: implied, cycle: 4, pageCycle: 0},
+	/* 0x29 */ {name: AND, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0x2A */ {name: ROL, mode: accumulator, cycle: 2, pageCycle: 0},
+	/* 0x2B */ {name: ANC, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x2C */ {name: BIT, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x2D */ {name: AND, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x2E */ {name: ROL, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0x2F */ {name: RLA, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x30 */ {name: BMI, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0x31 */ {name: AND, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0x32 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x33 */ {name: RLA, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x34 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x35 */ {name: AND, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x36 */ {name: ROL, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0x37 */ {name: RLA, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x38 */ {name: SEC, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x39 */ {name: AND, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0x3A */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x3B */ {name: RLA, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x3C */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0x3D */ {name: AND, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0x3E */ {name: ROL, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0x3F */ {name: RLA, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x40 */ {name: RTI, mode: implied, cycle: 6, pageCycle: 0},
+	/* 0x41 */ {name: EOR, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0x42 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x43 */ {name: SRE, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x44 */ {name: NOP, mode: zeroPage, cycle: 3, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x45 */ {name: EOR, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x46 */ {name: LSR, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0x47 */ {name: SRE, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x48 */ {name: PHA, mode: implied, cycle: 3, pageCycle: 0},
+	/* 0x49 */ {name: EOR, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0x4A */ {name: LSR, mode: accumulator, cycle: 2, pageCycle: 0},
+	/* 0x4B */ {name: ALR, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x4C */ {name: JMP, mode: absolute, cycle: 3, pageCycle: 0},
+	/* 0x4D */ {name: EOR, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x4E */ {name: LSR, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0x4F */ {name: SRE, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x50 */ {name: BVC, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0x51 */ {name: EOR, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0x52 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x53 */ {name: SRE, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x54 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x55 */ {name: EOR, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x56 */ {name: LSR, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0x57 */ {name: SRE, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x58 */ {name: CLI, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x59 */ {name: EOR, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0x5A */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x5B */ {name: SRE, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x5C */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0x5D */ {name: EOR, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0x5E */ {name: LSR, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0x5F */ {name: SRE, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x60 */ {name: RTS, mode: implied, cycle: 6, pageCycle: 0},
+	/* 0x61 */ {name: ADC, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0x62 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x63 */ {name: RRA, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x64 */ {name: NOP, mode: zeroPage, cycle: 3, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x65 */ {name: ADC, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x66 */ {name: ROR, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0x67 */ {name: RRA, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x68 */ {name: PLA, mode: implied, cycle: 4, pageCycle: 0},
+	/* 0x69 */ {name: ADC, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0x6A */ {name: ROR, mode: accumulator, cycle: 2, pageCycle: 0},
+	/* 0x6B */ {name: ARR, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x6C */ {name: JMP, mode: indirect, cycle: 5, pageCycle: 0},
+	/* 0x6D */ {name: ADC, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x6E */ {name: ROR, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0x6F */ {name: RRA, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x70 */ {name: BVS, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0x71 */ {name: ADC, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0x72 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x73 */ {name: RRA, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x74 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x75 */ {name: ADC, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x76 */ {name: ROR, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0x77 */ {name: RRA, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x78 */ {name: SEI, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x79 */ {name: ADC, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0x7A */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x7B */ {name: RRA, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x7C */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0x7D */ {name: ADC, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0x7E */ {name: ROR, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0x7F */ {name: RRA, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x80 */ {name: NOP, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x81 */ {name: STA, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0x82 */ {name: NOP, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x83 */ {name: SAX, mode: indexedIndirect, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x84 */ {name: STY, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x85 */ {name: STA, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x86 */ {name: STX, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0x87 */ {name: SAX, mode: zeroPage, cycle: 3, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x88 */ {name: DEY, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x89 */ {name: NOP, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x8A */ {name: TXA, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x8B */ {name: XAA, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x8C */ {name: STY, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x8D */ {name: STA, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x8E */ {name: STX, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0x8F */ {name: SAX, mode: absolute, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x90 */ {name: BCC, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0x91 */ {name: STA, mode: indirectIndexed_D, cycle: 6, pageCycle: 0},
+	/* 0x92 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x93 */ {name: AHX, mode: indirectIndexed_D, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x94 */ {name: STY, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x95 */ {name: STA, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0x96 */ {name: STX, mode: zeroPageY, cycle: 4, pageCycle: 0},
+	/* 0x97 */ {name: SAX, mode: zeroPageY, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x98 */ {name: TYA, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x99 */ {name: STA, mode: absoluteY_D, cycle: 5, pageCycle: 0},
+	/* 0x9A */ {name: TXS, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0x9B */ {name: TAS, mode: absoluteY_D, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x9C */ {name: SHY, mode: absoluteX_D, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x9D */ {name: STA, mode: absoluteX_D, cycle: 5, pageCycle: 0},
+	/* 0x9E */ {name: SHX, mode: absoluteY_D, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0x9F */ {name: AHX, mode: absoluteY_D, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xA0 */ {name: LDY, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xA1 */ {name: LDA, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0xA2 */ {name: LDX, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xA3 */ {name: LAX, mode: indexedIndirect, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xA4 */ {name: LDY, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xA5 */ {name: LDA, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xA6 */ {name: LDX, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xA7 */ {name: LAX, mode: zeroPage, cycle: 3, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xA8 */ {name: TAY, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xA9 */ {name: LDA, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xAA */ {name: TAX, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xAB */ {name: LAX, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xAC */ {name: LDY, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xAD */ {name: LDA, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xAE */ {name: LDX, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xAF */ {name: LAX, mode: absolute, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xB0 */ {name: BCS, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0xB1 */ {name: LDA, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0xB2 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xB3 */ {name: LAX, mode: indirectIndexed, cycle: 5, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0xB4 */ {name: LDY, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0xB5 */ {name: LDA, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0xB6 */ {name: LDX, mode: zeroPageY, cycle: 4, pageCycle: 0},
+	/* 0xB7 */ {name: LAX, mode: zeroPageY, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xB8 */ {name: CLV, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xB9 */ {name: LDA, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0xBA */ {name: TSX, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xBB */ {name: LAS, mode: absoluteY, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0xBC */ {name: LDY, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0xBD */ {name: LDA, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0xBE */ {name: LDX, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0xBF */ {name: LAX, mode: absoluteY, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0xC0 */ {name: CPY, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xC1 */ {name: CMP, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0xC2 */ {name: NOP, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xC3 */ {name: DCP, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xC4 */ {name: CPY, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xC5 */ {name: CMP, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xC6 */ {name: DEC, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0xC7 */ {name: DCP, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xC8 */ {name: INY, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xC9 */ {name: CMP, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xCA */ {name: DEX, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xCB */ {name: AXS, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xCC */ {name: CPY, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xCD */ {name: CMP, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xCE */ {name: DEC, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0xCF */ {name: DCP, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xD0 */ {name: BNE, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0xD1 */ {name: CMP, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0xD2 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xD3 */ {name: DCP, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xD4 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xD5 */ {name: CMP, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0xD6 */ {name: DEC, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0xD7 */ {name: DCP, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xD8 */ {name: CLD, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xD9 */ {name: CMP, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0xDA */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xDB */ {name: DCP, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xDC */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0xDD */ {name: CMP, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0xDE */ {name: DEC, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0xDF */ {name: DCP, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xE0 */ {name: CPX, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xE1 */ {name: SBC, mode: indexedIndirect, cycle: 6, pageCycle: 0},
+	/* 0xE2 */ {name: NOP, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xE3 */ {name: ISB, mode: indexedIndirect, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xE4 */ {name: CPX, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xE5 */ {name: SBC, mode: zeroPage, cycle: 3, pageCycle: 0},
+	/* 0xE6 */ {name: INC, mode: zeroPage, cycle: 5, pageCycle: 0},
+	/* 0xE7 */ {name: ISB, mode: zeroPage, cycle: 5, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xE8 */ {name: INX, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xE9 */ {name: SBC, mode: immediate, cycle: 2, pageCycle: 0},
+	/* 0xEA */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xEB */ {name: SBC, mode: immediate, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xEC */ {name: CPX, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xED */ {name: SBC, mode: absolute, cycle: 4, pageCycle: 0},
+	/* 0xEE */ {name: INC, mode: absolute, cycle: 6, pageCycle: 0},
+	/* 0xEF */ {name: ISB, mode: absolute, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xF0 */ {name: BEQ, mode: relative, cycle: 2, pageCycle: 1},
+	/* 0xF1 */ {name: SBC, mode: indirectIndexed, cycle: 5, pageCycle: 1},
+	/* 0xF2 */ {name: KIL, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xF3 */ {name: ISB, mode: indirectIndexed_D, cycle: 8, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xF4 */ {name: NOP, mode: zeroPageX, cycle: 4, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xF5 */ {name: SBC, mode: zeroPageX, cycle: 4, pageCycle: 0},
+	/* 0xF6 */ {name: INC, mode: zeroPageX, cycle: 6, pageCycle: 0},
+	/* 0xF7 */ {name: ISB, mode: zeroPageX, cycle: 6, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xF8 */ {name: SED, mode: implied, cycle: 2, pageCycle: 0},
+	/* 0xF9 */ {name: SBC, mode: absoluteY, cycle: 4, pageCycle: 1},
+	/* 0xFA */ {name: NOP, mode: implied, cycle: 2, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xFB */ {name: ISB, mode: absoluteY_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
+	/* 0xFC */ {name: NOP, mode: absoluteX, cycle: 4, pageCycle: 1, unofficial: true}, /* undocumented opcode */
+	/* 0xFD */ {name: SBC, mode: absoluteX, cycle: 4, pageCycle: 1},
+	/* 0xFE */ {name: INC, mode: absoluteX_D, cycle: 7, pageCycle: 0},
+	/* 0xFF */ {name: ISB, mode: absoluteX_D, cycle: 7, pageCycle: 0, unofficial: true}, /* undocumented opcode */
 }
 
 // ref. https://www.qmtpro.com/~nes/misc/nestest.log

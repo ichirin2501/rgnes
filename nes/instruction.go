@@ -1,239 +1,239 @@
 package nes
 
-func (cpu *CPU) lda(addr uint16) {
-	a := cpu.Read(addr)
+func (cpu *cpu) lda(addr uint16) {
+	a := cpu.read(addr)
 	cpu.A = a
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) ldx(addr uint16) {
-	a := cpu.Read(addr)
+func (cpu *cpu) ldx(addr uint16) {
+	a := cpu.read(addr)
 	cpu.X = a
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) ldy(addr uint16) {
-	a := cpu.Read(addr)
+func (cpu *cpu) ldy(addr uint16) {
+	a := cpu.read(addr)
 	cpu.Y = a
-	cpu.P.SetZN(cpu.Y)
+	cpu.P.setZN(cpu.Y)
 }
 
-func (cpu *CPU) sta(addr uint16) {
-	cpu.Write(addr, cpu.A)
+func (cpu *cpu) sta(addr uint16) {
+	cpu.write(addr, cpu.A)
 }
 
-func (cpu *CPU) stx(addr uint16) {
-	cpu.Write(addr, cpu.X)
+func (cpu *cpu) stx(addr uint16) {
+	cpu.write(addr, cpu.X)
 }
 
-func (cpu *CPU) sty(addr uint16) {
-	cpu.Write(addr, cpu.Y)
+func (cpu *cpu) sty(addr uint16) {
+	cpu.write(addr, cpu.Y)
 }
 
-func (cpu *CPU) tax() {
+func (cpu *cpu) tax() {
 	cpu.X = cpu.A
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) tay() {
+func (cpu *cpu) tay() {
 	cpu.Y = cpu.A
-	cpu.P.SetZN(cpu.Y)
+	cpu.P.setZN(cpu.Y)
 }
 
-func (cpu *CPU) tsx() {
+func (cpu *cpu) tsx() {
 	cpu.X = cpu.S
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) txa() {
+func (cpu *cpu) txa() {
 	cpu.A = cpu.X
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) txs() {
+func (cpu *cpu) txs() {
 	cpu.S = cpu.X
 }
 
-func (cpu *CPU) tya() {
+func (cpu *cpu) tya() {
 	cpu.A = cpu.Y
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) adc(addr uint16) {
+func (cpu *cpu) adc(addr uint16) {
 	a := cpu.A
-	b := cpu.Read(addr)
+	b := cpu.read(addr)
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
 	v := a + b + c
 	cpu.A = v
-	cpu.P.SetZN(v)
-	cpu.P.SetCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
-	cpu.P.SetOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+	cpu.P.setZN(v)
+	cpu.P.setCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	cpu.P.setOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
 }
 
-func (cpu *CPU) and(addr uint16) {
-	cpu.A &= cpu.Read(addr)
-	cpu.P.SetZN(cpu.A)
+func (cpu *cpu) and(addr uint16) {
+	cpu.A &= cpu.read(addr)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) aslAcc() {
-	cpu.P.SetCarry((cpu.A & 0x80) == 0x80)
+func (cpu *cpu) aslAcc() {
+	cpu.P.setCarry((cpu.A & 0x80) == 0x80)
 	cpu.A <<= 1
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) asl(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.P.SetCarry((v & 0x80) == 0x80)
-	cpu.Write(addr, v) // dummy write
+func (cpu *cpu) asl(addr uint16) {
+	v := cpu.read(addr)
+	cpu.P.setCarry((v & 0x80) == 0x80)
+	cpu.write(addr, v) // dummy write
 	v <<= 1
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) bit(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.P.SetOverflow((v & 0x40) == 0x40)
-	cpu.P.SetNegative(v&0x80 != 0)
-	cpu.P.SetZero((v & cpu.A) == 0x00)
+func (cpu *cpu) bit(addr uint16) {
+	v := cpu.read(addr)
+	cpu.P.setOverflow((v & 0x40) == 0x40)
+	cpu.P.setNegative(v&0x80 != 0)
+	cpu.P.setZero((v & cpu.A) == 0x00)
 }
 
-func (cpu *CPU) cmp(addr uint16) {
-	v := cpu.Read(addr)
+func (cpu *cpu) cmp(addr uint16) {
+	v := cpu.read(addr)
 	cpu.compare(cpu.A, v)
 }
 
-func (cpu *CPU) cpx(addr uint16) {
-	v := cpu.Read(addr)
+func (cpu *cpu) cpx(addr uint16) {
+	v := cpu.read(addr)
 	cpu.compare(cpu.X, v)
 }
 
-func (cpu *CPU) cpy(addr uint16) {
-	v := cpu.Read(addr)
+func (cpu *cpu) cpy(addr uint16) {
+	v := cpu.read(addr)
 	cpu.compare(cpu.Y, v)
 }
 
-func (cpu *CPU) dec(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
+func (cpu *cpu) dec(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
 	v--
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) dex() {
+func (cpu *cpu) dex() {
 	cpu.X--
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) dey() {
+func (cpu *cpu) dey() {
 	cpu.Y--
-	cpu.P.SetZN(cpu.Y)
+	cpu.P.setZN(cpu.Y)
 }
 
-func (cpu *CPU) eor(addr uint16) {
-	cpu.A ^= cpu.Read(addr)
-	cpu.P.SetZN(cpu.A)
+func (cpu *cpu) eor(addr uint16) {
+	cpu.A ^= cpu.read(addr)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) inc(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
+func (cpu *cpu) inc(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
 	v++
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) inx() {
+func (cpu *cpu) inx() {
 	cpu.X++
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) iny() {
+func (cpu *cpu) iny() {
 	cpu.Y++
-	cpu.P.SetZN(cpu.Y)
+	cpu.P.setZN(cpu.Y)
 }
 
-func (cpu *CPU) lsrAcc() {
-	cpu.P.SetCarry((cpu.A & 1) == 1)
+func (cpu *cpu) lsrAcc() {
+	cpu.P.setCarry((cpu.A & 1) == 1)
 	cpu.A >>= 1
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) lsr(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 1) == 1)
+func (cpu *cpu) lsr(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 1) == 1)
 	v >>= 1
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) ora(addr uint16) {
-	cpu.A |= cpu.Read(addr)
-	cpu.P.SetZN(cpu.A)
+func (cpu *cpu) ora(addr uint16) {
+	cpu.A |= cpu.read(addr)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) rolAcc() {
+func (cpu *cpu) rolAcc() {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	cpu.P.SetCarry((cpu.A & 0x80) == 0x80)
+	cpu.P.setCarry((cpu.A & 0x80) == 0x80)
 	cpu.A = (cpu.A << 1) | c
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) rol(addr uint16) {
+func (cpu *cpu) rol(addr uint16) {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 0x80) == 0x80)
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) rorAcc() {
+func (cpu *cpu) rorAcc() {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	cpu.P.SetCarry((cpu.A & 1) == 1)
+	cpu.P.setCarry((cpu.A & 1) == 1)
 	cpu.A = (cpu.A >> 1) | (c << 7)
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) ror(addr uint16) {
+func (cpu *cpu) ror(addr uint16) {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 1) == 1)
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 1) == 1)
 	v = (v >> 1) | (c << 7)
-	cpu.Write(addr, v)
-	cpu.P.SetZN(v)
+	cpu.write(addr, v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) sbc(addr uint16) {
+func (cpu *cpu) sbc(addr uint16) {
 	a := cpu.A
-	b := cpu.Read(addr)
+	b := cpu.read(addr)
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
 	v := a - b - (1 - c)
 	cpu.A = v
-	cpu.P.SetCarry(int(a)-int(b)-int(1-c) >= 0)
-	cpu.P.SetOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
-	cpu.P.SetZN(v)
+	cpu.P.setCarry(int(a)-int(b)-int(1-c) >= 0)
+	cpu.P.setOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	cpu.P.setZN(v)
 }
 
 /*
@@ -248,13 +248,13 @@ ref: https://www.nesdev.org/6502_cpu.txt
 
 ここはアドレッシングモード側でdummy readしてカバーされているのでdummy readはたぶん不要
 */
-func (cpu *CPU) pha() {
+func (cpu *cpu) pha() {
 	//cpu.Read(cpu.PC) // dummy read
 	cpu.push(cpu.A)
 }
-func (cpu *CPU) php() {
+func (cpu *cpu) php() {
 	//cpu.Read(cpu.PC) // dummy read
-	cpu.push(cpu.P.Byte() | 0x30)
+	cpu.push(cpu.P.byte() | 0x30)
 }
 
 /*
@@ -268,17 +268,17 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	3  $0100,S  R  increment S
 	4  $0100,S  R  pull register from stack
 */
-func (cpu *CPU) pla() {
-	cpu.Read(cpu.PC) // dummy read
+func (cpu *cpu) pla() {
+	cpu.read(cpu.PC) // dummy read
 	cpu.A = cpu.pop()
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
-func (cpu *CPU) plp() {
-	cpu.Read(cpu.PC) // dummy read
+func (cpu *cpu) plp() {
+	cpu.read(cpu.PC) // dummy read
 	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 }
 
-func (cpu *CPU) jmp(addr uint16) {
+func (cpu *cpu) jmp(addr uint16) {
 	cpu.PC = addr
 }
 
@@ -297,10 +297,10 @@ ref: https://www.nesdev.org/6502_cpu.txt
 
 	byte to PCH
 */
-func (cpu *CPU) jsr(addr uint16) {
+func (cpu *cpu) jsr(addr uint16) {
 	cpu.push16(cpu.PC - 1)
 	// dummy read
-	cpu.Read(cpu.PC)
+	cpu.read(cpu.PC)
 	cpu.PC = addr
 }
 
@@ -317,13 +317,13 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	5  $0100,S  R  pull PCH from stack
 	6    PC     R  increment PC
 */
-func (cpu *CPU) rts() {
+func (cpu *cpu) rts() {
 	// 3  $0100,S  R  increment S
-	cpu.Read(0x100 | uint16(cpu.S)) // dummy read
+	cpu.read(0x100 | uint16(cpu.S)) // dummy read
 
 	cpu.PC = cpu.pop16()
 	// 6    PC     R  increment PC
-	cpu.Read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
 
 	cpu.PC++
 }
@@ -341,94 +341,94 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	5  $0100,S  R  pull PCL from stack, increment S
 	6  $0100,S  R  pull PCH from stack
 */
-func (cpu *CPU) rti() {
-	cpu.Read(0x100 | uint16(cpu.S)) // dummy read
+func (cpu *cpu) rti() {
+	cpu.read(0x100 | uint16(cpu.S)) // dummy read
 	cpu.P = processorStatus((cpu.pop() & 0xEF) | (1 << 5))
 	cpu.PC = cpu.pop16()
 }
 
-func (cpu *CPU) bcc(addr uint16) int {
-	if !cpu.P.IsCarry() {
+func (cpu *cpu) bcc(addr uint16) int {
+	if !cpu.P.isCarry() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bcs(addr uint16) int {
-	if cpu.P.IsCarry() {
+func (cpu *cpu) bcs(addr uint16) int {
+	if cpu.P.isCarry() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) beq(addr uint16) int {
-	if cpu.P.IsZero() {
+func (cpu *cpu) beq(addr uint16) int {
+	if cpu.P.isZero() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bmi(addr uint16) int {
-	if cpu.P.IsNegative() {
+func (cpu *cpu) bmi(addr uint16) int {
+	if cpu.P.isNegative() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bne(addr uint16) int {
-	if !cpu.P.IsZero() {
+func (cpu *cpu) bne(addr uint16) int {
+	if !cpu.P.isZero() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bpl(addr uint16) int {
-	if !cpu.P.IsNegative() {
+func (cpu *cpu) bpl(addr uint16) int {
+	if !cpu.P.isNegative() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bvc(addr uint16) int {
-	if !cpu.P.IsOverflow() {
+func (cpu *cpu) bvc(addr uint16) int {
+	if !cpu.P.isOverflow() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) bvs(addr uint16) int {
-	if cpu.P.IsOverflow() {
+func (cpu *cpu) bvs(addr uint16) int {
+	if cpu.P.isOverflow() {
 		return cpu.branch(addr)
 	}
 	return 0
 }
 
-func (cpu *CPU) clc() {
-	cpu.P.SetCarry(false)
+func (cpu *cpu) clc() {
+	cpu.P.setCarry(false)
 }
 
-func (cpu *CPU) cld() {
-	cpu.P.SetDecimal(false)
+func (cpu *cpu) cld() {
+	cpu.P.setDecimal(false)
 }
 
-func (cpu *CPU) cli() {
-	cpu.P.SetInterruptDisable(false)
+func (cpu *cpu) cli() {
+	cpu.P.setInterruptDisable(false)
 }
 
-func (cpu *CPU) clv() {
-	cpu.P.SetOverflow(false)
+func (cpu *cpu) clv() {
+	cpu.P.setOverflow(false)
 }
 
-func (cpu *CPU) sec() {
-	cpu.P.SetCarry(true)
+func (cpu *cpu) sec() {
+	cpu.P.setCarry(true)
 }
 
-func (cpu *CPU) sed() {
-	cpu.P.SetDecimal(true)
+func (cpu *cpu) sed() {
+	cpu.P.setDecimal(true)
 }
 
-func (cpu *CPU) sei() {
-	cpu.P.SetInterruptDisable(true)
+func (cpu *cpu) sei() {
+	cpu.P.setInterruptDisable(true)
 }
 
 /*
@@ -450,7 +450,7 @@ BRK
 The addressing mode of the BRK instruction is the Implied.
 The first 2 CPU clocks are already working in advance addressing mode processing, so dummy read is not necessary.
 */
-func (cpu *CPU) brk() {
+func (cpu *cpu) brk() {
 	cpu.interrupting = true
 	cpu.push16(cpu.PC + 1)
 
@@ -470,13 +470,13 @@ func (cpu *CPU) brk() {
 	// As far as I checked with cpu_interrupts_v2/2-nmi_and_brk.nes,
 	// it seems to be expecting the NMI edge detector timing.
 	if cpu.nmiSignal || cpu.nmiTriggered {
-		cpu.push(cpu.P.Byte() | 0x30)
-		cpu.P.SetInterruptDisable(true)
+		cpu.push(cpu.P.byte() | 0x30)
+		cpu.P.setInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFA)
 		cpu.clearNMIInterruptState()
 	} else {
-		cpu.push(cpu.P.Byte() | 0x30)
-		cpu.P.SetInterruptDisable(true)
+		cpu.push(cpu.P.byte() | 0x30)
+		cpu.P.setInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFE)
 	}
 	cpu.interrupting = false
@@ -502,71 +502,71 @@ ref: https://www.nesdev.org/wiki/CPU_interrupts#IRQ_and_NMI_tick-by-tick_executi
 	6   A       R  fetch PCL (A = FFFE for IRQ, A = FFFA for NMI), set I flag
 	7   A       R  fetch PCH (A = FFFF for IRQ, A = FFFB for NMI)
 */
-func (cpu *CPU) nmi() {
+func (cpu *cpu) nmi() {
 	cpu.interrupting = true
 
-	cpu.Read(cpu.PC) // dummy read
-	cpu.Read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
-	cpu.push(cpu.P.Byte() | 0x20)
-	cpu.P.SetInterruptDisable(true)
+	cpu.push(cpu.P.byte() | 0x20)
+	cpu.P.setInterruptDisable(true)
 	cpu.PC = cpu.read16(0xFFFA)
 
 	cpu.clearNMIInterruptState()
 	cpu.interrupting = false
 }
 
-func (cpu *CPU) irq() {
+func (cpu *cpu) irq() {
 	cpu.interrupting = true
-	cpu.Read(cpu.PC) // dummy read
-	cpu.Read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
 	cpu.push16(cpu.PC)
 	if cpu.nmiSignal || cpu.nmiTriggered {
-		cpu.push(cpu.P.Byte() | 0x20)
-		cpu.P.SetInterruptDisable(true)
+		cpu.push(cpu.P.byte() | 0x20)
+		cpu.P.setInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFA)
 		cpu.clearNMIInterruptState()
 	} else {
-		cpu.push(cpu.P.Byte() | 0x20)
-		cpu.P.SetInterruptDisable(true)
+		cpu.push(cpu.P.byte() | 0x20)
+		cpu.P.setInterruptDisable(true)
 		cpu.PC = cpu.read16(0xFFFE)
 	}
 	cpu.interrupting = false
 }
 
-func (cpu *CPU) compare(a byte, b byte) {
-	cpu.P.SetZN(a - b)
-	cpu.P.SetCarry(a >= b)
+func (cpu *cpu) compare(a byte, b byte) {
+	cpu.P.setZN(a - b)
+	cpu.P.setCarry(a >= b)
 }
 
-func (cpu *CPU) push(val byte) {
-	cpu.Write(0x100|uint16(cpu.S), val)
+func (cpu *cpu) push(val byte) {
+	cpu.write(0x100|uint16(cpu.S), val)
 	cpu.S--
 }
 
-func (cpu *CPU) pop() byte {
+func (cpu *cpu) pop() byte {
 	cpu.S++
-	return cpu.Read(0x100 | uint16(cpu.S))
+	return cpu.read(0x100 | uint16(cpu.S))
 }
 
-func (cpu *CPU) push16(val uint16) {
+func (cpu *cpu) push16(val uint16) {
 	l := byte(val & 0xFF)
 	h := byte(val >> 8)
 	cpu.push(h)
 	cpu.push(l)
 }
 
-func (cpu *CPU) pop16() uint16 {
+func (cpu *cpu) pop16() uint16 {
 	l := cpu.pop()
 	h := cpu.pop()
 	return uint16(h)<<8 | uint16(l)
 }
 
-func (cpu *CPU) branch(addr uint16) int {
+func (cpu *cpu) branch(addr uint16) int {
 	cycle := 1
-	cpu.Read(cpu.PC) // dummy read
+	cpu.read(cpu.PC) // dummy read
 	if pagesCross(cpu.PC, addr) {
-		cpu.Read(cpu.PC) // dummy read
+		cpu.read(cpu.PC) // dummy read
 		cycle++
 	}
 	cpu.PC = addr
@@ -579,169 +579,169 @@ func pagesCross(a uint16, b uint16) bool {
 
 // undocumented opcode
 
-func (cpu *CPU) kil() {}
+func (cpu *cpu) kil() {}
 
-func (cpu *CPU) slo(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 0x80) == 0x80)
+func (cpu *cpu) slo(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 0x80) == 0x80)
 	v <<= 1
-	cpu.Write(addr, v)
+	cpu.write(addr, v)
 
 	cpu.A |= v
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) anc(addr uint16) {
-	a := cpu.Read(addr)
+func (cpu *cpu) anc(addr uint16) {
+	a := cpu.read(addr)
 	cpu.A &= a
-	cpu.P.SetZN(cpu.A)
-	cpu.P.SetCarry(cpu.P.IsNegative())
+	cpu.P.setZN(cpu.A)
+	cpu.P.setCarry(cpu.P.isNegative())
 }
 
-func (cpu *CPU) rla(addr uint16) {
+func (cpu *cpu) rla(addr uint16) {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 0x80) == 0x80)
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 0x80) == 0x80)
 	v = (v << 1) | c
-	cpu.Write(addr, v)
+	cpu.write(addr, v)
 
 	cpu.A &= v
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) sre(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
-	cpu.P.SetCarry((v & 1) == 1)
+func (cpu *cpu) sre(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
+	cpu.P.setCarry((v & 1) == 1)
 	v >>= 1
-	cpu.Write(addr, v)
+	cpu.write(addr, v)
 
 	cpu.A ^= v
-	cpu.P.SetZN(cpu.A)
+	cpu.P.setZN(cpu.A)
 }
 
-func (cpu *CPU) alr(addr uint16) {
+func (cpu *cpu) alr(addr uint16) {
 	// A =(A&#{imm})/2
 	// N, Z, C
-	v := cpu.A & cpu.Read(addr)
-	cpu.P.SetCarry((v & 1) == 1)
+	v := cpu.A & cpu.read(addr)
+	cpu.P.setCarry((v & 1) == 1)
 	v >>= 1
-	cpu.P.SetZN(v)
+	cpu.P.setZN(v)
 	cpu.A = v
 }
 
-func (cpu *CPU) rra(addr uint16) {
+func (cpu *cpu) rra(addr uint16) {
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
-	k := cpu.Read(addr)
-	cpu.Write(addr, k) // dummy write
-	cpu.P.SetCarry((k & 1) == 1)
+	k := cpu.read(addr)
+	cpu.write(addr, k) // dummy write
+	cpu.P.setCarry((k & 1) == 1)
 	k = (k >> 1) | (c << 7)
-	cpu.Write(addr, k)
+	cpu.write(addr, k)
 
 	a := cpu.A
 	b := k
 	c = byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
 	v := a + b + c
 	cpu.A = v
-	cpu.P.SetZN(v)
-	cpu.P.SetCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
-	cpu.P.SetOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
+	cpu.P.setZN(v)
+	cpu.P.setCarry(uint16(a)+uint16(b)+uint16(c) > 0xFF)
+	cpu.P.setOverflow((a^b)&0x80 == 0 && (a^v)&0x80 != 0)
 }
 
-func (cpu *CPU) arr(addr uint16) {
+func (cpu *cpu) arr(addr uint16) {
 	// A:=(A&#{imm})/2
 	// N V Z C
 	// N and Z are normal, but C is bit 6 and V is bit 6 xor bit 5.
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 0x80
 	}
-	v := ((cpu.A & cpu.Read(addr)) >> 1) | c
-	cpu.P.SetZN(v)
-	cpu.P.SetCarry((v & 0x40) == 0x40)
-	cpu.P.SetOverflow(((v & 0x40) ^ ((v & 0x20) << 1)) == 0x40)
+	v := ((cpu.A & cpu.read(addr)) >> 1) | c
+	cpu.P.setZN(v)
+	cpu.P.setCarry((v & 0x40) == 0x40)
+	cpu.P.setOverflow(((v & 0x40) ^ ((v & 0x20) << 1)) == 0x40)
 	cpu.A = v
 }
 
-func (cpu *CPU) sax(addr uint16) {
-	cpu.Write(addr, cpu.A&cpu.X)
+func (cpu *cpu) sax(addr uint16) {
+	cpu.write(addr, cpu.A&cpu.X)
 }
 
-func (cpu *CPU) xaa() {}
+func (cpu *cpu) xaa() {}
 
-func (cpu *CPU) ahx() {}
+func (cpu *cpu) ahx() {}
 
-func (cpu *CPU) tas() {}
+func (cpu *cpu) tas() {}
 
-func (cpu *CPU) shy(addr uint16) {
+func (cpu *cpu) shy(addr uint16) {
 	if pagesCross(addr, addr-uint16(cpu.X)) {
 		addr &= uint16(cpu.Y) << 8
 	}
 	res := cpu.Y & (byte(addr>>8) + 1)
-	cpu.Write(addr, res)
+	cpu.write(addr, res)
 }
 
-func (cpu *CPU) shx(addr uint16) {
+func (cpu *cpu) shx(addr uint16) {
 	if pagesCross(addr, addr-uint16(cpu.Y)) {
 		addr &= uint16(cpu.X) << 8
 	}
 	res := cpu.X & (byte(addr>>8) + 1)
-	cpu.Write(addr, res)
+	cpu.write(addr, res)
 }
 
-func (cpu *CPU) lax(addr uint16) {
-	v := cpu.Read(addr)
+func (cpu *cpu) lax(addr uint16) {
+	v := cpu.read(addr)
 	cpu.X = v
 	cpu.A = v
-	cpu.P.SetZN(v)
+	cpu.P.setZN(v)
 }
 
-func (cpu *CPU) las() {}
+func (cpu *cpu) las() {}
 
-func (cpu *CPU) dcp(addr uint16) {
-	v := cpu.Read(addr)
-	cpu.Write(addr, v) // dummy write
+func (cpu *cpu) dcp(addr uint16) {
+	v := cpu.read(addr)
+	cpu.write(addr, v) // dummy write
 	v--
 	cpu.compare(cpu.A, v)
-	cpu.Write(addr, v)
+	cpu.write(addr, v)
 }
 
-func (cpu *CPU) axs(addr uint16) {
+func (cpu *cpu) axs(addr uint16) {
 	// X:=A&X-#{imm}
 	// N, Z, C
 	t := cpu.A & cpu.X
-	v := cpu.Read(addr)
+	v := cpu.read(addr)
 	cpu.X = t - v
-	cpu.P.SetCarry(int(t)-int(v) >= 0)
-	cpu.P.SetZN(cpu.X)
+	cpu.P.setCarry(int(t)-int(v) >= 0)
+	cpu.P.setZN(cpu.X)
 }
 
-func (cpu *CPU) isb(addr uint16) {
-	k := cpu.Read(addr)
-	cpu.Write(addr, k) // dummy write
+func (cpu *cpu) isb(addr uint16) {
+	k := cpu.read(addr)
+	cpu.write(addr, k) // dummy write
 	k++
-	cpu.Write(addr, k)
+	cpu.write(addr, k)
 
 	a := cpu.A
 	b := k
 	c := byte(0)
-	if cpu.P.IsCarry() {
+	if cpu.P.isCarry() {
 		c = 1
 	}
 	v := a - b - (1 - c)
 	cpu.A = v
-	cpu.P.SetCarry(int(a)-int(b)-int(1-c) >= 0)
-	cpu.P.SetOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
-	cpu.P.SetZN(v)
+	cpu.P.setCarry(int(a)-int(b)-int(1-c) >= 0)
+	cpu.P.setOverflow(((a^b)&0x80 != 0) && (a^v)&0x80 != 0)
+	cpu.P.setZN(v)
 }

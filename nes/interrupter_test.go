@@ -8,16 +8,16 @@ import (
 
 func Test_IRQInterruptSource(t *testing.T) {
 
-	i := IRQInterruptLine(0)
-	assert.Equal(t, false, i.IsLow())
+	i := irqInterruptLine(0)
+	assert.Equal(t, false, i.isLow())
 
-	i.SetLow(IRQSourceFrameCounter)
-	assert.Equal(t, int(IRQSourceFrameCounter), int(i))
-	assert.Equal(t, true, i.IsLow())
+	i.setLow(irqSourceFrameCounter)
+	assert.Equal(t, int(irqSourceFrameCounter), int(i))
+	assert.Equal(t, true, i.isLow())
 
-	i.SetLow(IRQSourceDMC)
-	assert.Equal(t, int(IRQSourceDMC)|int(IRQSourceFrameCounter), int(i))
+	i.setLow(irqSourceDMC)
+	assert.Equal(t, int(irqSourceDMC)|int(irqSourceFrameCounter), int(i))
 
-	i.SetHigh(IRQSourceDMC)
-	assert.Equal(t, int(IRQSourceFrameCounter), int(i))
+	i.setHigh(irqSourceDMC)
+	assert.Equal(t, int(irqSourceFrameCounter), int(i))
 }

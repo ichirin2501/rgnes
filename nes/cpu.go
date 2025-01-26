@@ -17,9 +17,9 @@ const (
 	pendingInterruptNMI
 )
 
-type CPUOption func(*CPU)
+type cpuOption func(*cpu)
 
-type CPU struct {
+type cpu struct {
 	// registers
 	A  byte   // Accumulator
 	X  byte   // Index
@@ -28,9 +28,9 @@ type CPU struct {
 	S  byte   // Stack Pointer
 	P  processorStatus
 
-	nmiLine *NMIInterruptLine
-	irqLine *IRQInterruptLine
-	bus     *CPUBus
+	nmiLine *nmiInterruptLine
+	irqLine *irqInterruptLine
+	bus     *cpuBus
 	t       *Trace
 	mu      *sync.Mutex
 
@@ -38,7 +38,7 @@ type CPU struct {
 	irqSignal    bool
 	nmiTriggered bool
 	nmiSignal    bool
-	prevNMILine  NMIInterruptLine
+	prevNMILine  nmiInterruptLine
 
 	pendingInterrupt pendingInterruptType
 
@@ -48,8 +48,8 @@ type CPU struct {
 	interrupting bool
 }
 
-func NewCPU(bus *CPUBus, nmiLine *NMIInterruptLine, irqLine *IRQInterruptLine, opts ...CPUOption) *CPU {
-	cpu := &CPU{
+func newCPU(bus *cpuBus, nmiLine *nmiInterruptLine, irqLine *irqInterruptLine, opts ...cpuOption) *cpu {
+	cpu := &cpu{
 		nmiLine: nmiLine,
 		irqLine: irqLine,
 		bus:     bus,
@@ -62,14 +62,14 @@ func NewCPU(bus *CPUBus, nmiLine *NMIInterruptLine, irqLine *IRQInterruptLine, o
 	return cpu
 }
 
-func WithTracer(tracer *Trace) CPUOption {
-	return func(cpu *CPU) {
+func withTracer(tracer *Trace) cpuOption {
+	return func(cpu *cpu) {
 		cpu.t = tracer
 	}
 }
 
 // debug
-func (cpu *CPU) FetchCycles() int {
+func (cpu *cpu) FetchCycles() int {
 	return cpu.bus.clock
 }
 
@@ -86,7 +86,7 @@ ref: http://users.telenet.be/kim1-6502/6502/proman.html#92
 	7        FFFD        Start PCH   Fetch Second Vector    Hold PCL
 	8        PCH PCL     First       Load First OP CODE
 */
-func (cpu *CPU) PowerUp() {
+func (cpu *cpu) powerUp() {
 	cpu.bus.tick(5)
 	cpu.A = 0x00
 	cpu.X = 0x00
@@ -96,17 +96,17 @@ func (cpu *CPU) PowerUp() {
 	cpu.PC = cpu.read16(0xFFFC)
 }
 
-func (cpu *CPU) Reset() {
+func (cpu *cpu) reset() {
 	// とりあえず今はlock取っておく
 	cpu.mu.Lock()
 	defer cpu.mu.Unlock()
 	cpu.bus.tick(5)
 	cpu.PC = cpu.read16(0xFFFC)
-	cpu.P.SetInterruptDisable(true)
+	cpu.P.setInterruptDisable(true)
 	cpu.S -= 3
 }
 
-func (cpu *CPU) Step() {
+func (cpu *cpu) step() {
 	cpu.mu.Lock()
 	defer cpu.mu.Unlock()
 
@@ -128,7 +128,7 @@ func (cpu *CPU) Step() {
 		cpu.t.SetCPURegisterY(cpu.Y)
 		cpu.t.SetCPURegisterPC(cpu.PC)
 		cpu.t.SetCPURegisterS(cpu.S)
-		cpu.t.SetCPURegisterP(cpu.P.Byte())
+		cpu.t.SetCPURegisterP(cpu.P.byte())
 	}
 
 	opcodeByte := cpu.fetch()
@@ -140,10 +140,10 @@ func (cpu *CPU) Step() {
 	}
 	addr, pageCrossed := cpu.fetchOperand(opcode)
 	if pageCrossed {
-		additionalCycle += opcode.PageCycle
+		additionalCycle += opcode.pageCycle
 	}
 
-	switch opcode.Name {
+	switch opcode.name {
 	case LDA:
 		cpu.lda(addr)
 	case LDX:
@@ -173,7 +173,7 @@ func (cpu *CPU) Step() {
 	case AND:
 		cpu.and(addr)
 	case ASL:
-		if opcode.Mode == accumulator {
+		if opcode.mode == accumulator {
 			cpu.aslAcc()
 		} else {
 			cpu.asl(addr)
@@ -201,7 +201,7 @@ func (cpu *CPU) Step() {
 	case INY:
 		cpu.iny()
 	case LSR:
-		if opcode.Mode == accumulator {
+		if opcode.mode == accumulator {
 			cpu.lsrAcc()
 		} else {
 			cpu.lsr(addr)
@@ -209,13 +209,13 @@ func (cpu *CPU) Step() {
 	case ORA:
 		cpu.ora(addr)
 	case ROL:
-		if opcode.Mode == accumulator {
+		if opcode.mode == accumulator {
 			cpu.rolAcc()
 		} else {
 			cpu.rol(addr)
 		}
 	case ROR:
-		if opcode.Mode == accumulator {
+		if opcode.mode == accumulator {
 			cpu.rorAcc()
 		} else {
 			cpu.ror(addr)
@@ -275,8 +275,8 @@ func (cpu *CPU) Step() {
 		// It seems to be processed in the same way as LDA and LDX, etc,
 		// So one dummy read operation is required in addition to fetch opcode and addressing process.
 		// However, NOP also has Implied addressing cases, so ignore the case only.
-		if opcode.Mode != implied {
-			cpu.Read(addr) // dummy read
+		if opcode.mode != implied {
+			cpu.read(addr) // dummy read
 		}
 	// case KIL:
 	// 	// TODO
@@ -314,24 +314,24 @@ func (cpu *CPU) Step() {
 	case ISB:
 		cpu.isb(addr)
 	default:
-		panic(fmt.Sprintf("Unable to reach: opcode.Name:%s", opcode.Name))
+		panic(fmt.Sprintf("Unable to reach: opcode.Name:%s", opcode.name))
 	}
 
 	afterClock := cpu.bus.clock
-	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
-		t := (opcode.Cycle + additionalCycle) - (afterClock - beforeClock)
+	if (opcode.cycle+additionalCycle)-(afterClock-beforeClock) > 0 {
+		t := (opcode.cycle + additionalCycle) - (afterClock - beforeClock)
 		cpu.bus.tick(t)
 	}
 
-	if (opcode.Cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
+	if (opcode.cycle+additionalCycle)-(afterClock-beforeClock) < 0 {
 		fmt.Printf("panic: %02X\t%s\t%s\tcycle:%d\tclock:%d\tdiff:%d\tunoff:%v\n",
 			opcodeByte,
-			opcode.Name,
-			opcode.Mode,
-			opcode.Cycle+additionalCycle,
+			opcode.name,
+			opcode.mode,
+			opcode.cycle+additionalCycle,
 			afterClock-beforeClock,
-			(opcode.Cycle+additionalCycle)-(afterClock-beforeClock),
-			opcode.Unofficial,
+			(opcode.cycle+additionalCycle)-(afterClock-beforeClock),
+			opcode.unofficial,
 		)
 		panic("wryyyyyyyyyyyyyy")
 	}
@@ -348,7 +348,7 @@ func (cpu *CPU) Step() {
 	// }
 }
 
-func (cpu *CPU) pollInterruptSignals() {
+func (cpu *cpu) pollInterruptSignals() {
 	// https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
 	// The internal signals of NMI/IRQ inputs are detected in the φ1 of each CPU cycle, so I emulate that.
 	// Once NMI internal signal is turned ON, it will not turn OFF until NMI is executed.
@@ -361,18 +361,18 @@ func (cpu *CPU) pollInterruptSignals() {
 // https://www.nesdev.org/wiki/CPU_interrupts#Detailed_interrupt_behavior
 // > As can be deduced from above, it's really the status of the interrupt lines at the end of the second-to-last cycle that matters.
 // The polling process for interrupt status occurs during φ2 of each CPU cycle, but the actual generation of the interrupt is delayed by one instruction.
-func (cpu *CPU) pollInterrupts() {
+func (cpu *cpu) pollInterrupts() {
 	// poll interrupt lines
 	// The NMI input is connected to an edge detector
 	cpu.nmiTriggered = false
-	if cpu.nmiLine.IsLow() && cpu.prevNMILine.IsHigh() {
+	if cpu.nmiLine.isLow() && cpu.prevNMILine.isHigh() {
 		cpu.nmiTriggered = true
 	}
 	cpu.prevNMILine = *cpu.nmiLine
 
 	// The IRQ input is connected to a level detector
 	cpu.irqTriggered = false
-	if cpu.irqLine.IsLow() {
+	if cpu.irqLine.isLow() {
 		cpu.irqTriggered = true
 	}
 
@@ -381,56 +381,56 @@ func (cpu *CPU) pollInterrupts() {
 	if !cpu.interrupting {
 		if cpu.nmiSignal {
 			cpu.pendingInterrupt = pendingInterruptNMI
-		} else if cpu.irqSignal && !cpu.P.IsInterruptDisable() {
+		} else if cpu.irqSignal && !cpu.P.isInterruptDisable() {
 			cpu.pendingInterrupt = pendingInterruptIRQ
 		}
 	}
 }
 
-func (cpu *CPU) clearNMIInterruptState() {
+func (cpu *cpu) clearNMIInterruptState() {
 	cpu.nmiSignal = false
 	cpu.nmiTriggered = false
 }
 
-func (cpu *CPU) Read(addr uint16) byte {
-	cpu.bus.RunDMAIfOccurred(true)
+func (cpu *cpu) read(addr uint16) byte {
+	cpu.bus.runDMAIfOccurred(true)
 	cpu.pollInterruptSignals()
 	cpu.bus.clock++
-	cpu.bus.ppu.Step()
-	cpu.bus.ppu.Step()
-	cpu.bus.apu.Step()
+	cpu.bus.ppu.step()
+	cpu.bus.ppu.step()
+	cpu.bus.apu.step()
 	ret := cpu.bus.read(addr)
-	cpu.bus.ppu.Step()
+	cpu.bus.ppu.step()
 	cpu.pollInterrupts()
 	return ret
 }
 
-func (cpu *CPU) Write(addr uint16, val byte) {
-	cpu.bus.RunDMAIfOccurred(false)
+func (cpu *cpu) write(addr uint16, val byte) {
+	cpu.bus.runDMAIfOccurred(false)
 	cpu.pollInterruptSignals()
 	cpu.bus.clock++
-	cpu.bus.ppu.Step()
-	cpu.bus.ppu.Step()
-	cpu.bus.apu.Step()
+	cpu.bus.ppu.step()
+	cpu.bus.ppu.step()
+	cpu.bus.apu.step()
 	cpu.bus.write(addr, val)
-	cpu.bus.ppu.Step()
+	cpu.bus.ppu.step()
 	cpu.pollInterrupts()
 }
 
-func (cpu *CPU) fetch() byte {
-	v := cpu.Read(cpu.PC)
+func (cpu *cpu) fetch() byte {
+	v := cpu.read(cpu.PC)
 	cpu.PC++
 	return v
 }
 
-func (cpu *CPU) read16(addr uint16) uint16 {
-	l := cpu.Read(addr)
-	h := cpu.Read(addr + 1)
+func (cpu *cpu) read16(addr uint16) uint16 {
+	l := cpu.read(addr)
+	h := cpu.read(addr + 1)
 	return (uint16(h) << 8) | uint16(l)
 }
 
-func (cpu *CPU) fetchOperand(op *opcode) (uint16, bool) {
-	switch op.Mode {
+func (cpu *cpu) fetchOperand(op *opcode) (uint16, bool) {
+	switch op.mode {
 	case absolute:
 		return cpu.addressingAbsolute(op)
 	case absoluteX:
@@ -468,23 +468,23 @@ func (cpu *CPU) fetchOperand(op *opcode) (uint16, bool) {
 	}
 }
 
-func (cpu *CPU) addressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	addr = uint16(h)<<8 | uint16(l)
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
-		if op.Name == JMP || op.Name == JSR {
+		if op.name == JMP || op.name == JSR {
 			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
 		} else {
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.bus.Peek(addr)))
+			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.bus.peek(addr)))
 		}
 	}
 	return addr, false
 }
 
-func (cpu *CPU) addressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingAbsoluteX(_ *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
@@ -492,17 +492,17 @@ func (cpu *CPU) addressingAbsoluteX(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.X))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
-		cpu.Read(dummyAddr)
+		cpu.read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
 
-func (cpu *CPU) addressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingAbsoluteY(_ *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
@@ -510,12 +510,12 @@ func (cpu *CPU) addressingAbsoluteY(op *opcode, forceDummyRead bool) (addr uint1
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
-		cpu.Read(dummyAddr)
+		cpu.read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -530,51 +530,51 @@ ref: https://www.nesdev.org/6502_cpu.txt
 	1    PC     R  fetch opcode, increment PC
 	2    PC     R  read next instruction byte (and throw it away)
 */
-func (cpu *CPU) addressingAccumulator(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.Read(cpu.PC) // dummy read
+func (cpu *cpu) addressingAccumulator(_ *opcode) (addr uint16, pageCrossed bool) {
+	cpu.read(cpu.PC) // dummy read
 	if cpu.t != nil {
 		cpu.t.SetCPUAddressingResult("A")
 	}
 	return 0, false
 }
-func (cpu *CPU) addressingImplied(op *opcode) (addr uint16, pageCrossed bool) {
-	cpu.Read(cpu.PC) // dummy read
+func (cpu *cpu) addressingImplied(_ *opcode) (addr uint16, pageCrossed bool) {
+	cpu.read(cpu.PC) // dummy read
 	return 0, false
 }
 
-func (cpu *CPU) addressingImmediate(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingImmediate(_ *opcode) (addr uint16, pageCrossed bool) {
 	addr = cpu.PC
 	cpu.PC++
 	if cpu.t != nil {
-		a := cpu.bus.Peek(addr)
+		a := cpu.bus.peek(addr)
 		cpu.t.AddCPUByteCode(a)
 		cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
 	}
 	return addr, false
 }
 
-func (cpu *CPU) addressingIndexedIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingIndexedIndirect(_ *opcode) (addr uint16, pageCrossed bool) {
 	k := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > pointer    R  read from the address, add X to it
-	cpu.Read(uint16(k)) // dummy read
+	cpu.read(uint16(k)) // dummy read
 
 	a := uint16(k + cpu.X)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
+	addr = uint16(cpu.read(b))<<8 | uint16(cpu.read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(k)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
 
-func (cpu *CPU) addressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingIndirect(_ *opcode) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	a := uint16(h)<<8 | uint16(l)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	addr = uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
+	addr = uint16(cpu.read(b))<<8 | uint16(cpu.read(a))
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(l)
 		cpu.t.AddCPUByteCode(h)
@@ -583,25 +583,25 @@ func (cpu *CPU) addressingIndirect(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 
 }
-func (cpu *CPU) addressingIndirectIndexed(op *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingIndirectIndexed(_ *opcode, forceDummyRead bool) (addr uint16, pageCrossed bool) {
 	a := uint16(cpu.fetch())
 	b := (a & 0xFF00) | uint16(byte(a)+1)
-	baseAddr := uint16(cpu.Read(b))<<8 | uint16(cpu.Read(a))
+	baseAddr := uint16(cpu.read(b))<<8 | uint16(cpu.read(a))
 	addr = baseAddr + uint16(cpu.Y)
 	pageCrossed = pagesCross(addr, addr-uint16(cpu.Y))
 	if pageCrossed || forceDummyRead {
 		h := baseAddr & 0xFF00
 		l := baseAddr & 0x00FF
 		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
-		cpu.Read(dummyAddr)
+		cpu.read(dummyAddr)
 	}
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(byte(a))
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
-func (cpu *CPU) addressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingRelative(_ *opcode) (addr uint16, pageCrossed bool) {
 	offset := uint16(cpu.fetch())
 	if offset < 0x80 {
 		addr = cpu.PC + offset
@@ -615,40 +615,40 @@ func (cpu *CPU) addressingRelative(op *opcode) (addr uint16, pageCrossed bool) {
 	return addr, false
 }
 
-func (cpu *CPU) addressingZeroPage(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingZeroPage(_ *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	addr = uint16(a)
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
 
-func (cpu *CPU) addressingZeroPageX(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingZeroPageX(_ *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it
-	cpu.Read(uint16(a)) // dummy read
+	cpu.read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.X) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
 
-func (cpu *CPU) addressingZeroPageY(op *opcode) (addr uint16, pageCrossed bool) {
+func (cpu *cpu) addressingZeroPageY(_ *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	// https://www.nesdev.org/6502_cpu.txt
 	// > address   R  read from address, add index register to it
-	cpu.Read(uint16(a)) // dummy read
+	cpu.read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.Y) & 0xFF
 	if cpu.t != nil {
 		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.bus.Peek(addr)))
+		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }

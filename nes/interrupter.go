@@ -1,47 +1,47 @@
 package nes
 
 type (
-	IRQInterruptLine int
-	IRQSource        int
+	irqInterruptLine int
+	irqSource        int
 )
 
 const (
-	IRQSourceFrameCounter IRQSource = (1 << iota)
-	IRQSourceDMC
+	irqSourceFrameCounter irqSource = (1 << iota)
+	irqSourceDMC
 )
 
-func (i *IRQInterruptLine) SetHigh(src IRQSource) {
+func (i *irqInterruptLine) setHigh(src irqSource) {
 	// For interrupt line, define high = 0
 	// High = 0
-	*i &= IRQInterruptLine(^src)
+	*i &= irqInterruptLine(^src)
 }
 
-func (i *IRQInterruptLine) SetLow(src IRQSource) {
-	*i |= IRQInterruptLine(src)
+func (i *irqInterruptLine) setLow(src irqSource) {
+	*i |= irqInterruptLine(src)
 }
 
-func (i *IRQInterruptLine) IsHigh() bool {
+func (i *irqInterruptLine) isHigh() bool {
 	return *i == 0
 }
 
-func (i *IRQInterruptLine) IsLow() bool {
+func (i *irqInterruptLine) isLow() bool {
 	return *i != 0
 }
 
-type NMIInterruptLine int
+type nmiInterruptLine int
 
-func (i *NMIInterruptLine) SetHigh() {
+func (i *nmiInterruptLine) setHigh() {
 	*i = 0
 }
 
-func (i *NMIInterruptLine) SetLow() {
+func (i *nmiInterruptLine) setLow() {
 	*i = 1
 }
 
-func (i *NMIInterruptLine) IsHigh() bool {
+func (i *nmiInterruptLine) isHigh() bool {
 	return *i == 0
 }
 
-func (i *NMIInterruptLine) IsLow() bool {
+func (i *nmiInterruptLine) isLow() bool {
 	return *i == 1
 }

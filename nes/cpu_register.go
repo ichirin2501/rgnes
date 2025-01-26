@@ -25,68 +25,68 @@ func (s *processorStatus) updateBit(pos byte, val bool) {
 	}
 }
 
-func (s *processorStatus) Byte() byte {
+func (s *processorStatus) byte() byte {
 	return byte(*s)
 }
 
-func (s *processorStatus) IsCarry() bool {
+func (s *processorStatus) isCarry() bool {
 	return (byte(*s) & (1 << 0)) == (1 << 0)
 }
 
-func (s *processorStatus) SetCarry(val bool) {
+func (s *processorStatus) setCarry(val bool) {
 	s.updateBit(0, val)
 }
 
-func (s *processorStatus) IsZero() bool {
+func (s *processorStatus) isZero() bool {
 	return (byte(*s) & (1 << 1)) == (1 << 1)
 }
 
-func (s *processorStatus) SetZero(val bool) {
+func (s *processorStatus) setZero(val bool) {
 	s.updateBit(1, val)
 }
 
-func (s *processorStatus) IsInterruptDisable() bool {
+func (s *processorStatus) isInterruptDisable() bool {
 	return (byte(*s) & (1 << 2)) == (1 << 2)
 }
 
-func (s *processorStatus) SetInterruptDisable(val bool) {
+func (s *processorStatus) setInterruptDisable(val bool) {
 	s.updateBit(2, val)
 }
 
-func (s *processorStatus) IsDecimal() bool {
+func (s *processorStatus) isDecimal() bool {
 	return (byte(*s) & (1 << 3)) == (1 << 3)
 }
 
-func (s *processorStatus) SetDecimal(val bool) {
+func (s *processorStatus) setDecimal(val bool) {
 	s.updateBit(3, val)
 }
 
 // TODO: break
-func (s *processorStatus) SetBreak1(val bool) {
+func (s *processorStatus) setBreak1(val bool) {
 	s.updateBit(4, val)
 }
 
-func (s *processorStatus) SetBreak2(val bool) {
+func (s *processorStatus) setBreak2(val bool) {
 	s.updateBit(5, val)
 }
 
-func (s *processorStatus) IsOverflow() bool {
+func (s *processorStatus) isOverflow() bool {
 	return (byte(*s) & (1 << 6)) == (1 << 6)
 }
 
-func (s *processorStatus) SetOverflow(val bool) {
+func (s *processorStatus) setOverflow(val bool) {
 	s.updateBit(6, val)
 }
 
-func (s *processorStatus) IsNegative() bool {
+func (s *processorStatus) isNegative() bool {
 	return (byte(*s) & (1 << 7)) == (1 << 7)
 }
 
-func (s *processorStatus) SetNegative(val bool) {
+func (s *processorStatus) setNegative(val bool) {
 	s.updateBit(7, val)
 }
 
-func (s *processorStatus) SetZN(val byte) {
-	s.SetZero(val == 0x00)
-	s.SetNegative(val&0x80 != 0)
+func (s *processorStatus) setZN(val byte) {
+	s.setZero(val == 0x00)
+	s.setNegative(val&0x80 != 0)
 }

@@ -163,13 +163,13 @@ func realMain() error {
 	}
 	defer player.Stop()
 
-	evenImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
-	oddImg := image.NewRGBA(image.Rect(0, 0, 256, 240))
+	evenImg := image.NewRGBA(image.Rect(0, 0, nes.ScreenWidth, nes.ScreenHeight))
+	oddImg := image.NewRGBA(image.Rect(0, 0, nes.ScreenWidth, nes.ScreenHeight))
 	renderer := newRenderer(evenImg, oddImg)
 	n := nes.New(mapper, renderer, player)
 
 	rl.SetTraceLogLevel(rl.LogWarning)
-	rl.InitWindow(256*int32(scale), 240*int32(scale), "rgnes")
+	rl.InitWindow(nes.ScreenWidth*int32(scale), nes.ScreenHeight*int32(scale), "rgnes")
 	defer rl.CloseWindow()
 
 	currImg := renderer.CurerntImage()

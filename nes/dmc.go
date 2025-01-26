@@ -18,7 +18,7 @@ type dmc struct {
 	sampleLength   uint16
 	bytesRemaining uint16
 	sampleBuffer   []byte
-	dma            *DMA
+	dma            *dma
 
 	// output unit
 	rightShiftRegister   byte
@@ -26,10 +26,10 @@ type dmc struct {
 	silenceFlag          bool
 	level                byte // 7 bit
 
-	irqLine *IRQInterruptLine
+	irqLine *irqInterruptLine
 }
 
-func newDMC(dma *DMA, irqLine *IRQInterruptLine) *dmc {
+func newDMC(dma *dma, irqLine *irqInterruptLine) *dmc {
 	return &dmc{
 		sampleBuffer: make([]byte, 0, 1),
 		dma:          dma,
@@ -49,7 +49,7 @@ func (d *dmc) setEnabled(v bool) {
 		if d.bytesRemaining == 0 {
 			d.restart()
 		}
-		d.SignalDMA(false)
+		d.signalDMA(false)
 	}
 }
 
@@ -58,12 +58,12 @@ func (d *dmc) restart() {
 	d.currentAddr = d.sampleAddr
 }
 
-func (d *dmc) SignalDMA(reloadTiming bool) {
+func (d *dmc) signalDMA(reloadTiming bool) {
 	if d.enabled && d.bytesRemaining > 0 && len(d.sampleBuffer) == 0 {
 		if reloadTiming {
-			d.dma.TriggerOnDMCReload(d.currentAddr)
+			d.dma.triggerOnDMCReload(d.currentAddr)
 		} else {
-			d.dma.TriggerOnDMCLoad(d.currentAddr)
+			d.dma.triggerOnDMCLoad(d.currentAddr)
 		}
 	}
 }
@@ -74,7 +74,7 @@ func (d *dmc) output() byte {
 
 func (d *dmc) clearInterruptFlag() {
 	d.interruptFlag = false
-	d.irqLine.SetHigh(IRQSourceDMC)
+	d.irqLine.setHigh(irqSourceDMC)
 }
 
 func (d *dmc) loadRate(rateIndex byte) {
@@ -102,7 +102,7 @@ func (d *dmc) setSampleBuffer(val byte) {
 				d.restart()
 			} else if d.irqEnabled {
 				d.interruptFlag = true
-				d.irqLine.SetLow(IRQSourceDMC)
+				d.irqLine.setLow(irqSourceDMC)
 			}
 		}
 	}
@@ -145,7 +145,7 @@ func (d *dmc) tickTimer() {
 				d.silenceFlag = false
 				d.rightShiftRegister = d.sampleBuffer[0]
 				d.sampleBuffer = d.sampleBuffer[:0]
-				d.SignalDMA(true)
+				d.signalDMA(true)
 			}
 		}
 	}

@@ -35,9 +35,9 @@ func (t *Trace) NESTestString() string {
 	} else {
 		ar = fmt.Sprintf("%s = %02X", t.AddressingResult, *t.InstructionReadByte)
 	}
-	op := t.Opcode.Name.String()
-	if t.Opcode.Unofficial {
-		op = "*" + t.Opcode.Name.String()
+	op := t.Opcode.name.String()
+	if t.Opcode.unofficial {
+		op = "*" + t.Opcode.name.String()
 	}
 
 	// C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 45 CYC:15
