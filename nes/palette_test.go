@@ -110,7 +110,7 @@ func Test_PaletteRAM_Read(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.ram.Read(tt.addr)
+			got := tt.ram.read(tt.addr)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -227,7 +227,7 @@ func Test_PaletteRAM_Write(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.ram.Write(tt.addr, tt.val)
+			tt.ram.write(tt.addr, tt.val)
 			assert.Equal(t, tt.want, tt.ram)
 		})
 	}

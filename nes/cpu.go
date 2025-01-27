@@ -5,19 +5,19 @@ import (
 	"sync"
 )
 
-type pendingInterruptType int
-
 const (
 	// ref: https://www.nesdev.org/wiki/CPU#Frequencies
 	// NTSC
 	CPUClockFrequency = 1789773
+)
 
+type pendingInterruptType int
+
+const (
 	pendingInterruptNone pendingInterruptType = iota
 	pendingInterruptIRQ
 	pendingInterruptNMI
 )
-
-type cpuOption func(*cpu)
 
 type cpu struct {
 	// registers
@@ -31,7 +31,7 @@ type cpu struct {
 	nmiLine *nmiInterruptLine
 	irqLine *irqInterruptLine
 	bus     *cpuBus
-	t       *Trace
+	tracer  *tracer
 	mu      *sync.Mutex
 
 	irqTriggered bool
@@ -48,29 +48,15 @@ type cpu struct {
 	interrupting bool
 }
 
-func newCPU(bus *cpuBus, nmiLine *nmiInterruptLine, irqLine *irqInterruptLine, opts ...cpuOption) *cpu {
+func newCPU(bus *cpuBus, nmiLine *nmiInterruptLine, irqLine *irqInterruptLine, tracer *tracer) *cpu {
 	cpu := &cpu{
 		nmiLine: nmiLine,
 		irqLine: irqLine,
 		bus:     bus,
-		t:       nil,
+		tracer:  tracer,
 		mu:      &sync.Mutex{},
 	}
-	for _, opt := range opts {
-		opt(cpu)
-	}
 	return cpu
-}
-
-func withTracer(tracer *Trace) cpuOption {
-	return func(cpu *cpu) {
-		cpu.t = tracer
-	}
-}
-
-// debug
-func (cpu *cpu) FetchCycles() int {
-	return cpu.bus.clock
 }
 
 /*
@@ -110,6 +96,13 @@ func (cpu *cpu) step() {
 	cpu.mu.Lock()
 	defer cpu.mu.Unlock()
 
+	if cpu.tracer != nil {
+		cpu.tracer.reset()
+		cpu.tracer.setPPUX(uint16(cpu.bus.ppu.cycle))
+		cpu.tracer.setPPUY(uint16(cpu.bus.ppu.scanline))
+		cpu.tracer.setCPURegisters(cpu)
+	}
+
 	beforeClock := cpu.bus.clock
 
 	additionalCycle := 0
@@ -122,22 +115,14 @@ func (cpu *cpu) step() {
 		return
 	}
 
-	if cpu.t != nil {
-		cpu.t.SetCPURegisterA(cpu.A)
-		cpu.t.SetCPURegisterX(cpu.X)
-		cpu.t.SetCPURegisterY(cpu.Y)
-		cpu.t.SetCPURegisterPC(cpu.PC)
-		cpu.t.SetCPURegisterS(cpu.S)
-		cpu.t.SetCPURegisterP(cpu.P.byte())
-	}
-
 	opcodeByte := cpu.fetch()
 	opcode := opcodeMap[opcodeByte]
 
-	if cpu.t != nil {
-		cpu.t.SetCPUOpcode(*opcode)
-		cpu.t.AddCPUByteCode(opcodeByte)
+	if cpu.tracer != nil {
+		cpu.tracer.setCPUOpcode(*opcode)
+		cpu.tracer.addCPUByteCode(opcodeByte)
 	}
+
 	addr, pageCrossed := cpu.fetchOperand(opcode)
 	if pageCrossed {
 		additionalCycle += opcode.pageCycle
@@ -346,6 +331,10 @@ func (cpu *cpu) step() {
 	// 		opcode.Unofficial,
 	// 	)
 	// }
+
+	if cpu.tracer != nil {
+		cpu.tracer.print()
+	}
 }
 
 func (cpu *cpu) pollInterruptSignals() {
@@ -472,15 +461,17 @@ func (cpu *cpu) addressingAbsolute(op *opcode) (addr uint16, pageCrossed bool) {
 	l := cpu.fetch()
 	h := cpu.fetch()
 	addr = uint16(h)<<8 | uint16(l)
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(l)
-		cpu.t.AddCPUByteCode(h)
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(l)
+		cpu.tracer.addCPUByteCode(h)
 		if op.name == JMP || op.name == JSR {
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
+			cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%04X", addr))
 		} else {
-			cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.bus.peek(addr)))
+			cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%04X = %02X", addr, cpu.bus.peek(addr)))
 		}
 	}
+
 	return addr, false
 }
 
@@ -494,10 +485,10 @@ func (cpu *cpu) addressingAbsoluteX(_ *opcode, forceDummyRead bool) (addr uint16
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.X)) & 0xFF)
 		cpu.read(dummyAddr)
 	}
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(l)
-		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(l)
+		cpu.tracer.addCPUByteCode(h)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%04X,X @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -512,10 +503,10 @@ func (cpu *cpu) addressingAbsoluteY(_ *opcode, forceDummyRead bool) (addr uint16
 		dummyAddr := uint16(h)<<8 | ((uint16(l) + uint16(cpu.Y)) & 0xFF)
 		cpu.read(dummyAddr)
 	}
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(l)
-		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(l)
+		cpu.tracer.addCPUByteCode(h)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%04X,Y @ %04X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -532,8 +523,8 @@ ref: https://www.nesdev.org/6502_cpu.txt
 */
 func (cpu *cpu) addressingAccumulator(_ *opcode) (addr uint16, pageCrossed bool) {
 	cpu.read(cpu.PC) // dummy read
-	if cpu.t != nil {
-		cpu.t.SetCPUAddressingResult("A")
+	if cpu.tracer != nil {
+		cpu.tracer.setCPUAddressingResult("A")
 	}
 	return 0, false
 }
@@ -545,10 +536,10 @@ func (cpu *cpu) addressingImplied(_ *opcode) (addr uint16, pageCrossed bool) {
 func (cpu *cpu) addressingImmediate(_ *opcode) (addr uint16, pageCrossed bool) {
 	addr = cpu.PC
 	cpu.PC++
-	if cpu.t != nil {
+	if cpu.tracer != nil {
 		a := cpu.bus.peek(addr)
-		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("#$%02X", a))
+		cpu.tracer.addCPUByteCode(a)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("#$%02X", a))
 	}
 	return addr, false
 }
@@ -562,9 +553,10 @@ func (cpu *cpu) addressingIndexedIndirect(_ *opcode) (addr uint16, pageCrossed b
 	a := uint16(k + cpu.X)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
 	addr = uint16(cpu.read(b))<<8 | uint16(cpu.read(a))
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(k)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.peek(addr)))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(k)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("($%02X,X) @ %02X = %04X = %02X", k, byte(a), addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
@@ -575,10 +567,11 @@ func (cpu *cpu) addressingIndirect(_ *opcode) (addr uint16, pageCrossed bool) {
 	a := uint16(h)<<8 | uint16(l)
 	b := (a & 0xFF00) | uint16(byte(a)+1)
 	addr = uint16(cpu.read(b))<<8 | uint16(cpu.read(a))
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(l)
-		cpu.t.AddCPUByteCode(h)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%04X) = %04X", a, addr))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(l)
+		cpu.tracer.addCPUByteCode(h)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("($%04X) = %04X", a, addr))
 	}
 	return addr, false
 
@@ -595,9 +588,10 @@ func (cpu *cpu) addressingIndirectIndexed(_ *opcode, forceDummyRead bool) (addr 
 		dummyAddr := h | ((l + uint16(cpu.Y)) & 0xFF)
 		cpu.read(dummyAddr)
 	}
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(byte(a))
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.bus.peek(addr)))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(byte(a))
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("($%02X),Y = %04X @ %04X = %02X", byte(a), baseAddr, addr, cpu.bus.peek(addr)))
 	}
 	return addr, pageCrossed
 }
@@ -608,9 +602,10 @@ func (cpu *cpu) addressingRelative(_ *opcode) (addr uint16, pageCrossed bool) {
 	} else {
 		addr = cpu.PC + offset - 0x100
 	}
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(byte(offset))
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%04X", addr))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(byte(offset))
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%04X", addr))
 	}
 	return addr, false
 }
@@ -618,9 +613,10 @@ func (cpu *cpu) addressingRelative(_ *opcode) (addr uint16, pageCrossed bool) {
 func (cpu *cpu) addressingZeroPage(_ *opcode) (addr uint16, pageCrossed bool) {
 	a := cpu.fetch()
 	addr = uint16(a)
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.bus.peek(addr)))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(a)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%02X = %02X", a, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
@@ -632,9 +628,10 @@ func (cpu *cpu) addressingZeroPageX(_ *opcode) (addr uint16, pageCrossed bool) {
 	cpu.read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.X) & 0xFF
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(a)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%02X,X @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }
@@ -646,9 +643,10 @@ func (cpu *cpu) addressingZeroPageY(_ *opcode) (addr uint16, pageCrossed bool) {
 	cpu.read(uint16(a)) // dummy read
 
 	addr = uint16(a+cpu.Y) & 0xFF
-	if cpu.t != nil {
-		cpu.t.AddCPUByteCode(a)
-		cpu.t.SetCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
+
+	if cpu.tracer != nil {
+		cpu.tracer.addCPUByteCode(a)
+		cpu.tracer.setCPUAddressingResult(fmt.Sprintf("$%02X,Y @ %02X = %02X", a, addr, cpu.bus.peek(addr)))
 	}
 	return addr, false
 }

@@ -96,7 +96,7 @@ func Test_PPU_IncrementY(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.ppu.incrementY()
+			tt.ppu.incrY()
 			assert.Equal(t, tt.want, tt.ppu.v)
 		})
 	}

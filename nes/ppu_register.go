@@ -36,7 +36,7 @@ func (c *ppuControlRegister) baseNameTableAddr() uint16 {
 	panic("uwaaaaaaaaaaa")
 }
 
-func (c *ppuControlRegister) incrementalVRAMAddr() byte {
+func (c *ppuControlRegister) incrVRAMAddr() byte {
 	if (byte(*c) & 0x04) == 0 {
 		return 1
 	} else {
@@ -52,7 +52,7 @@ func (c *ppuControlRegister) spritePatternAddr() uint16 {
 	}
 }
 
-func (c *ppuControlRegister) backgroundPatternAddr() uint16 {
+func (c *ppuControlRegister) bgPatternAddr() uint16 {
 	if (byte(*c) & 0x10) == 0 {
 		return 0
 	} else {
@@ -101,13 +101,13 @@ type ppuMaskRegister byte
 func (m *ppuMaskRegister) isGreyscale() bool {
 	return (byte(*m) & 0x01) == 0x01
 }
-func (m *ppuMaskRegister) showBackgroundLeftMost8pxlScreen() bool {
+func (m *ppuMaskRegister) showBGLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x02) == 0x02
 }
 func (m *ppuMaskRegister) showSpritesLeftMost8pxlScreen() bool {
 	return (byte(*m) & 0x04) == 0x04
 }
-func (m *ppuMaskRegister) showBackground() bool {
+func (m *ppuMaskRegister) showBG() bool {
 	return (byte(*m) & 0x08) == 0x08
 }
 func (m *ppuMaskRegister) showSprites() bool {

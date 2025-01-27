@@ -28,7 +28,7 @@ func init() {
 // A 6-bit value in the palette memory area corresponds to one of 64 outputs
 type paletteRAM [32]byte
 
-func (p *paletteRAM) Read(addr paletteAddr) byte {
+func (p *paletteRAM) read(addr paletteAddr) byte {
 	// $3F20-$3FFF are mirrors of $3F00-$3F1F
 	addr %= 0x20
 	// $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
@@ -39,7 +39,7 @@ func (p *paletteRAM) Read(addr paletteAddr) byte {
 	}
 }
 
-func (p *paletteRAM) Write(addr paletteAddr, val byte) {
+func (p *paletteRAM) write(addr paletteAddr, val byte) {
 	addr %= 0x20
 	if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
 		p[addr] = val

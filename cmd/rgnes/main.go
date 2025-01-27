@@ -135,10 +135,12 @@ func realMain() error {
 		rom    string
 		scale  int
 		volume float64
+		debug  bool
 	)
 	flag.StringVar(&rom, "rom", "", "rome filepath")
 	flag.IntVar(&scale, "scale", 2, "window scale size")
 	flag.Float64Var(&volume, "volume", 0.5, "volume scale size")
+	flag.BoolVar(&debug, "debug", false, "debug mode")
 	flag.Parse()
 
 	f, err := os.Open(rom)
@@ -166,7 +168,13 @@ func realMain() error {
 	evenImg := image.NewRGBA(image.Rect(0, 0, nes.ScreenWidth, nes.ScreenHeight))
 	oddImg := image.NewRGBA(image.Rect(0, 0, nes.ScreenWidth, nes.ScreenHeight))
 	renderer := newRenderer(evenImg, oddImg)
-	n := nes.New(mapper, renderer, player)
+
+	nesOpts := make([]nes.Option, 0)
+	if debug {
+		nesOpts = append(nesOpts, nes.WithDebug())
+	}
+
+	n := nes.New(mapper, renderer, player, nesOpts...)
 
 	rl.SetTraceLogLevel(rl.LogWarning)
 	rl.InitWindow(nes.ScreenWidth*int32(scale), nes.ScreenHeight*int32(scale), "rgnes")

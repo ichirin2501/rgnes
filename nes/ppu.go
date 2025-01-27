@@ -247,7 +247,7 @@ func (ppu *ppu) readData(addr uint16) (result byte, isPalette bool, busData byte
 	busData = ppu.bus.read(addr)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
-		return ppu.paletteRAM.Read(paletteAddr(addr)), true, busData
+		return ppu.paletteRAM.read(paletteAddr(addr)), true, busData
 	} else {
 		return busData, false, busData
 	}
@@ -258,7 +258,7 @@ func (ppu *ppu) writeData(addr uint16, val byte) {
 	ppu.bus.write(addr, val)
 	if 0x3F00 <= addr && addr <= 0x3FFF {
 		// override
-		ppu.paletteRAM.Write(paletteAddr(addr), val)
+		ppu.paletteRAM.write(paletteAddr(addr), val)
 	}
 }
 
@@ -497,11 +497,11 @@ func (ppu *ppu) readPPUData() (result byte, isPalette bool, busData byte) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
-		ppu.incrementX()
-		ppu.incrementY()
+		ppu.incrX()
+		ppu.incrY()
 	} else {
 		// normal
-		ppu.v += uint16(ppu.ctrl.incrementalVRAMAddr())
+		ppu.v += uint16(ppu.ctrl.incrVRAMAddr())
 	}
 
 	return result, isPalette, busData
@@ -519,7 +519,7 @@ func (ppu *ppu) peekPPUData() byte {
 		// ppu_open_bus/readme.txt
 		// D = openbus bit
 		// DD-- ----   palette
-		return (ppu.iobus.get(ppu.clock) & 0xC0) | (ppu.paletteRAM.Read(paletteAddr(addr)) & 0x3F)
+		return (ppu.iobus.get(ppu.clock) & 0xC0) | (ppu.paletteRAM.read(paletteAddr(addr)) & 0x3F)
 	default:
 		panic(fmt.Sprintf("PeekPPUData invalid addr = 0x%04x", addr))
 	}
@@ -533,11 +533,11 @@ func (ppu *ppu) writePPUData(val byte) {
 		// https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
 		// > During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
 		// > it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
-		ppu.incrementX()
-		ppu.incrementY()
+		ppu.incrX()
+		ppu.incrY()
 	} else {
 		// normal
-		ppu.v += uint16(ppu.ctrl.incrementalVRAMAddr())
+		ppu.v += uint16(ppu.ctrl.incrVRAMAddr())
 	}
 }
 
@@ -553,9 +553,9 @@ func (ppu *ppu) copyY() {
 	ppu.v = (ppu.v & 0x841F) | (ppu.t & 0x7BE0)
 }
 
-// incrementX() is `incr hori(v)` in NTSC PPU Frame Timing
+// incrX() is `incr hori(v)` in NTSC PPU Frame Timing
 // Coarse X increment
-func (ppu *ppu) incrementX() {
+func (ppu *ppu) incrX() {
 	v := ppu.v
 	if (v & 0x001F) == 31 {
 		v &= 0xFFE0
@@ -566,8 +566,8 @@ func (ppu *ppu) incrementX() {
 	ppu.v = v
 }
 
-// incrementY() is `incr vert(v)` in NTSC PPU Frame Timing
-func (ppu *ppu) incrementY() {
+// incrY() is `incr vert(v)` in NTSC PPU Frame Timing
+func (ppu *ppu) incrY() {
 	v := ppu.v
 	if (v & 0x7000) != 0x7000 {
 		v += 0x1000
@@ -619,13 +619,13 @@ func (ppu *ppu) fetchAT() {
 
 func (ppu *ppu) fetchBGLSBits() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.backgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
+	addr := ppu.ctrl.bgPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.bgPixelColorIndexLSBits, _, _ = ppu.readData(addr)
 }
 
 func (ppu *ppu) fetchBGMSBits() {
 	fineY := (ppu.v >> 12) & 7
-	addr := ppu.ctrl.backgroundPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
+	addr := ppu.ctrl.bgPatternAddr() | uint16(ppu.nameTableByte)<<4 | fineY
 	ppu.bgPixelColorIndexMSBits, _, _ = ppu.readData(addr + 8)
 }
 
@@ -781,21 +781,21 @@ func (ppu *ppu) isPreLine() bool {
 }
 
 func (ppu *ppu) isRenderingEnabled() bool {
-	return ppu.mask.showBackground() || ppu.mask.showSprites()
+	return ppu.mask.showBG() || ppu.mask.showSprites()
 }
 
-func (ppu *ppu) loadNextBackgroundPaletteData() {
+func (ppu *ppu) loadNextBGPaletteData() {
 	ppu.bgPixelColorIndexMSBitsSR |= uint16(ppu.bgPixelColorIndexMSBits)
 	ppu.bgPixelColorIndexLSBitsSR |= uint16(ppu.bgPixelColorIndexLSBits)
 	ppu.bgPaletteNumberLSBLatch = ppu.bgPaletteNumber & 0b1
 	ppu.bgPaletteNumberMSBLatch = (ppu.bgPaletteNumber >> 1) & 0b1
 }
 
-func (ppu *ppu) getCandidateBackgroundPaletteAddr(x int) paletteAddr {
-	if !ppu.mask.showBackground() {
+func (ppu *ppu) getCandidateBGPaletteAddr(x int) paletteAddr {
+	if !ppu.mask.showBG() {
 		return universalBGColor
 	}
-	if x < 8 && !ppu.mask.showBackgroundLeftMost8pxlScreen() {
+	if x < 8 && !ppu.mask.showBGLeftMost8pxlScreen() {
 		return universalBGColor
 	}
 
@@ -833,7 +833,7 @@ func (ppu *ppu) getCandidateSpritePaletteAddrAndSlotIndex(x int) (paletteAddr, i
 }
 
 func (ppu *ppu) multiplexPaletteAddr(x int) paletteAddr {
-	bp := ppu.getCandidateBackgroundPaletteAddr(x)
+	bp := ppu.getCandidateBGPaletteAddr(x)
 	sp, slotIdx := ppu.getCandidateSpritePaletteAddrAndSlotIndex(x)
 
 	if bp.pixelColorIndex() == 0 && sp.pixelColorIndex() == 0 {
@@ -850,7 +850,7 @@ func (ppu *ppu) multiplexPaletteAddr(x int) paletteAddr {
 		if x < 255 && s.idx == 0 {
 			ppu.status.setSprite0Hit()
 		}
-		if s.attr.behindBackground() {
+		if s.attr.behindBG() {
 			return bp
 		} else {
 			return sp
@@ -865,16 +865,16 @@ func (ppu *ppu) renderPixel() {
 	var c color.Color
 	if ppu.isRenderingEnabled() {
 		addr := ppu.multiplexPaletteAddr(x)
-		c = palette[ppu.paletteRAM.Read(addr)%64]
+		c = palette[ppu.paletteRAM.read(addr)%64]
 	} else {
 		// https://www.nesdev.org/wiki/PPU_rendering#Rendering_disabled
 		// > When the PPU isn't rendering, its v register specifies the current VRAM address (and is output on the PPU's address pins).
 		// > Whenever the low 14 bits of v point into palette RAM ($3F00-$3FFF), the PPU will continuously draw the color at that address instead of the EXT input,
 		// > overriding the backdrop color.
 		if (ppu.v & 0x3F00) == 0x3F00 {
-			c = palette[ppu.paletteRAM.Read(paletteAddr(ppu.v))%64]
+			c = palette[ppu.paletteRAM.read(paletteAddr(ppu.v))%64]
 		} else {
-			c = palette[ppu.paletteRAM.Read(universalBGColor)%64]
+			c = palette[ppu.paletteRAM.read(universalBGColor)%64]
 		}
 	}
 	ppu.renderer.Render(x, y, c)
@@ -918,7 +918,7 @@ func (ppu *ppu) step() {
 	// https://www.nesdev.org/wiki/File:Ntsc_timing.png
 	// > the lower 8bits are then reloaded at ticks 9, 17, 25, ..., 257 and ticks 329 and 337
 	if ppu.isRenderingEnabled() && ppu.isRenderLine() && ((9 <= ppu.cycle && ppu.cycle <= 257 && ppu.cycle%8 == 1) || (ppu.cycle == 329 || ppu.cycle == 337)) {
-		ppu.loadNextBackgroundPaletteData()
+		ppu.loadNextBGPaletteData()
 	}
 	// The screen draws regardless of the PPU rendering mode
 	if ppu.isVisibleScanlines() && visibleCycle {
@@ -985,10 +985,10 @@ func (ppu *ppu) step() {
 	if ppu.isRenderingEnabled() {
 		if ppu.isRenderLine() {
 			if fetchCycle && ppu.cycle%8 == 0 {
-				ppu.incrementX()
+				ppu.incrX()
 			}
 			if ppu.cycle == 256 {
-				ppu.incrementY()
+				ppu.incrY()
 			}
 			if ppu.cycle == 257 {
 				ppu.copyX()

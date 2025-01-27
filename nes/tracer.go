@@ -1,47 +1,56 @@
 package nes
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
-type Trace struct {
+type tracer struct {
+	w io.Writer
+
 	A                   byte
 	X                   byte
 	Y                   byte
 	PC                  uint16
 	S                   byte
 	P                   byte
-	ByteCode            []byte
-	Opcode              opcode
-	AddressingResult    string
-	InstructionReadByte *byte
-	Cycle               int
-	PPUX                uint16
-	PPUY                uint16
-	PPUVBlankState      bool
+	byteCode            []byte
+	opcode              opcode
+	addressingResult    string
+	instructionReadByte *byte
+	ppux                uint16
+	ppuy                uint16
 }
 
-func (t *Trace) NESTestString() string {
+func newTracer(w io.Writer) *tracer {
+	return &tracer{
+		w: w,
+	}
+}
+
+func (t *tracer) print() {
 	bc := ""
-	switch len(t.ByteCode) {
+	switch len(t.byteCode) {
 	case 1:
-		bc = fmt.Sprintf("%02X      ", t.ByteCode[0])
+		bc = fmt.Sprintf("%02X      ", t.byteCode[0])
 	case 2:
-		bc = fmt.Sprintf("%02X %02X   ", t.ByteCode[0], t.ByteCode[1])
+		bc = fmt.Sprintf("%02X %02X   ", t.byteCode[0], t.byteCode[1])
 	case 3:
-		bc = fmt.Sprintf("%02X %02X %02X", t.ByteCode[0], t.ByteCode[1], t.ByteCode[2])
+		bc = fmt.Sprintf("%02X %02X %02X", t.byteCode[0], t.byteCode[1], t.byteCode[2])
 	}
 	ar := ""
-	if t.InstructionReadByte == nil {
-		ar = t.AddressingResult
+	if t.instructionReadByte == nil {
+		ar = t.addressingResult
 	} else {
-		ar = fmt.Sprintf("%s = %02X", t.AddressingResult, *t.InstructionReadByte)
+		ar = fmt.Sprintf("%s = %02X", t.addressingResult, *t.instructionReadByte)
 	}
-	op := t.Opcode.name.String()
-	if t.Opcode.unofficial {
-		op = "*" + t.Opcode.name.String()
+	op := t.opcode.name.String()
+	if t.opcode.unofficial {
+		op = "*" + t.opcode.name.String()
 	}
 
-	// C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 45 CYC:15
-	return fmt.Sprintf("%04X  %s %4s %-27s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d",
+	// C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0, 45
+	_, _ = fmt.Fprintf(t.w, "%04X  %s %4s %-27s A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d\n",
 		t.PC,
 		bc,
 		op,
@@ -51,30 +60,29 @@ func (t *Trace) NESTestString() string {
 		t.Y,
 		t.P,
 		t.S,
-		t.PPUY,
-		t.PPUX,
-		t.Cycle,
+		t.ppuy,
+		t.ppux,
 	)
 }
 
-func (t *Trace) SetCPURegisterA(v byte)            { t.A = v }
-func (t *Trace) SetCPURegisterX(v byte)            { t.X = v }
-func (t *Trace) SetCPURegisterY(v byte)            { t.Y = v }
-func (t *Trace) SetCPURegisterPC(v uint16)         { t.PC = v }
-func (t *Trace) SetCPURegisterS(v byte)            { t.S = v }
-func (t *Trace) SetCPURegisterP(v byte)            { t.P = v }
-func (t *Trace) SetCPUOpcode(v opcode)             { t.Opcode = v }
-func (t *Trace) SetCPUAddressingResult(v string)   { t.AddressingResult = v }
-func (t *Trace) SetCPUInstructionReadByte(v *byte) { t.InstructionReadByte = v }
-func (t *Trace) SetPPUX(v uint16)                  { t.PPUX = v }
-func (t *Trace) SetPPUY(v uint16)                  { t.PPUY = v }
-func (t *Trace) SetPPUVBlankState(v bool)          { t.PPUVBlankState = v }
-func (t *Trace) AddCPUCycle(v int)                 { t.Cycle += v }
-func (t *Trace) AddCPUByteCode(v byte) {
-	t.ByteCode = append(t.ByteCode, v)
+func (t *tracer) setCPURegisters(cpu *cpu) {
+	t.A = cpu.A
+	t.X = cpu.X
+	t.Y = cpu.Y
+	t.PC = cpu.PC
+	t.S = cpu.S
+	t.P = cpu.P.byte()
 }
-func (t *Trace) Reset() {
-	t.AddressingResult = ""
-	t.InstructionReadByte = nil
-	t.ByteCode = t.ByteCode[:0]
+
+func (t *tracer) setCPUOpcode(v opcode)           { t.opcode = v }
+func (t *tracer) setCPUAddressingResult(v string) { t.addressingResult = v }
+func (t *tracer) setPPUX(v uint16)                { t.ppux = v }
+func (t *tracer) setPPUY(v uint16)                { t.ppuy = v }
+func (t *tracer) addCPUByteCode(v byte) {
+	t.byteCode = append(t.byteCode, v)
+}
+func (t *tracer) reset() {
+	t.addressingResult = ""
+	t.instructionReadByte = nil
+	t.byteCode = t.byteCode[:0]
 }

@@ -16,7 +16,7 @@ type spriteAttribute byte
 func (s spriteAttribute) paletteNumber() byte {
 	return byte(s & 0x3)
 }
-func (s spriteAttribute) behindBackground() bool {
+func (s spriteAttribute) behindBG() bool {
 	return (s & 0x20) == 0x20
 }
 func (s spriteAttribute) flipSpriteHorizontally() bool {

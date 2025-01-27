@@ -1,6 +1,9 @@
 package nes
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 type NES struct {
 	cpu    *cpu
@@ -12,7 +15,18 @@ type NES struct {
 	done chan struct{}
 }
 
-func New(mapper Mapper, renderer Renderer, player Player) *NES {
+type NESOpts struct {
+	debug bool
+}
+
+type Option func(*NESOpts)
+
+func New(mapper Mapper, renderer Renderer, player Player, options ...Option) *NES {
+	opt := &NESOpts{}
+	for _, f := range options {
+		f(opt)
+	}
+
 	irqLine := irqInterruptLine(0)
 	nmiLine := nmiInterruptLine(0)
 	m := mapper.MirroingType()
@@ -23,7 +37,14 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 	apu := newAPU(&irqLine, player, dma)
 	bus := newCPUBus(ppu, apu, mapper, joypad, dma)
 
-	cpu := newCPU(bus, &nmiLine, &irqLine)
+	var tracer *tracer
+	if opt.debug {
+		tracer = newTracer(os.Stdout)
+	} else {
+		tracer = nil
+	}
+
+	cpu := newCPU(bus, &nmiLine, &irqLine, tracer)
 
 	return &NES{
 		cpu:    cpu,
@@ -33,6 +54,12 @@ func New(mapper Mapper, renderer Renderer, player Player) *NES {
 		joypad: joypad,
 
 		done: make(chan struct{}),
+	}
+}
+
+func WithDebug() Option {
+	return func(opts *NESOpts) {
+		opts.debug = true
 	}
 }
 
